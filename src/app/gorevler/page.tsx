@@ -18,8 +18,11 @@ export default function GorevlerPage() {
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("Tümü");
   const [loading, setLoading] = useState(true);
+  const [todayStr, setTodayStr] = useState("");
 
   useEffect(() => {
+    setTodayStr(new Date().toISOString().slice(0, 10));
+
     (async () => {
       setLoading(true);
       const [trRes, taskRes] = await Promise.all([
@@ -63,7 +66,6 @@ export default function GorevlerPage() {
   }, [trainings, selectedGroup]);
 
   const { upcomingTasks, pastTasks } = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
     const byGroup =
       selectedGroup === "Tümü"
         ? tasks
@@ -71,13 +73,17 @@ export default function GorevlerPage() {
             (t) => t.age_group === selectedGroup || t.age_group === "Tümü"
           );
 
+    if (!todayStr) {
+      return { upcomingTasks: byGroup, pastTasks: [] as TaskAssignment[] };
+    }
+
     return {
       upcomingTasks: byGroup.filter((t) => t.event_date >= todayStr),
       pastTasks: byGroup
         .filter((t) => t.event_date < todayStr)
         .sort((a, b) => b.event_date.localeCompare(a.event_date)),
     };
-  }, [tasks, selectedGroup]);
+  }, [tasks, selectedGroup, todayStr]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
