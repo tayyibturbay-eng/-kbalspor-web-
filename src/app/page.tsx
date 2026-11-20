@@ -16,8 +16,25 @@ interface TaskItem {
 
 export default function IkbalHomePage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
+  const [currentYear, setCurrentYear] = useState(2026);
+
+  // Üyelik Başvuru Formu State
+  const [regForm, setRegForm] = useState({
+    full_name: "",
+    birth_date: "",
+    parent_phone: "",
+    position: "Orta Saha",
+    guardian_name: "",
+    notes: "",
+  });
+  const [kvkkAccepted, setKvkkAccepted] = useState(false);
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [showKvkkText, setShowKvkkText] = useState(false);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regResult, setRegResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
     const load = async () => {
       const supabase = createClient();
       const { data } = await supabase
@@ -29,6 +46,65 @@ export default function IkbalHomePage() {
     };
     load();
   }, []);
+
+  const birthYear = parseInt((regForm.birth_date || "").slice(0, 4), 10);
+  const isMinor = isNaN(birthYear) || currentYear - birthYear < 18;
+
+  async function handleMembershipSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setRegResult(null);
+
+    if (!kvkkAccepted || !consentAccepted) {
+      setRegResult({
+        ok: false,
+        text: "Lütfen KVKK Aydınlatma Metni ve Açık Rıza onay kutularını işaretleyin.",
+      });
+      return;
+    }
+
+    if (isMinor && !regForm.guardian_name.trim()) {
+      setRegResult({
+        ok: false,
+        text: "18 yaşından küçük sporcular için Veli Ad Soyad alanı zorunludur.",
+      });
+      return;
+    }
+
+    setRegLoading(true);
+    try {
+      const res = await fetch("/api/membership-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...regForm,
+          kvkk_accepted: kvkkAccepted,
+          consent_accepted: consentAccepted,
+        }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        setRegResult({ ok: false, text: data.error || "Başvuru gönderilemedi." });
+      } else {
+        setRegResult({
+          ok: true,
+          text: "Üyelik talebiniz ve KVKK/Veli onayınız başarıyla iletildi. Yönetici onayladığında giriş bilgileriniz paylaşılacaktır.",
+        });
+        setRegForm({
+          full_name: "",
+          birth_date: "",
+          parent_phone: "",
+          position: "Orta Saha",
+          guardian_name: "",
+          notes: "",
+        });
+        setKvkkAccepted(false);
+        setConsentAccepted(false);
+      }
+    } catch {
+      setRegResult({ ok: false, text: "Sunucuya bağlanılamadı." });
+    }
+    setRegLoading(false);
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
@@ -56,15 +132,21 @@ export default function IkbalHomePage() {
               </p>
 
               <div className="flex flex-wrap gap-4 pt-2">
-                <Link
-                  href="/kadro-kur"
+                <a
+                  href="#uyelik-basvurusu"
                   className="min-h-[52px] px-7 rounded-2xl bg-[#a60513] hover:bg-red-700 border-2 border-white/20 text-white font-extrabold text-base flex items-center justify-center shadow-lg transition"
                 >
-                  Kendi Kadronu Kur (U11–U19)
+                  Sporcu Üyelik Başvurusu
+                </a>
+                <Link
+                  href="/kadro-kur"
+                  className="min-h-[52px] px-7 rounded-2xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-base flex items-center justify-center shadow-lg transition"
+                >
+                  Kendi Kadronu Kur
                 </Link>
                 <Link
                   href="/gorevler"
-                  className="min-h-[52px] px-7 rounded-2xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-base flex items-center justify-center shadow-lg transition"
+                  className="min-h-[52px] px-7 rounded-2xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-extrabold text-base flex items-center justify-center shadow-lg transition"
                 >
                   Görevler & Maç Takvimi
                 </Link>
@@ -172,7 +254,7 @@ export default function IkbalHomePage() {
         </section>
 
         {/* Hızlı Modüller */}
-        <section className="max-w-6xl mx-auto px-4 py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <section className="max-w-6xl mx-auto px-4 py-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <Link
             href="/kadro-kur"
             className="rounded-2xl bg-white border border-slate-200 border-t-4 border-t-[#a60513] p-6 shadow-sm hover:shadow-lg transition space-y-2"
@@ -181,7 +263,7 @@ export default function IkbalHomePage() {
               Kendi Kadronu Kur
             </h3>
             <p className="text-sm text-slate-600">
-              U11–U19 gerçek oyuncu kadrolarından kendi ilk 11&apos;ini oluştur.
+              U11–U19 ve PGL gerçek oyuncu kadrolarından kendi ilk 11&apos;ini oluştur.
             </p>
           </Link>
 
@@ -220,6 +302,191 @@ export default function IkbalHomePage() {
               Yönetici panelinden aidat, malzeme ve Cumartesi QR yoklamasını yönet.
             </p>
           </Link>
+        </section>
+
+        {/* Ana Sayfa Üyelik Başvuru Formu */}
+        <section id="uyelik-basvurusu" className="max-w-3xl mx-auto px-4 py-10">
+          <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-6 sm:p-8 space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-2">
+                Kulübe Katıl
+              </span>
+              <h2 className="text-2xl font-extrabold text-[#02274c]">
+                Sporcu Üyelik Başvuru Formu
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                18 yaşından küçük sporcular için başvuru ve KVKK / Açık Rıza onayları velisi/vasisi tarafından doldurulmalıdır.
+              </p>
+            </div>
+
+            <form onSubmit={handleMembershipSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Sporcu Adı Soyadı *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={regForm.full_name}
+                  onChange={(e) => setRegForm({ ...regForm, full_name: e.target.value })}
+                  placeholder="Örn: Ahmet Yılmaz"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Doğum Tarihi *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={regForm.birth_date}
+                    onChange={(e) => setRegForm({ ...regForm, birth_date: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Mevki
+                  </label>
+                  <select
+                    value={regForm.position}
+                    onChange={(e) => setRegForm({ ...regForm, position: e.target.value })}
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  >
+                    <option value="Kaleci">Kaleci</option>
+                    <option value="Defans">Defans</option>
+                    <option value="Orta Saha">Orta Saha</option>
+                    <option value="Forvet">Forvet</option>
+                  </select>
+                </div>
+              </div>
+
+              {isMinor && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+                  <p className="text-xs font-bold text-amber-800">
+                    18 Yaş Altı Sporcu — Veli Bilgisi Zorunludur
+                  </p>
+                  <label className="block text-xs font-bold text-slate-700">
+                    Veli / Vasi Adı Soyadı *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={regForm.guardian_name}
+                    onChange={(e) => setRegForm({ ...regForm, guardian_name: e.target.value })}
+                    placeholder="Anne / Baba veya Yasal Vasi Adı Soyadı"
+                    className="w-full rounded-xl border border-amber-300 bg-white px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  {isMinor ? "Veli Telefon Numarası *" : "Telefon Numarası *"}
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={regForm.parent_phone}
+                  onChange={(e) => setRegForm({ ...regForm, parent_phone: e.target.value })}
+                  placeholder="05XX XXX XX XX"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Notlar (Opsiyonel)
+                </label>
+                <textarea
+                  rows={2}
+                  value={regForm.notes}
+                  onChange={(e) => setRegForm({ ...regForm, notes: e.target.value })}
+                  placeholder="Varsa sağlık durumu veya önceki kulüp bilgisi"
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
+              </div>
+
+              {/* KVKK ve Açık Rıza Alanı */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-[#02274c] uppercase">
+                    KVKK ve Açık Rıza Onayı
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowKvkkText(!showKvkkText)}
+                    className="text-xs font-bold text-[#a60513] underline"
+                  >
+                    {showKvkkText ? "Metni Gizle" : "Aydınlatma Metnini Oku"}
+                  </button>
+                </div>
+
+                {showKvkkText && (
+                  <div className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto leading-relaxed space-y-2">
+                    <p>
+                      <strong>Veri Sorumlusu:</strong> Çorum İkbalspor Kulübü. 6698 sayılı Kişisel Verilerin Korunması Kanunu (&ldquo;KVKK&rdquo;) uyarınca, sporcuya ve 18 yaş altı sporcuların velisine/vasisine ait ad-soyad, doğum tarihi, iletişim bilgileri, antrenman/maç yoklama kayıtları ve lisans bilgileri kulüp faaliyetlerinin yürütülmesi, sporcu sağlığı/güvenliği ve iletişim amaçlarıyla işlenmektedir.
+                    </p>
+                    <p>
+                      Kişisel verileriniz yasal zorunluluklar (TFF, Gençlik ve Spor İl Müdürlüğü vb.) dışında üçüncü kişilerle paylaşılmaz. KVKK&apos;nın 11. maddesi kapsamındaki haklarınız için kulüp yönetimine başvurabilirsiniz.
+                    </p>
+                  </div>
+                )}
+
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={kvkkAccepted}
+                    onChange={(e) => setKvkkAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[#02274c]"
+                  />
+                  <span>
+                    6698 sayılı KVKK kapsamında{" "}
+                    <strong>Aydınlatma Metnini</strong> okudum ve anladım. *
+                  </span>
+                </label>
+
+                <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={consentAccepted}
+                    onChange={(e) => setConsentAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[#a60513]"
+                  />
+                  <span>
+                    <strong>Açık Rıza Formu:</strong>{" "}
+                    {isMinor
+                      ? "18 yaşından küçük sporcunun velisi/vasisi olarak, sporcunun kimlik, iletişim, antrenman/yoklama ve sportif faaliyet verilerinin kulüp tarafından işlenmesine açık rıza veriyorum. *"
+                      : "Kişisel verilerimin kulüp sportif faaliyetleri kapsamında işlenmesine açık rıza veriyorum. *"}
+                  </span>
+                </label>
+              </div>
+
+              {regResult && (
+                <div
+                  className={`p-3 rounded-xl text-sm font-semibold ${
+                    regResult.ok
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                      : "bg-red-50 text-red-700 border border-red-200"
+                  }`}
+                >
+                  {regResult.text}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={regLoading}
+                className="w-full rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-bold py-3 text-sm transition disabled:opacity-50"
+              >
+                {regLoading ? "Gönderiliyor..." : "Üyelik Talebini Gönder"}
+              </button>
+            </form>
+          </div>
         </section>
       </main>
 
