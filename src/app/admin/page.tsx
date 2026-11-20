@@ -107,6 +107,7 @@ type ActivityLog = {
   created_at: string;
 };
 
+const POSITIONS = ["Kaleci", "Defans", "Orta Saha", "Forvet"];
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MATCH_FIELDS = [
@@ -207,6 +208,7 @@ export default function AdminPage() {
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [requests, setRequests] = useState<MembershipRequest[]>([]);
+  const [requestPositions, setRequestPositions] = useState<Record<string, string>>({});
   const [dues, setDues] = useState<Due[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [sessions, setSessions] = useState<PrayerSession[]>([]);
@@ -403,11 +405,13 @@ export default function AdminPage() {
     const code = `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
     const pin = defaultPinFromPhone(req.parent_phone);
     const group = req.birth_date ? calcAgeGroupFromBirthDate(req.birth_date) : req.age_group;
+    const chosenPosition = requestPositions[req.id] || req.position || "Orta Saha";
+
     const { error } = await supabase.from("players").insert({
       full_name: req.full_name,
       birth_date: req.birth_date || null,
       age_group: group,
-      position: req.position || "Orta Saha",
+      position: chosenPosition,
       parent_phone: req.parent_phone,
       player_code: code,
       player_pin: pin,
@@ -417,9 +421,12 @@ export default function AdminPage() {
       setFeedback("Onay hatası: " + error.message);
       return;
     }
-    await supabase.from("membership_requests").update({ status: "onaylandi" }).eq("id", req.id);
-    await logActivity("Üyelik Onayı", `${req.full_name} (${group}) onaylandı — ID: ${code}`);
-    setFeedback(`✅ ${req.full_name} onaylandı! ID: ${code} | Şifre: ${pin}`);
+    await supabase
+      .from("membership_requests")
+      .update({ status: "onaylandi", position: chosenPosition })
+      .eq("id", req.id);
+    await logActivity("Üyelik Onayı", `${req.full_name} (${group} - ${chosenPosition}) onaylandı — ID: ${code}`);
+    setFeedback(`✅ ${req.full_name} (${chosenPosition}) onaylandı! ID: ${code} | Şifre: ${pin}`);
     loadAll();
   }
 
@@ -428,6 +435,22 @@ export default function AdminPage() {
     await logActivity("Üyelik Talebi Silme", `${req.full_name} talebi silindi.`);
     setFeedback("Üyelik talebi silindi.");
     loadAll();
+  }
+
+  async function updatePlayerPosition(player: Player, newPosition: string) {
+    const { error } = await supabase
+      .from("players")
+      .update({ position: newPosition })
+      .eq("id", player.id);
+    if (error) {
+      setFeedback("Mevki güncellenemedi: " + error.message);
+      return;
+    }
+    setPlayers((prev) =>
+      prev.map((x) => (x.id === player.id ? { ...x, position: newPosition } : x))
+    );
+    await logActivity("Mevki Güncelleme", `${player.full_name} mevkisi "${newPosition}" yapıldı.`);
+    setFeedback(`✅ ${player.full_name} mevkisi "${newPosition}" olarak güncellendi.`);
   }
 
   const duplicateKeys = useMemo(() => {
@@ -1214,7 +1237,7 @@ export default function AdminPage() {
             </h1>
             <p className="text-xs text-slate-300">
               {role === "coach"
-                ? "Oyuncuları yaş grubuna göre görüntüleyebilir, antrenman ve maç ekleyebilirsiniz."
+                ? "Oyuncuları yaş grubuna göre görüntüleyebilir, mevkilerini düzenleyebilir, antrenman ve maç ekleyebilirsiniz."
                 : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece PGL Kadro)"}
             </p>
           </div>
@@ -1321,42 +1344,67 @@ export default function AdminPage() {
               <p className="text-sm text-slate-500">Henüz üyelik talebi yok.</p>
             ) : (
               <div className="space-y-3">
-                {requests.map((r) => (
-                  <div
-                    key={r.id}
-                    className={`border rounded-xl p-4 flex flex-wrap justify-between items-center gap-3 ${
-                      r.status === "bekliyor" ? "bg-amber-50 border-amber-300" : "bg-slate-50"
-                    }`}
-                  >
-                    <div className="text-sm">
-                      <div className="font-bold text-[#02274c]">
-                        {r.full_name} ({r.age_group})
-                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-white border">
-                          {r.status === "bekliyor" ? "Onay Bekliyor" : "Onaylandı"}
-                        </span>
+                {requests.map((r) => {
+                  const selectedPos = requestPositions[r.id] || r.position || "Orta Saha";
+                  return (
+                    <div
+                      key={r.id}
+                      className={`border rounded-xl p-4 flex flex-wrap justify-between items-center gap-3 ${
+                        r.status === "bekliyor" ? "bg-amber-50 border-amber-300" : "bg-slate-50"
+                      }`}
+                    >
+                      <div className="text-sm">
+                        <div className="font-bold text-[#02274c]">
+                          {r.full_name} ({r.age_group})
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded bg-white border">
+                            {r.status === "bekliyor" ? "Onay Bekliyor" : "Onaylandı"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-600">
+                          Doğum: {r.birth_date || "-"} | Telefon: {r.parent_phone}
+                          {r.status !== "bekliyor" && ` | Mevki: ${r.position || "-"}`}
+                        </div>
+                        {r.notes && (
+                          <div className="text-xs text-slate-500 mt-0.5">Not: {r.notes}</div>
+                        )}
                       </div>
-                      <div className="text-xs text-slate-600">
-                        Doğum: {r.birth_date || "-"} | Telefon: {r.parent_phone} | Mevki: {r.position || "-"}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {r.status === "bekliyor" && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {r.status === "bekliyor" && (
+                          <>
+                            <select
+                              value={selectedPos}
+                              onChange={(e) =>
+                                setRequestPositions((prev) => ({
+                                  ...prev,
+                                  [r.id]: e.target.value,
+                                }))
+                              }
+                              className="border border-slate-300 bg-white rounded-lg px-2.5 py-2 text-xs font-bold text-[#02274c]"
+                            >
+                              {POSITIONS.map((pos) => (
+                                <option key={pos} value={pos}>
+                                  Mevki: {pos}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => approveRequest(r)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                            >
+                              Onayla & ID Aç
+                            </button>
+                          </>
+                        )}
                         <button
-                          onClick={() => approveRequest(r)}
-                          className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                          onClick={() => deleteRequest(r)}
+                          className="bg-red-100 text-red-700 text-xs font-bold px-4 py-2 rounded-lg"
                         >
-                          Onayla & ID Aç
+                          Sil
                         </button>
-                      )}
-                      <button
-                        onClick={() => deleteRequest(r)}
-                        className="bg-red-100 text-red-700 text-xs font-bold px-4 py-2 rounded-lg"
-                      >
-                        Sil
-                      </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1407,10 +1455,9 @@ export default function AdminPage() {
                     onChange={(e) => setEditingPlayer({ ...editingPlayer, position: e.target.value })}
                     className="border rounded-lg px-3 py-2 text-sm"
                   >
-                    <option>Kaleci</option>
-                    <option>Defans</option>
-                    <option>Orta Saha</option>
-                    <option>Forvet</option>
+                    {POSITIONS.map((pos) => (
+                      <option key={pos}>{pos}</option>
+                    ))}
                   </select>
                   <input
                     type="number"
@@ -1489,10 +1536,9 @@ export default function AdminPage() {
                     onChange={(e) => setNewPlayer({ ...newPlayer, position: e.target.value })}
                     className="border rounded-lg px-3 py-2 text-sm"
                   >
-                    <option>Kaleci</option>
-                    <option>Defans</option>
-                    <option>Orta Saha</option>
-                    <option>Forvet</option>
+                    {POSITIONS.map((pos) => (
+                      <option key={pos}>{pos}</option>
+                    ))}
                   </select>
                   <input
                     type="number"
@@ -1587,7 +1633,22 @@ export default function AdminPage() {
                               </td>
                               <td className="p-2.5 text-xs">{p.birth_date || "Eksik"}</td>
                               <td className="p-2.5 text-xs">
-                                {p.position || "-"} {p.jersey_number ? `#${p.jersey_number}` : ""}
+                                <div className="flex items-center gap-1.5">
+                                  <select
+                                    value={p.position || "Orta Saha"}
+                                    onChange={(e) => updatePlayerPosition(p, e.target.value)}
+                                    className="border border-slate-300 bg-white rounded-lg px-2 py-1 text-xs font-bold text-[#02274c]"
+                                  >
+                                    {POSITIONS.map((pos) => (
+                                      <option key={pos} value={pos}>
+                                        {pos}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {p.jersey_number ? (
+                                    <span className="font-bold text-slate-600">#{p.jersey_number}</span>
+                                  ) : null}
+                                </div>
                               </td>
                               {role === "admin" && (
                                 <td className="p-2.5 font-mono text-xs">
@@ -1831,7 +1892,7 @@ export default function AdminPage() {
                     {(tr.age_groups || []).join(", ")} • {tr.day_of_week || tr.training_date} {tr.start_time}
                   </div>
                   {tr.coach_name && (
-                    <div className="text-xs font-bold text-[#a60513]">👨‍🏫 Antrenör: {tr.coach_name}</div>
+                    <div className="text-xs font-bold text-[#a60513]">👨🏫 Antrenör: {tr.coach_name}</div>
                   )}
                 </div>
               ))}

@@ -75,6 +75,32 @@ type PrayerAttendance = {
   checked_in_at: string;
 };
 
+type EquipmentLog = {
+  id: string;
+  player_id: string;
+  jersey_set_id: string | null;
+  item_name: string;
+  item_size: string | null;
+  jersey_number_given: number | null;
+  category: string | null;
+  given_date: string;
+  status: "teslim_edildi" | "iade_edildi" | "kayip_eksik";
+};
+
+type JerseySetMini = {
+  id: string;
+  set_name: string;
+  kit_type: string;
+  photo_url: string | null;
+};
+
+type StockItemMini = {
+  id: string;
+  product_name: string;
+  category: string;
+  photo_url: string | null;
+};
+
 const TR_MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
@@ -106,7 +132,7 @@ function getOrCreateWebDeviceId(): string {
 
 export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
-  const [tab, setTab] = useState<"qr" | "program" | "aidat" | "profil">("qr");
+  const [tab, setTab] = useState<"qr" | "program" | "malzemeler" | "aidat" | "profil">("qr");
   const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
 
   const [code, setCode] = useState("");
@@ -121,6 +147,11 @@ export default function SporcuPortalPage() {
   const [allSessions, setAllSessions] = useState<PrayerSession[]>([]);
   const [attendances, setAttendances] = useState<PrayerAttendance[]>([]);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
+
+  const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
+  const [jerseySets, setJerseySets] = useState<JerseySetMini[]>([]);
+  const [stockItems, setStockItems] = useState<StockItemMini[]>([]);
+  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; title: string } | null>(null);
 
   const [scanning, setScanning] = useState(false);
   const [manualToken, setManualToken] = useState("");
@@ -210,17 +241,28 @@ export default function SporcuPortalPage() {
   }
 
   async function loadPlayerData(p: Player) {
-    const [duesRes, trRes, taskRes, sessRes, attRes, feeRes] = await Promise.all([
-      supabase.from("dues").select("*").eq("player_id", p.id),
-      supabase.from("trainings").select("*").order("start_time", { ascending: true }),
-      supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
-      supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
-      supabase.from("prayer_attendance").select("*"),
-      supabase.from("club_settings").select("*").eq("key", "monthly_fee").maybeSingle(),
-    ]);
+    const [duesRes, trRes, taskRes, sessRes, attRes, feeRes, eqRes, jSetRes, stRes] =
+      await Promise.all([
+        supabase.from("dues").select("*").eq("player_id", p.id),
+        supabase.from("trainings").select("*").order("start_time", { ascending: true }),
+        supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
+        supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
+        supabase.from("prayer_attendance").select("*"),
+        supabase.from("club_settings").select("*").eq("key", "monthly_fee").maybeSingle(),
+        supabase
+          .from("equipment_logs")
+          .select("*")
+          .eq("player_id", p.id)
+          .order("created_at", { ascending: false }),
+        supabase.from("jersey_sets").select("id, set_name, kit_type, photo_url"),
+        supabase.from("equipment_stock").select("id, product_name, category, photo_url"),
+      ]);
 
     if (duesRes.data) setDues(duesRes.data as Due[]);
     if (feeRes.data?.value) setDefaultFee(Number(feeRes.data.value) || 500);
+    if (eqRes.data) setEquipmentLogs(eqRes.data as EquipmentLog[]);
+    if (jSetRes.data) setJerseySets(jSetRes.data as JerseySetMini[]);
+    if (stRes.data) setStockItems(stRes.data as StockItemMini[]);
 
     if (trRes.data) {
       const filtered = (trRes.data as Training[]).filter(
@@ -296,6 +338,21 @@ export default function SporcuPortalPage() {
   const overdueCount = dueItems.filter((x) => x.state === "overdue").length;
   const currentUnpaid = dueItems.some((x) => x.state === "unpaid");
   const currentMonthItem = dueItems.find((x) => x.state === "unpaid" || x.state === "paid") || dueItems[0];
+
+  const activeEquipmentCount = equipmentLogs.filter((e) => e.status === "teslim_edildi").length;
+  const missingEquipmentCount = equipmentLogs.filter((e) => e.status === "kayip_eksik").length;
+
+  function resolveEquipmentPhoto(log: EquipmentLog): string | null {
+    if (log.jersey_set_id) {
+      const foundSet = jerseySets.find((j) => j.id === log.jersey_set_id);
+      if (foundSet?.photo_url) return foundSet.photo_url;
+    }
+    const foundStock = stockItems.find(
+      (s) => s.product_name.toLowerCase() === log.item_name.toLowerCase()
+    );
+    if (foundStock?.photo_url) return foundStock.photo_url;
+    return null;
+  }
 
   function handleLogout() {
     stopScanner();
@@ -430,7 +487,7 @@ export default function SporcuPortalPage() {
   const playerAttendedCount = player
     ? allSessions.filter((s) => attendances.some((a) => a.session_id === s.id && a.player_id === player.id)).length
     : 0;
-const attendanceRate =
+  const attendanceRate =
     allSessions.length > 0 ? Math.round((playerAttendedCount / allSessions.length) * 100) : 0;
 
   const attendanceBadge =
@@ -443,11 +500,43 @@ const attendanceRate =
       : attendanceRate >= 40
       ? { label: `💪 Gelişen Sporcu (%${attendanceRate})`, cls: "bg-sky-400 text-slate-950" }
       : { label: `📅 Katılım: %${attendanceRate}`, cls: "bg-white/20 text-white" };
+
+  const tabs: Array<{
+    key: typeof tab;
+    icon: string;
+    label: string;
+    badge?: string;
+    badgeCls?: string;
+  }> = [
+    { key: "qr", icon: "📷", label: "QR Yoklama" },
+    { key: "program", icon: "📅", label: "Program & Maçlar" },
+    {
+      key: "malzemeler",
+      icon: "👕",
+      label: "Malzemelerim",
+      badge: activeEquipmentCount > 0 ? String(activeEquipmentCount) : undefined,
+      badgeCls: tab === "malzemeler" ? "bg-white text-[#02274c]" : "bg-[#02274c] text-white",
+    },
+    {
+      key: "aidat",
+      icon: "💳",
+      label: "Aidatlarım",
+      badge: overdueCount > 0 ? `⚠️ ${overdueCount}` : currentUnpaid ? "!" : undefined,
+      badgeCls:
+        overdueCount > 0
+          ? "bg-red-600 text-white"
+          : tab === "aidat"
+          ? "bg-white text-[#a60513]"
+          : "bg-amber-400 text-slate-950",
+    },
+    { key: "profil", icon: "👤", label: "Profil & PIN" },
+  ];
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-8">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
         {!player ? (
           <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
             <div className="text-center mb-6">
@@ -456,7 +545,7 @@ const attendanceRate =
               </span>
               <h1 className="text-2xl font-black text-[#02274c]">Sporcu Girişi</h1>
               <p className="text-sm text-slate-500 mt-1">
-                Uygulama indirmeden tarayıcıdan QR yoklama verin, aidat ve programınızı görün.
+                Uygulama indirmeden tarayıcıdan QR yoklama verin, malzemelerinizi, aidat ve programınızı görün.
               </p>
             </div>
 
@@ -502,68 +591,77 @@ const attendanceRate =
         ) : (
           <div className="space-y-6">
             {/* Üst Bilgi Kartı */}
-            <div className="bg-gradient-to-r from-[#02274c] to-[#04376b] text-white rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
-              <div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white rounded-3xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg">
+              <div className="space-y-1.5">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-0.5 rounded-full bg-white/15 text-xs font-extrabold">
+                  <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs border border-white/20 text-xs font-extrabold">
                     {player.age_group}
                   </span>
                   {player.is_representative && (
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#a60513] text-xs font-extrabold">
+                    <span className="px-3 py-1 rounded-full bg-[#a60513] border border-white/25 text-xs font-extrabold">
                       Takım Temsilcisi
                     </span>
                   )}
+                  {attendanceBadge && (
+                    <span className={`px-3 py-1 rounded-full text-xs font-extrabold shadow-xs ${attendanceBadge.cls}`}>
+                      {attendanceBadge.label}
+                    </span>
+                  )}
                 </div>
-                <h1 className="text-2xl font-black mt-1">{player.full_name}</h1>
-                <p className="text-xs text-slate-200 mt-0.5">
-                  Kod: {player.player_code} • Mevki: {player.position || "-"} • Forma:{" "}
-                  {player.jersey_number ?? "-"}
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{player.full_name}</h1>
+                <p className="text-xs sm:text-sm text-slate-200">
+                  Kod: <strong className="text-white">{player.player_code}</strong> • Mevki:{" "}
+                  <strong className="text-white">{player.position || "Belirlenmedi"}</strong> • Forma:{" "}
+                  <strong className="text-white">{player.jersey_number ? `#${player.jersey_number}` : "-"}</strong>
                 </p>
               </div>
               <button
                 onClick={handleLogout}
-                className="self-start sm:self-auto px-4 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-extrabold cursor-pointer transition"
+                className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-xs font-extrabold cursor-pointer transition backdrop-blur-xs"
               >
                 Çıkış Yap
               </button>
             </div>
-{attendanceBadge && (
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${attendanceBadge.cls}`}>
-                      {attendanceBadge.label}
-                    </span>
-                  )}
-            {/* Sekmeler */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {[
-                { key: "qr", label: "QR Yoklama" },
-                { key: "program", label: "Program & Maçlar" },
-                {
-                  key: "aidat",
-                  label: overdueCount > 0 ? `Aidatlarım (⚠️ ${overdueCount})` : currentUnpaid ? "Aidatlarım (!)" : "Aidatlarım",
-                },
-                { key: "profil", label: "Profil & PIN" },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => {
-                    if (item.key !== "qr") stopScanner();
-                    setTab(item.key as typeof tab);
-                  }}
-                  className={`py-3 px-4 rounded-2xl text-sm font-extrabold transition cursor-pointer border ${
-                    tab === item.key
-                      ? "bg-[#a60513] text-white border-[#a60513] shadow-sm"
-                      : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
+
+            {/* Şık & Modern Sekme Çubuğu */}
+            <div className="bg-white/90 backdrop-blur-md p-2 rounded-3xl border border-slate-200/90 shadow-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {tabs.map((item) => {
+                  const active = tab === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={() => {
+                        if (item.key !== "qr") stopScanner();
+                        setTab(item.key);
+                      }}
+                      className={`group relative flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
+                        active
+                          ? "bg-gradient-to-r from-[#02274c] to-[#a60513] text-white shadow-md scale-[1.01]"
+                          : "bg-slate-50/80 text-slate-700 hover:bg-slate-100 hover:text-[#02274c]"
+                      }`}
+                    >
+                      <span className="text-base leading-none">{item.icon}</span>
+                      <span className="truncate">{item.label}</span>
+                      {item.badge && (
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black leading-none ${
+                            item.badgeCls || "bg-slate-200 text-slate-800"
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* QR YOKLAMA SEKMESİ */}
             {tab === "qr" && (
               <div className="space-y-6">
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
                   <h2 className="text-lg font-black text-[#02274c]">Tarayıcıdan QR Yoklama Okut</h2>
                   <p className="text-sm text-slate-600">
                     Kamerayı açıp hocanızın veya temsilcinin gösterdiği QR kodu okutun.
@@ -572,9 +670,9 @@ const attendanceRate =
                   {!scanning ? (
                     <button
                       onClick={startScanner}
-                      className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white font-extrabold cursor-pointer transition"
+                      className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white font-extrabold cursor-pointer transition shadow-sm"
                     >
-                      Kamerayı Aç ve QR Okut
+                      📷 Kamerayı Aç ve QR Okut
                     </button>
                   ) : (
                     <div className="space-y-3">
@@ -626,7 +724,7 @@ const attendanceRate =
                 </div>
 
                 {/* Geçmiş Etkinlik Katılım Geçmişim */}
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-lg font-black text-[#02274c]">Geçmiş Etkinlik Katılım Durumum</h3>
                     <span className="px-3 py-1 rounded-full bg-slate-100 text-xs font-extrabold text-[#02274c]">
@@ -674,7 +772,7 @@ const attendanceRate =
                 </div>
 
                 {player.is_representative && (
-                  <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+                  <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
                     <h3 className="text-lg font-black text-[#a60513]">Temsilci Yoklama Paneli</h3>
                     {activeSessions.length === 0 ? (
                       <p className="text-sm text-slate-500">Şu anda aktif bir QR oturumu bulunmuyor.</p>
@@ -740,7 +838,7 @@ const attendanceRate =
             {/* PROGRAM & MAÇLAR SEKMESİ */}
             {tab === "program" && (
               <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3">
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3 shadow-xs">
                   <h2 className="text-lg font-black text-[#02274c]">Antrenman Programım</h2>
                   {trainings.length === 0 ? (
                     <p className="text-sm text-slate-500">Kayıtlı antrenman bulunamadı.</p>
@@ -761,7 +859,7 @@ const attendanceRate =
                   )}
                 </div>
 
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3">
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3 shadow-xs">
                   <h2 className="text-lg font-black text-[#a60513]">Maç & Görev Takvimi</h2>
                   {tasks.length === 0 ? (
                     <p className="text-sm text-slate-500">Yaklaşan maç veya görev yok.</p>
@@ -785,9 +883,139 @@ const attendanceRate =
               </div>
             )}
 
+            {/* MALZEMELERİM SEKMESİ */}
+            {tab === "malzemeler" && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-black text-[#02274c]">Malzemelerim & Zimmet Kayıtları</h2>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Kulüp tarafından size teslim edilen forma ve ekipmanları görselleriyle takip edebilirsiniz.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-3 py-1 rounded-full bg-[#02274c]/10 text-[#02274c] text-xs font-extrabold">
+                        Üzerimde: {activeEquipmentCount}
+                      </span>
+                      {missingEquipmentCount > 0 && (
+                        <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-extrabold">
+                          Eksik/Kayıp: {missingEquipmentCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {equipmentLogs.length === 0 ? (
+                    <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-300 p-8 text-center space-y-1">
+                      <div className="text-3xl">👕</div>
+                      <p className="font-extrabold text-sm text-[#02274c]">
+                        Henüz adınıza kayıtlı forma veya malzeme yok.
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        Yönetici tarafından size malzeme teslim edildiğinde burada görseliyle birlikte görünecektir.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {equipmentLogs.map((eq) => {
+                        const photoUrl = resolveEquipmentPhoto(eq);
+                        const isDelivered = eq.status === "teslim_edildi";
+                        const isMissing = eq.status === "kayip_eksik";
+                        return (
+                          <div
+                            key={eq.id}
+                            className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col transition hover:shadow-md ${
+                              isMissing
+                                ? "bg-red-50/40 border-red-200"
+                                : isDelivered
+                                ? "bg-white border-slate-200"
+                                : "bg-slate-50 border-slate-200 opacity-85"
+                            }`}
+                          >
+                            {photoUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewPhoto({ url: photoUrl, title: eq.item_name })}
+                                className="relative group w-full h-44 bg-slate-100 overflow-hidden cursor-pointer"
+                                title="Büyütmek için tıklayın"
+                              >
+                                <img
+                                  src={photoUrl}
+                                  alt={eq.item_name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                />
+                                <span className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/60 text-white text-[10px] font-bold backdrop-blur-xs">
+                                  🔍 Büyüt
+                                </span>
+                              </button>
+                            ) : (
+                              <div className="w-full h-32 bg-gradient-to-br from-[#02274c] to-[#04376b] flex flex-col items-center justify-center text-white/90">
+                                <span className="text-3xl mb-1">
+                                  {eq.category === "Forma" ? "👕" : "🎒"}
+                                </span>
+                                <span className="text-[11px] font-bold uppercase tracking-wider">
+                                  {eq.category || "Kulüp Malzemesi"}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[#02274c] text-[10px] font-extrabold uppercase">
+                                    {eq.category || "Ekipman"}
+                                  </span>
+                                  {isDelivered && (
+                                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold">
+                                      ✓ Üzerimde
+                                    </span>
+                                  )}
+                                  {eq.status === "iade_edildi" && (
+                                    <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-extrabold">
+                                      İade Edildi
+                                    </span>
+                                  )}
+                                  {isMissing && (
+                                    <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-extrabold">
+                                      ⚠️ Kayıp / Eksik
+                                    </span>
+                                  )}
+                                </div>
+
+                                <h3 className="font-extrabold text-sm text-[#02274c] leading-snug pt-0.5">
+                                  {eq.item_name}
+                                </h3>
+                              </div>
+
+                              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                                <div className="flex items-center gap-2">
+                                  {eq.item_size && (
+                                    <span className="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-800">
+                                      Beden: {eq.item_size}
+                                    </span>
+                                  )}
+                                  {eq.jersey_number_given !== null && (
+                                    <span className="px-2 py-0.5 rounded bg-[#a60513]/10 font-extrabold text-[#a60513]">
+                                      #{eq.jersey_number_given}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-slate-400">{eq.given_date}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* AİDATLARIM SEKMESİ */}
             {tab === "aidat" && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
                 <h2 className="text-lg font-black text-[#02274c]">Aidat Durumum</h2>
 
                 {overdueCount > 0 && (
@@ -845,7 +1073,7 @@ const attendanceRate =
 
             {/* PROFİL & PIN SEKMESİ */}
             {tab === "profil" && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5">
+              <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-xs">
                 <h2 className="text-lg font-black text-[#02274c]">Bilgilerim & PIN Değiştir</h2>
                 <div className="grid sm:grid-cols-3 gap-3 text-sm">
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
@@ -899,6 +1127,37 @@ const attendanceRate =
           </div>
         )}
       </main>
+
+      {/* Malzeme Görseli Tam Boy Önizleme Modalı */}
+      {previewPhoto && (
+        <div
+          onClick={() => setPreviewPhoto(null)}
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200"
+          >
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
+              <h3 className="font-extrabold text-sm text-[#02274c]">{previewPhoto.title}</h3>
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
+              >
+                Kapat ✕
+              </button>
+            </div>
+            <div className="bg-slate-100 p-2 flex items-center justify-center">
+              <img
+                src={previewPhoto.url}
+                alt={previewPhoto.title}
+                className="max-h-[75vh] w-auto object-contain rounded-2xl"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
