@@ -27,6 +27,8 @@ export default function RepresentativePage() {
   const [session, setSession] = useState<PrayerSession | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadAttendance = async () => {
     const supabase = createClient();
@@ -70,6 +72,46 @@ export default function RepresentativePage() {
     loadAttendance();
   };
 
+  const togglePlayerAttendance = async (playerId: string) => {
+    if (!session) return;
+    setTogglingId(playerId);
+    const supabase = createClient();
+    const isPresent = attendedIds.has(playerId);
+
+    if (isPresent) {
+      const { error } = await supabase
+        .from("prayer_attendance")
+        .delete()
+        .eq("session_id", session.id)
+        .eq("player_id", playerId);
+      if (!error) {
+        setAttendedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(playerId);
+          return next;
+        });
+      }
+    } else {
+      const { error } = await supabase
+        .from("prayer_attendance")
+        .insert({ session_id: session.id, player_id: playerId });
+      if (!error) {
+        setAttendedIds((prev) => new Set(prev).add(playerId));
+      }
+    }
+    setTogglingId(null);
+  };
+
+  const filteredPlayers = players.filter((p) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      p.full_name.toLowerCase().includes(q) ||
+      p.age_group.toLowerCase().includes(q) ||
+      p.player_code.toLowerCase().includes(q)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
       <Navbar />
@@ -79,7 +121,7 @@ export default function RepresentativePage() {
           <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 p-7 shadow-sm space-y-4">
             <h1 className="text-2xl font-black text-[#02274c]">Temsilci Yoklama Paneli</h1>
             <p className="text-sm text-slate-600">
-              Cumartesi sabah namazı yoklamasını yönetmek için Temsilci Oyuncu ID&apos;nizi girin.
+              Etkinlik yoklamasını yönetmek için Temsilci Oyuncu ID&apos;nizi girin.
             </p>
             <form onSubmit={handleLogin} className="space-y-3">
               <input
@@ -113,7 +155,7 @@ export default function RepresentativePage() {
             </div>
 
             {session && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 grid md:grid-cols-12 gap-6 items-center">
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 grid md:grid-cols-12 gap-6 items-start">
                 <div className="md:col-span-4 flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   <QRCodeSVG value={session.qr_token} size={200} />
                   <p className="text-xs font-bold text-slate-600 mt-3 text-center">
@@ -121,24 +163,42 @@ export default function RepresentativePage() {
                   </p>
                 </div>
 
-                <div className="md:col-span-8 space-y-3">
-                  <h2 className="text-lg font-extrabold text-[#02274c]">
-                    Canlı Katılım Listesi ({attendedIds.size} / {players.length})
-                  </h2>
+                <div className="md:col-span-8 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h2 className="text-lg font-extrabold text-[#02274c]">
+                      Canlı Katılım Listesi ({attendedIds.size} / {players.length})
+                    </h2>
+                    <span className="text-xs text-slate-500 font-semibold">
+                      Telefonu olmayanlar için isme dokunarak işaretleyin
+                    </span>
+                  </div>
+
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="İsim, yaş grubu veya ID ile ara..."
+                    className="w-full min-h-[44px] px-4 rounded-xl border-2 border-slate-300 text-sm font-bold"
+                  />
+
                   <div className="flex flex-wrap gap-2">
-                    {players.map((p) => {
+                    {filteredPlayers.map((p) => {
                       const ok = attendedIds.has(p.id);
                       return (
-                        <span
+                        <button
                           key={p.id}
-                          className={`px-3 py-1.5 rounded-xl text-sm font-bold border ${
+                          type="button"
+                          disabled={togglingId === p.id}
+                          onClick={() => togglePlayerAttendance(p.id)}
+                          className={`px-3.5 py-2 rounded-xl text-sm font-bold border transition ${
                             ok
-                              ? "bg-emerald-500 border-emerald-600 text-white"
-                              : "bg-slate-100 border-slate-200 text-slate-500"
+                              ? "bg-emerald-500 border-emerald-600 text-white shadow-sm"
+                              : "bg-slate-100 border-slate-200 text-slate-700 hover:border-[#02274c]"
                           }`}
                         >
-                          {ok ? "✓ " : ""}{p.age_group} - {p.full_name}
-                        </span>
+                          {ok ? "☑ " : "☐ "}
+                          {p.age_group} - {p.full_name}
+                        </button>
                       );
                     })}
                   </div>

@@ -466,7 +466,7 @@ export default function IkbalAdminPage() {
             <form onSubmit={handleCreatePrayerSession} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-3 gap-3">
               <input type="date" required value={prayerDate} onChange={(e) => setPrayerDate(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
               <input type="text" placeholder="Cami / Buluşma Yeri" value={mosqueName} onChange={(e) => setMosqueName(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Yeni Cumartesi QR Oluştur</button>
+              <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Yeni QR Oluştur</button>
             </form>
 
             {activeSession && (
