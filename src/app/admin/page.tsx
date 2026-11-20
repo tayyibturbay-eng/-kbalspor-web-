@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-const supabase = createClient();
 import { InventoryManager } from "@/components/admin/InventoryManager";
 import { QRCodeSVG } from "qrcode.react";
+
+const supabase = createClient();
 
 type Player = {
   id: string;
@@ -92,7 +93,7 @@ type TffResult = {
 };
 
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
-const DAYS_OF_WEEK = ["Pazartesi", "SalÄ±", "Ã‡arÅŸamba", "PerÅŸembe", "Cuma", "Cumartesi", "Pazar"];
+const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 
 function calcAgeGroupFromBirthDate(birthDate: string): string {
   if (!birthDate) return "U15";
@@ -112,12 +113,12 @@ function calcAgeGroupFromBirthDate(birthDate: string): string {
 function normalizeTr(s: string): string {
   return (s || "")
     .toLocaleLowerCase("tr-TR")
-    .replace(/ÄŸ/g, "g")
-    .replace(/Ã¼/g, "u")
-    .replace(/ÅŸ/g, "s")
-    .replace(/Ä±/g, "i")
-    .replace(/Ã¶/g, "o")
-    .replace(/Ã§/g, "c")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -136,7 +137,6 @@ function defaultPinFromPhone(phone: string): string {
 }
 
 export default function AdminPage() {
-  // Auth state (Admin veya AntrenÃ¶r)
   const [role, setRole] = useState<"none" | "admin" | "coach">("none");
   const [activeCoach, setActiveCoach] = useState<Coach | null>(null);
   const [loginMode, setLoginMode] = useState<"admin" | "coach">("admin");
@@ -148,12 +148,10 @@ export default function AdminPage() {
   const [authError, setAuthError] = useState("");
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // Tabs
   const [tab, setTab] = useState<
     "oyuncular" | "antrenmanlar" | "tff" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler"
   >("oyuncular");
 
-  // Data
   const [players, setPlayers] = useState<Player[]>([]);
   const [dues, setDues] = useState<Due[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
@@ -163,7 +161,6 @@ export default function AdminPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [feedback, setFeedback] = useState("");
 
-  // Oyuncu ekleme & dÃ¼zenleme
   const [playerSearch, setPlayerSearch] = useState("");
   const [newPlayer, setNewPlayer] = useState({
     full_name: "",
@@ -176,10 +173,8 @@ export default function AdminPage() {
   });
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
-  // Aidat form
-  const [newDue, setNewDue] = useState({ player_id: "", month_label: "KasÄ±m 2026", amount: "500" });
+  const [newDue, setNewDue] = useState({ player_id: "", month_label: "Kasım 2026", amount: "500" });
 
-  // GÃ¶rev form
   const [newTask, setNewTask] = useState({
     title: "",
     task_type: "Mac",
@@ -189,10 +184,8 @@ export default function AdminPage() {
     notes: "",
   });
 
-  // QR Yoklama form
-  const [newSessionTitle, setNewSessionTitle] = useState("HaftalÄ±k KulÃ¼p YoklamasÄ±");
+  const [newSessionTitle, setNewSessionTitle] = useState("Haftalık Kulüp Yoklaması");
 
-  // AntrenÃ¶r ekleme form
   const [newCoach, setNewCoach] = useState({
     full_name: "",
     coach_code: "",
@@ -201,17 +194,16 @@ export default function AdminPage() {
     assigned_groups: ["U13", "U14", "U15"] as string[],
   });
 
-  // Antrenman ProgramÄ± form (Toplu & Ekstra + Grup DÄ±ÅŸÄ± Oyuncular)
   const [trainingForm, setTrainingForm] = useState({
     id: "",
     title: "",
     training_type: "duzenli" as "duzenli" | "ekstra",
     age_groups: ["U15"] as string[],
-    selected_days: ["Ã‡arÅŸamba"] as string[],
+    selected_days: ["Çarşamba"] as string[],
     training_date: "",
     start_time: "17:00",
     end_time: "18:30",
-    location: "Ã‡orum Ä°kbalspor Tesisleri",
+    location: "Çorum İkbalspor Tesisleri",
     extra_player_ids: [] as string[],
     notes: "",
   });
@@ -221,7 +213,6 @@ export default function AdminPage() {
     targetPlayers: Player[];
   } | null>(null);
 
-  // TFF AjanÄ± state
   const [tffQuery, setTffQuery] = useState("");
   const [tffUrlOrId, setTffUrlOrId] = useState("");
   const [tffPasteText, setTffPasteText] = useState("");
@@ -289,7 +280,7 @@ export default function AdminPage() {
     setAuthError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      setAuthError("Admin giriÅŸi baÅŸarÄ±sÄ±z: " + error.message);
+      setAuthError("Admin girişi başarısız: " + error.message);
       return;
     }
     setRole("admin");
@@ -308,7 +299,7 @@ export default function AdminPage() {
       .maybeSingle();
 
     if (error || !data) {
-      setAuthError("AntrenÃ¶r kodu veya ÅŸifre hatalÄ±.");
+      setAuthError("Antrenör kodu veya şifre hatalı.");
       return;
     }
     localStorage.setItem("ikbal_coach", JSON.stringify(data));
@@ -325,7 +316,6 @@ export default function AdminPage() {
     setActiveCoach(null);
   }
 
-  // Oyuncu hata & Ã§ift kayÄ±t analizi
   const duplicateKeys = useMemo(() => {
     const counts = new Map<string, number>();
     players.forEach((p) => {
@@ -339,19 +329,19 @@ export default function AdminPage() {
   function getPlayerWarnings(p: Player): string[] {
     const warnings: string[] = [];
     if (!p.birth_date) {
-      warnings.push("DoÄŸum tarihi eksik");
+      warnings.push("Doğum tarihi eksik");
     } else {
       const yr = parseInt(p.birth_date.split("-")[0], 10);
-      if (isNaN(yr) || yr < 1995 || yr > 2020) warnings.push("DoÄŸum tarihi ÅŸÃ¼pheli");
+      if (isNaN(yr) || yr < 1995 || yr > 2020) warnings.push("Doğum tarihi şüpheli");
     }
     const cleanName = (p.full_name || "").trim();
     if (cleanName.length < 4 || !cleanName.includes(" ") || /\d/.test(cleanName)) {
-      warnings.push("Ä°sim/Soyisim kontrol et");
+      warnings.push("İsim/Soyisim kontrol et");
     }
     if (p.birth_date) {
       const key = `${normalizeTr(p.full_name)}__${p.birth_date}`;
       if ((duplicateKeys.get(key) || 0) > 1) {
-        warnings.push("AynÄ± isim + doÄŸum tarihli Ã§ift kayÄ±t");
+        warnings.push("Aynı isim + doğum tarihli çift kayıt");
       }
     }
     return warnings;
@@ -362,7 +352,6 @@ export default function AdminPage() {
     [players, duplicateKeys]
   );
 
-  // Oyuncu Ekle
   async function addPlayer(e: React.FormEvent) {
     e.preventDefault();
     const ageGroup = calcAgeGroupFromBirthDate(newPlayer.birth_date);
@@ -385,7 +374,7 @@ export default function AdminPage() {
       setFeedback("Hata: " + error.message);
       return;
     }
-    setFeedback(`âœ… ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Åifre: ${autoPin}`);
+    setFeedback(`✅ ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin}`);
     setNewPlayer({
       full_name: "",
       birth_date: "",
@@ -398,7 +387,6 @@ export default function AdminPage() {
     loadAll();
   }
 
-  // Oyuncu Tam DÃ¼zenleme Kaydet
   async function savePlayerEdit(e: React.FormEvent) {
     e.preventDefault();
     if (!editingPlayer) return;
@@ -423,45 +411,44 @@ export default function AdminPage() {
       .eq("id", editingPlayer.id);
 
     if (error) {
-      setFeedback("GÃ¼ncelleme hatasÄ±: " + error.message);
+      setFeedback("Güncelleme hatası: " + error.message);
       return;
     }
-    setFeedback(`âœ… ${editingPlayer.full_name} bilgileri gÃ¼ncellendi (${updatedAgeGroup}).`);
+    setFeedback(`✅ ${editingPlayer.full_name} bilgileri güncellendi (${updatedAgeGroup}).`);
     setEditingPlayer(null);
     loadAll();
   }
 
   async function deletePlayer(id: string, name: string) {
-    if (!confirm(`${name} adlÄ± oyuncuyu silmek istediÄŸinize emin misiniz?`)) return;
+    if (!confirm(`${name} adlı oyuncuyu silmek istediğinize emin misiniz?`)) return;
     await supabase.from("players").delete().eq("id", id);
     loadAll();
   }
 
-  // Antrenman ProgramÄ± Kaydet / GÃ¼ncelle + Bildirim & WhatsApp
   async function saveTraining(e: React.FormEvent) {
     e.preventDefault();
     if (trainingForm.age_groups.length === 0 && trainingForm.extra_player_ids.length === 0) {
-      setFeedback("En az 1 yaÅŸ grubu veya bireysel oyuncu seÃ§melisiniz.");
+      setFeedback("En az 1 yaş grubu veya bireysel oyuncu seçmelisiniz.");
       return;
     }
 
     const isEdit = Boolean(trainingForm.id);
     const oldTraining = isEdit ? trainings.find((t) => t.id === trainingForm.id) : null;
     const daysToSave = isEdit
-      ? [trainingForm.selected_days[0] || "Ã‡arÅŸamba"]
+      ? [trainingForm.selected_days[0] || "Çarşamba"]
       : trainingForm.training_type === "ekstra"
       ? ["Ekstra"]
       : trainingForm.selected_days.length > 0
       ? trainingForm.selected_days
-      : ["Ã‡arÅŸamba"];
+      : ["Çarşamba"];
 
-    const authorName = role === "coach" && activeCoach ? `AntrenÃ¶r ${activeCoach.full_name}` : "YÃ¶netici";
+    const authorName = role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : "Yönetici";
 
     if (isEdit) {
       const { error } = await supabase
         .from("trainings")
         .update({
-          title: trainingForm.title || `${trainingForm.age_groups.join("-")} AntrenmanÄ±`,
+          title: trainingForm.title || `${trainingForm.age_groups.join("-")} Antrenmanı`,
           training_type: trainingForm.training_type,
           age_groups: trainingForm.age_groups,
           day_of_week: trainingForm.training_type === "duzenli" ? daysToSave[0] : null,
@@ -475,14 +462,14 @@ export default function AdminPage() {
         .eq("id", trainingForm.id);
 
       if (error) {
-        setFeedback("Antrenman gÃ¼ncellenemedi: " + error.message);
+        setFeedback("Antrenman güncellenemedi: " + error.message);
         return;
       }
     } else {
       const rows = daysToSave.map((day) => ({
         title:
           trainingForm.title.trim() ||
-          `${trainingForm.age_groups.join("-")} ${trainingForm.training_type === "ekstra" ? "Ekstra" : day} AntrenmanÄ±`,
+          `${trainingForm.age_groups.join("-")} ${trainingForm.training_type === "ekstra" ? "Ekstra" : day} Antrenmanı`,
         training_type: trainingForm.training_type,
         age_groups: trainingForm.age_groups,
         day_of_week: trainingForm.training_type === "duzenli" ? day : null,
@@ -501,7 +488,6 @@ export default function AdminPage() {
       }
     }
 
-    // Hedef oyuncular (SeÃ§ilen gruplar + grup dÄ±ÅŸÄ± ekstra oyuncular)
     const targetPlayers = players.filter(
       (p) => trainingForm.age_groups.includes(p.age_group) || trainingForm.extra_player_ids.includes(p.id)
     );
@@ -517,11 +503,11 @@ export default function AdminPage() {
 
     const header = isEdit
       ? timeChanged
-        ? "âš ï¸ ANTRENMAN SAAT / GÃœN DEÄÄ°ÅÄ°KLÄ°ÄÄ°"
-        : "ğŸ“¢ ANTRENMAN GÃœNCELLEMESÄ°"
+        ? "⚠️ ANTRENMAN SAAT / GÜN DEĞİŞİKLİĞİ"
+        : "📢 ANTRENMAN GÜNCELLEMESİ"
       : trainingForm.training_type === "ekstra"
-      ? "âš¡ EKSTRA ANTRENMAN DUYURUSU"
-      : "âš½ DÃœZENLÄ° ANTRENMAN PROGRAMI";
+      ? "⚡ EKSTRA ANTRENMAN DUYURUSU"
+      : "⚽ DÜZENLİ ANTRENMAN PROGRAMI";
 
     const whenText =
       trainingForm.training_type === "ekstra" && trainingForm.training_date
@@ -529,22 +515,21 @@ export default function AdminPage() {
         : `${daysToSave.join(", ")} Saat ${trainingForm.start_time}${trainingForm.end_time ? `-${trainingForm.end_time}` : ""}`;
 
     const fullMsg = `${header}\nGruplar: ${trainingForm.age_groups.join(", ") || "-"}${
-      extraNames.length > 0 ? `\nÃ–zel Ã‡aÄŸrÄ±lan Oyuncular: ${extraNames.join(", ")}` : ""
+      extraNames.length > 0 ? `\nÖzel Çağrılan Oyuncular: ${extraNames.join(", ")}` : ""
     }\nZaman: ${whenText}\nYer: ${trainingForm.location}${trainingForm.notes ? `\nNot: ${trainingForm.notes}` : ""}`;
 
-    // KulÃ¼p bildirimlerine otomatik yaz
     await supabase.from("club_messages").insert({
       title: `${header} (${trainingForm.age_groups.join(", ")})`,
       body: fullMsg,
-      target_group: trainingForm.age_groups.join(", ") || "Ã–zel Grup",
+      target_group: trainingForm.age_groups.join(", ") || "Özel Grup",
       sender_name: authorName,
     });
 
     setLastWaBroadcast({ message: fullMsg, targetPlayers });
     setFeedback(
       isEdit
-        ? "âœ… Antrenman gÃ¼ncellendi ve bildirim yayÄ±nlandÄ±. AÅŸaÄŸÄ±dan WhatsApp mesajÄ± gÃ¶nderebilirsiniz."
-        : "âœ… Antrenman(lar) eklendi ve gruba bildirim gÃ¶nderildi. WhatsApp paylaÅŸÄ±mÄ± hazÄ±r!"
+        ? "✅ Antrenman güncellendi ve bildirim yayınlandı. Aşağıdan WhatsApp mesajı gönderebilirsiniz."
+        : "✅ Antrenman(lar) eklendi ve gruba bildirim gönderildi. WhatsApp paylaşımı hazır!"
     );
 
     setTrainingForm({
@@ -552,11 +537,11 @@ export default function AdminPage() {
       title: "",
       training_type: "duzenli",
       age_groups: ["U15"],
-      selected_days: ["Ã‡arÅŸamba"],
+      selected_days: ["Çarşamba"],
       training_date: "",
       start_time: "17:00",
       end_time: "18:30",
-      location: "Ã‡orum Ä°kbalspor Tesisleri",
+      location: "Çorum İkbalspor Tesisleri",
       extra_player_ids: [],
       notes: "",
     });
@@ -569,11 +554,11 @@ export default function AdminPage() {
       title: tr.title,
       training_type: tr.training_type,
       age_groups: tr.age_groups || [],
-      selected_days: tr.day_of_week ? [tr.day_of_week] : ["Ã‡arÅŸamba"],
+      selected_days: tr.day_of_week ? [tr.day_of_week] : ["Çarşamba"],
       training_date: tr.training_date || "",
       start_time: tr.start_time,
       end_time: tr.end_time || "",
-      location: tr.location || "Ã‡orum Ä°kbalspor Tesisleri",
+      location: tr.location || "Çorum İkbalspor Tesisleri",
       extra_player_ids: tr.extra_player_ids || [],
       notes: tr.notes || "",
     });
@@ -585,7 +570,6 @@ export default function AdminPage() {
     loadAll();
   }
 
-  // TFF AjanÄ± FonksiyonlarÄ±
   async function runTffAgent(mode: "search" | "profile") {
     setTffLoading(true);
     setTffError("");
@@ -600,7 +584,7 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (!data.ok) {
-        setTffError(data.error || "TFF verisi Ã§ekilemedi.");
+        setTffError(data.error || "TFF verisi çekilemedi.");
       } else {
         setTffResults(data.results || []);
         if (data.results?.length === 1) {
@@ -608,7 +592,7 @@ export default function AdminPage() {
         }
       }
     } catch {
-      setTffError("TFF baÄŸlantÄ± hatasÄ± oluÅŸtu.");
+      setTffError("TFF bağlantı hatası oluştu.");
     } finally {
       setTffLoading(false);
     }
@@ -619,7 +603,7 @@ export default function AdminPage() {
     const text = tffPasteText.trim();
     if (!text) return;
 
-    const birthMatch = text.match(/DoÄŸum Tarihi\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4})/i) || text.match(/(\d{1,2}\.\d{1,2}\.\d{4})/);
+    const birthMatch = text.match(/Doğum Tarihi\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4})/i) || text.match(/(\d{1,2}\.\d{1,2}\.\d{4})/);
     let isoBirth = "";
     if (birthMatch) {
       const [, d, mo, y] = birthMatch[1].match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/) || [];
@@ -628,8 +612,8 @@ export default function AdminPage() {
 
     const licenseMatch = text.match(/Lisans No\s*:?\s*(\d{5,12})/i);
     const nameMatch =
-      text.match(/AdÄ± SoyadÄ±\s*:?\s*([A-ZÃ‡ÄÄ°Ã–ÅÃœa-zÃ§ÄŸÄ±Ã¶ÅŸÃ¼\s]+)/i) ||
-      text.split("\n").find((line) => line.trim().length > 4 && !line.includes("DoÄŸum") && !line.includes("Lisans"));
+      text.match(/Adı Soyadı\s*:?\s*([A-ZÇĞİÖŞÜa-zçğıöşü\s]+)/i) ||
+      text.split("\n").find((line) => line.trim().length > 4 && !line.includes("Doğum") && !line.includes("Lisans"));
 
     const extractedName = (typeof nameMatch === "string" ? nameMatch : nameMatch?.[1] || "").trim();
     selectTffPlayerToDraft({
@@ -688,12 +672,11 @@ export default function AdminPage() {
       setFeedback("TFF oyuncusu eklenemedi: " + error.message);
       return;
     }
-    setFeedback(`âœ… TFF AjanÄ± ile ${tffDraft.full_name} (${finalAgeGroup}) kadroya eklendi!`);
+    setFeedback(`✅ TFF Ajanı ile ${tffDraft.full_name} (${finalAgeGroup}) kadroya eklendi!`);
     setTffDraft(null);
     loadAll();
   }
 
-  // AntrenÃ¶r Ekle / Sil
   async function addCoach(e: React.FormEvent) {
     e.preventDefault();
     const code = newCoach.coach_code.trim().toUpperCase() || `ANT-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -706,15 +689,14 @@ export default function AdminPage() {
       is_active: true,
     });
     if (error) {
-      setFeedback("AntrenÃ¶r eklenemedi: " + error.message);
+      setFeedback("Antrenör eklenemedi: " + error.message);
       return;
     }
-    setFeedback(`âœ… AntrenÃ¶r ${newCoach.full_name} eklendi (Kod: ${code}, Åifre: ${newCoach.pin}).`);
+    setFeedback(`✅ Antrenör ${newCoach.full_name} eklendi (Kod: ${code}, Şifre: ${newCoach.pin}).`);
     setNewCoach({ full_name: "", coach_code: "", pin: "1234", phone: "", assigned_groups: ["U13", "U14", "U15"] });
     loadAll();
   }
 
-  // Aidat, GÃ¶rev, QR Yoklama
   async function addDue(e: React.FormEvent) {
     e.preventDefault();
     await supabase.from("dues").insert({
@@ -727,7 +709,7 @@ export default function AdminPage() {
   }
 
   async function toggleDueStatus(due: Due) {
-    const nextStatus = due.status === "Ã–dendi" ? "Bekliyor" : "Ã–dendi";
+    const nextStatus = due.status === "Ödendi" ? "Bekliyor" : "Ödendi";
     await supabase.from("dues").update({ status: nextStatus }).eq("id", due.id);
     loadAll();
   }
@@ -744,7 +726,7 @@ export default function AdminPage() {
     const token = `IKB-QR-${Date.now().toString(36).toUpperCase()}`;
     await supabase.from("prayer_sessions").update({ is_active: false }).eq("is_active", true);
     await supabase.from("prayer_sessions").insert({
-      title: newSessionTitle || "HaftalÄ±k KulÃ¼p YoklamasÄ±",
+      title: newSessionTitle || "Haftalık Kulüp Yoklaması",
       qr_token: token,
       session_date: new Date().toISOString().slice(0, 10),
       is_active: true,
@@ -753,15 +735,15 @@ export default function AdminPage() {
   }
 
   if (checkingAuth) {
-    return <div className="min-h-screen flex items-center justify-center text-[#02274c] font-bold">YÃ¼kleniyor...</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[#02274c] font-bold">Yükleniyor...</div>;
   }
 
   if (role === "none") {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border-t-4 border-[#a60513]">
-          <h1 className="text-2xl font-extrabold text-[#02274c] text-center mb-1">Ã‡orum Ä°kbalspor</h1>
-          <p className="text-sm text-slate-500 text-center mb-5">YÃ¶netim ve AntrenÃ¶r PortalÄ±</p>
+          <h1 className="text-2xl font-extrabold text-[#02274c] text-center mb-1">Çorum İkbalspor</h1>
+          <p className="text-sm text-slate-600 text-center mb-5">Yönetim ve Antrenör Portalı</p>
 
           <div className="grid grid-cols-2 gap-2 mb-5 bg-slate-100 p-1 rounded-xl">
             <button
@@ -771,10 +753,10 @@ export default function AdminPage() {
                 setAuthError("");
               }}
               className={`py-2 rounded-lg text-sm font-bold transition ${
-                loginMode === "admin" ? "bg-[#02274c] text-white" : "text-slate-600"
+                loginMode === "admin" ? "bg-[#02274c] text-white" : "text-slate-700"
               }`}
             >
-              YÃ¶netici (Admin)
+              Yönetici (Admin)
             </button>
             <button
               type="button"
@@ -783,10 +765,10 @@ export default function AdminPage() {
                 setAuthError("");
               }}
               className={`py-2 rounded-lg text-sm font-bold transition ${
-                loginMode === "coach" ? "bg-[#a60513] text-white" : "text-slate-600"
+                loginMode === "coach" ? "bg-[#a60513] text-white" : "text-slate-700"
               }`}
             >
-              AntrenÃ¶r GiriÅŸi
+              Antrenör Girişi
             </button>
           </div>
 
@@ -802,18 +784,18 @@ export default function AdminPage() {
                 placeholder="Admin E-posta"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
               />
               <input
                 type="password"
                 required
-                placeholder="Åifre"
+                placeholder="Şifre"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
               />
               <button type="submit" className="w-full bg-[#02274c] text-white font-bold py-2.5 rounded-lg">
-                Admin Olarak GiriÅŸ Yap
+                Admin Olarak Giriş Yap
               </button>
             </form>
           ) : (
@@ -821,21 +803,21 @@ export default function AdminPage() {
               <input
                 type="text"
                 required
-                placeholder="AntrenÃ¶r Kodu (Ã¶rn: ANT-1001)"
+                placeholder="Antrenör Kodu (örn: ANT-1001)"
                 value={coachCode}
                 onChange={(e) => setCoachCode(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm uppercase"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase text-slate-900 placeholder:text-slate-500"
               />
               <input
                 type="password"
                 required
-                placeholder="AntrenÃ¶r Åifresi"
+                placeholder="Antrenör Şifresi"
                 value={coachPin}
                 onChange={(e) => setCoachPin(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
               />
               <button type="submit" className="w-full bg-[#a60513] text-white font-bold py-2.5 rounded-lg">
-                AntrenÃ¶r Olarak GiriÅŸ Yap
+                Antrenör Olarak Giriş Yap
               </button>
             </form>
           )}
@@ -861,40 +843,40 @@ export default function AdminPage() {
       ? [
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
-          { id: "tff", label: "TFF Bilgi BankasÄ± AjanÄ±" },
+          { id: "tff", label: "TFF Bilgi Bankası Ajanı" },
           { id: "aidat", label: "Aidatlar" },
           { id: "envanter", label: "Forma & Ekipman" },
-          { id: "gorevler", label: "MaÃ§ & GÃ¶revler" },
+          { id: "gorevler", label: "Maç & Görevler" },
           { id: "namaz", label: "QR Yoklama" },
-          { id: "antrenorler", label: `AntrenÃ¶rler (${coaches.length})` },
+          { id: "antrenorler", label: `Antrenörler (${coaches.length})` },
         ]
       : [
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
-          { id: "tff", label: "TFF Bilgi BankasÄ± AjanÄ±" },
-          { id: "gorevler", label: "MaÃ§ & GÃ¶revler" },
+          { id: "tff", label: "TFF Bilgi Bankası Ajanı" },
+          { id: "gorevler", label: "Maç & Görevler" },
           { id: "namaz", label: "QR Yoklama" },
         ];
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-16">
+    <div className="min-h-screen bg-slate-50 pb-16 text-slate-900">
       <div className="bg-[#02274c] text-white px-4 py-4 shadow">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-extrabold">
-              {role === "admin" ? "Ã‡orum Ä°kbalspor â€” YÃ¶netici Paneli" : `AntrenÃ¶r Paneli (${activeCoach?.full_name})`}
+              {role === "admin" ? "Çorum İkbalspor — Yönetici Paneli" : `Antrenör Paneli (${activeCoach?.full_name})`}
             </h1>
             <p className="text-xs text-slate-300">
               {role === "coach" && activeCoach
-                ? `Yetkili Gruplar: ${activeCoach.assigned_groups?.join(", ") || "TÃ¼mÃ¼"}`
-                : "Tam Yetkili KulÃ¼p YÃ¶netimi"}
+                ? `Yetkili Gruplar: ${activeCoach.assigned_groups?.join(", ") || "Tümü"}`
+                : "Tam Yetkili Kulüp Yönetimi"}
             </p>
           </div>
           <button
             onClick={handleLogout}
             className="bg-[#a60513] hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg"
           >
-            Ã‡Ä±kÄ±ÅŸ Yap
+            Çıkış Yap
           </button>
         </div>
       </div>
@@ -909,7 +891,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* Sekmeler */}
         <div className="flex flex-wrap gap-2 mb-6">
           {availableTabs.map((item) => (
             <button
@@ -924,31 +905,29 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* 1. OYUNCULAR SEKMESÄ° */}
         {tab === "oyuncular" && (
           <div className="space-y-6">
             {flaggedPlayersCount > 0 && (
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-sm">
-                <strong>âš ï¸ Kontrol Edilmesi Gereken {flaggedPlayersCount} Oyuncu Var:</strong> DoÄŸum tarihi eksik, isim
-                hatalÄ± veya aynÄ± isim+doÄŸum tarihli Ã§ift kayÄ±tlar tabloda sarÄ±/kÄ±rmÄ±zÄ± uyarÄ± etiketiyle iÅŸaretlendi.
-                SatÄ±rdaki <strong>DÃ¼zenle</strong> butonundan bilgileri gÃ¼ncelleyebilirsiniz.
+                <strong>⚠️ Kontrol Edilmesi Gereken {flaggedPlayersCount} Oyuncu Var:</strong> Doğum tarihi eksik, isim
+                hatalı veya aynı isim+doğum tarihli çift kayıtlar tabloda uyarı etiketiyle işaretlendi. Satırdaki{" "}
+                <strong>Düzenle</strong> butonundan bilgileri güncelleyebilirsiniz.
               </div>
             )}
 
-            {/* Oyuncu DÃ¼zenleme ModalÄ± */}
             {editingPlayer && (
               <form
                 onSubmit={savePlayerEdit}
                 className="bg-white p-5 rounded-2xl shadow-md border-2 border-[#a60513] space-y-4"
               >
                 <div className="flex justify-between items-center">
-                  <h2 className="text-lg font-extrabold text-[#02274c]">Oyuncu Bilgilerini DÃ¼zenle</h2>
+                  <h2 className="text-lg font-extrabold text-[#02274c]">Oyuncu Bilgilerini Düzenle</h2>
                   <button
                     type="button"
                     onClick={() => setEditingPlayer(null)}
                     className="text-sm text-slate-500 underline"
                   >
-                    VazgeÃ§
+                    Vazgeç
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -962,7 +941,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">DoÄŸum Tarihi (YaÅŸ Grubu Otomatik)</label>
+                    <label className="text-xs font-bold text-slate-600">Doğum Tarihi (Yaş Grubu Otomatik)</label>
                     <input
                       type="date"
                       value={editingPlayer.birth_date || ""}
@@ -1014,7 +993,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">Åifre (PIN)</label>
+                    <label className="text-xs font-bold text-slate-600">Şifre (PIN)</label>
                     <input
                       value={editingPlayer.player_pin || ""}
                       onChange={(e) => setEditingPlayer({ ...editingPlayer, player_pin: e.target.value })}
@@ -1040,13 +1019,12 @@ export default function AdminPage() {
                     Temsilci Yetkisi Ver
                   </label>
                   <button type="submit" className="bg-[#02274c] text-white font-bold px-6 py-2 rounded-lg text-sm">
-                    DeÄŸiÅŸiklikleri Kaydet
+                    Değişiklikleri Kaydet
                   </button>
                 </div>
               </form>
             )}
 
-            {/* Yeni Oyuncu Ekle */}
             <form onSubmit={addPlayer} className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
               <h2 className="font-bold text-[#02274c]">Yeni Oyuncu Ekle</h2>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -1088,13 +1066,13 @@ export default function AdminPage() {
                   className="border rounded-lg px-3 py-2 text-sm"
                 />
                 <input
-                  placeholder="Ã–zel ID (BoÅŸsa IKB-XXXX)"
+                  placeholder="Özel ID (Boşsa IKB-XXXX)"
                   value={newPlayer.player_code}
                   onChange={(e) => setNewPlayer({ ...newPlayer, player_code: e.target.value })}
                   className="border rounded-lg px-3 py-2 text-sm uppercase"
                 />
                 <input
-                  placeholder="Åifre (BoÅŸsa Tel Son 4)"
+                  placeholder="Şifre (Boşsa Tel Son 4)"
                   value={newPlayer.player_pin}
                   onChange={(e) => setNewPlayer({ ...newPlayer, player_pin: e.target.value })}
                   className="border rounded-lg px-3 py-2 text-sm"
@@ -1105,12 +1083,11 @@ export default function AdminPage() {
               </div>
             </form>
 
-            {/* Oyuncu Listesi */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border">
               <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-                <h2 className="font-bold text-[#02274c]">KayÄ±tlÄ± Oyuncular</h2>
+                <h2 className="font-bold text-[#02274c]">Kayıtlı Oyuncular</h2>
                 <input
-                  placeholder="Ä°sim, ID veya YaÅŸ Grubu ara..."
+                  placeholder="İsim, ID veya Yaş Grubu ara..."
                   value={playerSearch}
                   onChange={(e) => setPlayerSearch(e.target.value)}
                   className="border rounded-lg px-3 py-2 text-sm w-full md:w-72"
@@ -1120,11 +1097,11 @@ export default function AdminPage() {
                 <table className="w-full text-sm text-left">
                   <thead className="bg-slate-100 text-[#02274c]">
                     <tr>
-                      <th className="p-2.5">Ad Soyad & UyarÄ±lar</th>
-                      <th className="p-2.5">Grup / DoÄŸum T.</th>
-                      <th className="p-2.5">ID / Åifre</th>
+                      <th className="p-2.5">Ad Soyad & Uyarılar</th>
+                      <th className="p-2.5">Grup / Doğum T.</th>
+                      <th className="p-2.5">ID / Şifre</th>
                       <th className="p-2.5">Telefon</th>
-                      <th className="p-2.5">Ä°ÅŸlem</th>
+                      <th className="p-2.5">İşlem</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1149,7 +1126,7 @@ export default function AdminPage() {
                                 key={w}
                                 className="inline-block mt-1 mr-1 text-[11px] font-bold bg-red-100 text-red-700 px-2 py-0.5 rounded"
                               >
-                                âš ï¸ {w}
+                                ⚠️ {w}
                               </span>
                             ))}
                           </td>
@@ -1159,7 +1136,7 @@ export default function AdminPage() {
                           </td>
                           <td className="p-2.5 font-mono text-xs">
                             <div>ID: {p.player_code || "-"}</div>
-                            <div>Åifre: {p.player_pin || "1234"}</div>
+                            <div>Şifre: {p.player_pin || "1234"}</div>
                           </td>
                           <td className="p-2.5 text-xs">{p.parent_phone || "-"}</td>
                           <td className="p-2.5 flex gap-2">
@@ -1167,7 +1144,7 @@ export default function AdminPage() {
                               onClick={() => setEditingPlayer(p)}
                               className="bg-[#02274c] text-white text-xs font-bold px-3 py-1.5 rounded-lg"
                             >
-                              DÃ¼zenle
+                              Düzenle
                             </button>
                             {role === "admin" && (
                               <button
@@ -1188,13 +1165,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 2. ANTRENMANLAR SEKMESÄ° */}
         {tab === "antrenmanlar" && (
           <div className="space-y-6">
             <form onSubmit={saveTraining} className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-lg font-extrabold text-[#02274c]">
-                  {trainingForm.id ? "Antrenman DÃ¼zenle (DeÄŸiÅŸiklikte Bildirim Gider)" : "Toplu / Ekstra Antrenman Ekle"}
+                  {trainingForm.id ? "Antrenman Düzenle (Değişiklikte Bildirim Gider)" : "Toplu / Ekstra Antrenman Ekle"}
                 </h2>
                 {trainingForm.id && (
                   <button
@@ -1205,25 +1181,25 @@ export default function AdminPage() {
                         title: "",
                         training_type: "duzenli",
                         age_groups: ["U15"],
-                        selected_days: ["Ã‡arÅŸamba"],
+                        selected_days: ["Çarşamba"],
                         training_date: "",
                         start_time: "17:00",
                         end_time: "18:30",
-                        location: "Ã‡orum Ä°kbalspor Tesisleri",
+                        location: "Çorum İkbalspor Tesisleri",
                         extra_player_ids: [],
                         notes: "",
                       })
                     }
                     className="text-xs underline text-slate-500"
                   >
-                    Yeni Kayda DÃ¶n
+                    Yeni Kayda Dön
                   </button>
                 )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-600">Antrenman TÃ¼rÃ¼</label>
+                  <label className="text-xs font-bold text-slate-600">Antrenman Türü</label>
                   <select
                     value={trainingForm.training_type}
                     onChange={(e) =>
@@ -1231,14 +1207,14 @@ export default function AdminPage() {
                     }
                     className="w-full border rounded-lg px-3 py-2 text-sm"
                   >
-                    <option value="duzenli">DÃ¼zenli HaftalÄ±k Antrenman</option>
-                    <option value="ekstra">Ekstra Antrenman / Ã–zel Ã‡alÄ±ÅŸma</option>
+                    <option value="duzenli">Düzenli Haftalık Antrenman</option>
+                    <option value="ekstra">Ekstra Antrenman / Özel Çalışma</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-600">BaÅŸlÄ±k (Opsiyonel)</label>
+                  <label className="text-xs font-bold text-slate-600">Başlık (Opsiyonel)</label>
                   <input
-                    placeholder="Ã–rn: U13-U14-U15 Taktik Ä°dman"
+                    placeholder="Örn: U13-U14-U15 Taktik İdman"
                     value={trainingForm.title}
                     onChange={(e) => setTrainingForm({ ...trainingForm, title: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2 text-sm"
@@ -1254,10 +1230,9 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Ã‡oklu YaÅŸ Grubu SeÃ§imi */}
               <div>
                 <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                  YaÅŸ GruplarÄ± (Toplu SeÃ§im â€” Ã¶rn. U13, U14, U15 iÅŸaretleyebilirsiniz)
+                  Yaş Grupları (Toplu Seçim — örn. U13, U14, U15 işaretleyebilirsiniz)
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {AGE_GROUPS.map((g) => {
@@ -1278,7 +1253,7 @@ export default function AdminPage() {
                           checked ? "bg-[#02274c] text-white border-[#02274c]" : "bg-slate-50 text-slate-700"
                         }`}
                       >
-                        {checked ? "âœ“ " : ""}
+                        {checked ? "✓ " : ""}
                         {g}
                       </button>
                     );
@@ -1286,12 +1261,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* GÃ¼n & Saat */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {trainingForm.training_type === "duzenli" ? (
                   <div className="md:col-span-2">
                     <label className="text-xs font-bold text-slate-600 block mb-1.5">
-                      GÃ¼n(ler) â€” Toplu seÃ§ebilirsiniz
+                      Gün(ler) — Toplu seçebilirsiniz
                     </label>
                     <div className="flex flex-wrap gap-1.5">
                       {DAYS_OF_WEEK.map((d) => {
@@ -1335,7 +1309,7 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-bold text-slate-600">BaÅŸlangÄ±Ã§ Saati</label>
+                    <label className="text-xs font-bold text-slate-600">Başlangıç Saati</label>
                     <input
                       type="time"
                       required
@@ -1345,7 +1319,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-slate-600">BitiÅŸ</label>
+                    <label className="text-xs font-bold text-slate-600">Bitiş</label>
                     <input
                       type="time"
                       value={trainingForm.end_time}
@@ -1356,10 +1330,9 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Grup DÄ±ÅŸÄ±ndan Bireysel Oyuncu Ekleme */}
               <div className="bg-slate-50 p-3 rounded-xl border">
                 <label className="text-xs font-bold text-[#02274c] block mb-1.5">
-                  Grup DÄ±ÅŸÄ±ndan Bireysel Oyuncu Ekle (Opsiyonel â€” SeÃ§ili: {trainingForm.extra_player_ids.length})
+                  Grup Dışından Bireysel Oyuncu Ekle (Opsiyonel — Seçili: {trainingForm.extra_player_ids.length})
                 </label>
                 <input
                   placeholder="Oyuncu ismi ara..."
@@ -1389,7 +1362,7 @@ export default function AdminPage() {
                             selected ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-slate-700"
                           }`}
                         >
-                          {selected ? "âœ“ " : "+ "}
+                          {selected ? "✓ " : "+ "}
                           {p.full_name} ({p.age_group})
                         </button>
                       );
@@ -1398,29 +1371,28 @@ export default function AdminPage() {
               </div>
 
               <input
-                placeholder="Not (Ã–rn: Tekmelik ve yaÄŸmurluk getirin)"
+                placeholder="Not (Örn: Tekmelik ve yağmurluk getirin)"
                 value={trainingForm.notes}
                 onChange={(e) => setTrainingForm({ ...trainingForm, notes: e.target.value })}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
               />
 
               <button type="submit" className="bg-[#02274c] text-white font-bold px-6 py-2.5 rounded-xl text-sm">
-                {trainingForm.id ? "DeÄŸiÅŸikliÄŸi Kaydet & Bildirim GÃ¶nder" : "AntrenmanÄ± Kaydet & Gruba Bildir"}
+                {trainingForm.id ? "Değişikliği Kaydet & Bildirim Gönder" : "Antrenmanı Kaydet & Gruba Bildir"}
               </button>
             </form>
 
-            {/* WhatsApp HÄ±zlÄ± PaylaÅŸÄ±m Kutusu */}
             {lastWaBroadcast && (
               <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl space-y-3">
                 <div className="flex flex-wrap justify-between items-center gap-2">
-                  <h3 className="font-bold text-emerald-900">ğŸ“² WhatsApp Ä°le AnÄ±nda GÃ¶nder</h3>
+                  <h3 className="font-bold text-emerald-900">📲 WhatsApp İle Anında Gönder</h3>
                   <a
                     href={`https://wa.me/?text=${encodeURIComponent(lastWaBroadcast.message)}`}
                     target="_blank"
                     rel="noreferrer"
                     className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
                   >
-                    WhatsApp Grubunda PaylaÅŸ
+                    WhatsApp Grubunda Paylaş
                   </a>
                 </div>
                 <pre className="text-xs bg-white p-3 rounded-lg border whitespace-pre-wrap">{lastWaBroadcast.message}</pre>
@@ -1444,9 +1416,8 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* KayÄ±tlÄ± Antrenmanlar Listesi */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
-              <h2 className="font-bold text-[#02274c]">KayÄ±tlÄ± Antrenman ProgramÄ±</h2>
+              <h2 className="font-bold text-[#02274c]">Kayıtlı Antrenman Programı</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {trainings.map((tr) => {
                   const extraList = players.filter((p) => (tr.extra_player_ids || []).includes(p.id));
@@ -1464,7 +1435,7 @@ export default function AdminPage() {
                                 : "bg-blue-100 text-blue-800"
                             }`}
                           >
-                            {tr.training_type === "ekstra" ? "EKSTRA" : "DÃœZENLÄ°"}
+                            {tr.training_type === "ekstra" ? "EKSTRA" : "DÜZENLİ"}
                           </span>
                           <h3 className="font-bold text-[#02274c] mt-1">{tr.title}</h3>
                         </div>
@@ -1473,7 +1444,7 @@ export default function AdminPage() {
                             onClick={() => startEditTraining(tr)}
                             className="bg-[#02274c] text-white text-xs px-2.5 py-1 rounded-lg font-bold"
                           >
-                            Saat/GÃ¼n DeÄŸiÅŸtir
+                            Saat/Gün Değiştir
                           </button>
                           <button
                             onClick={() => deleteTraining(tr.id)}
@@ -1485,7 +1456,7 @@ export default function AdminPage() {
                       </div>
                       <div className="text-xs text-slate-600">
                         <strong>Gruplar:</strong> {(tr.age_groups || []).join(", ")} |{" "}
-                        <strong>Zaman:</strong> {tr.day_of_week || tr.training_date} â€” <strong>{tr.start_time}</strong>
+                        <strong>Zaman:</strong> {tr.day_of_week || tr.training_date} — <strong>{tr.start_time}</strong>
                         {tr.end_time ? ` - ${tr.end_time}` : ""}
                       </div>
                       {extraList.length > 0 && (
@@ -1499,7 +1470,7 @@ export default function AdminPage() {
                         rel="noreferrer"
                         className="inline-block text-xs font-bold text-emerald-700 underline"
                       >
-                        ğŸ“² Gruba WhatsApp MesajÄ± At
+                        📲 Gruba WhatsApp Mesajı At
                       </a>
                     </div>
                   );
@@ -1509,15 +1480,14 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 3. TFF FUTBOL BÄ°LGÄ° BANKASI AJANI SEKMESÄ° */}
         {tab === "tff" && (
           <div className="space-y-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <div className="flex flex-wrap justify-between items-center gap-2">
                 <div>
-                  <h2 className="text-lg font-extrabold text-[#02274c]">ğŸ¤– TFF Futbol Bilgi BankasÄ± AjanÄ±</h2>
+                  <h2 className="text-lg font-extrabold text-[#02274c]">🤖 TFF Futbol Bilgi Bankası Ajanı</h2>
                   <p className="text-xs text-slate-500">
-                    TFF'den oyuncu bilgilerini otomatik Ã§eker, kadroda aynÄ± isim ve doÄŸum tarihi varsa sizi uyarÄ±r.
+                    TFF'den oyuncu bilgilerini otomatik çeker, kadroda aynı isim ve doğum tarihi varsa sizi uyarır.
                   </p>
                 </div>
                 <a
@@ -1526,16 +1496,16 @@ export default function AdminPage() {
                   rel="noreferrer"
                   className="text-xs font-bold bg-slate-100 px-3 py-2 rounded-lg text-[#02274c]"
                 >
-                  TFF Arama SayfasÄ±nÄ± AÃ§ â†—
+                  TFF Arama Sayfasını Aç ↗
                 </a>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border rounded-xl p-3 space-y-2">
-                  <label className="text-xs font-bold text-slate-600">1. YÃ¶ntem: Ä°sim veya Lisans No ile TFF'de Ara</label>
+                  <label className="text-xs font-bold text-slate-600">1. Yöntem: İsim veya Lisans No ile TFF'de Ara</label>
                   <div className="flex gap-2">
                     <input
-                      placeholder="Ã–rn: Ahmet YÄ±lmaz veya 1234567"
+                      placeholder="Örn: Ahmet Yılmaz veya 1234567"
                       value={tffQuery}
                       onChange={(e) => setTffQuery(e.target.value)}
                       className="flex-1 border rounded-lg px-3 py-2 text-sm"
@@ -1546,13 +1516,13 @@ export default function AdminPage() {
                       onClick={() => runTffAgent("search")}
                       className="bg-[#02274c] text-white text-xs font-bold px-4 py-2 rounded-lg"
                     >
-                      {tffLoading ? "AranÄ±yor..." : "TFF'den Ã‡ek"}
+                      {tffLoading ? "Aranıyor..." : "TFF'den Çek"}
                     </button>
                   </div>
                 </div>
 
                 <div className="border rounded-xl p-3 space-y-2">
-                  <label className="text-xs font-bold text-slate-600">2. YÃ¶ntem: TFF Oyuncu Linki veya KiÅŸi ID</label>
+                  <label className="text-xs font-bold text-slate-600">2. Yöntem: TFF Oyuncu Linki veya Kişi ID</label>
                   <div className="flex gap-2">
                     <input
                       placeholder="https://www.tff.org/Default.aspx?pageID=30&kisiID=..."
@@ -1572,15 +1542,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* AkÄ±llÄ± Metin AyrÄ±ÅŸtÄ±rÄ±cÄ± (TFF engellerse) */}
               <div className="border rounded-xl p-3 bg-slate-50 space-y-2">
                 <label className="text-xs font-bold text-slate-600">
-                  3. YÃ¶ntem (Yedek): TFF Oyuncu SayfasÄ±ndan KopyaladÄ±ÄŸÄ±nÄ±z Metni YapÄ±ÅŸtÄ±rÄ±n
+                  3. Yöntem (Yedek): TFF Oyuncu Sayfasından Kopyaladığınız Metni Yapıştırın
                 </label>
                 <div className="flex flex-col md:flex-row gap-2">
                   <textarea
                     rows={2}
-                    placeholder="TFF oyuncu sayfasÄ±ndan AdÄ± SoyadÄ±, DoÄŸum Tarihi, Lisans No alanlarÄ±nÄ± kopyalayÄ±p yapÄ±ÅŸtÄ±rÄ±n..."
+                    placeholder="TFF oyuncu sayfasından Adı Soyadı, Doğum Tarihi, Lisans No alanlarını kopyalayıp yapıştırın..."
                     value={tffPasteText}
                     onChange={(e) => setTffPasteText(e.target.value)}
                     className="flex-1 border rounded-lg px-3 py-2 text-xs bg-white"
@@ -1590,23 +1559,22 @@ export default function AdminPage() {
                     onClick={parseTffPastedText}
                     className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-lg"
                   >
-                    Metinden AyrÄ±ÅŸtÄ±r
+                    Metinden Ayrıştır
                   </button>
                 </div>
               </div>
 
               {tffError && <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs">{tffError}</div>}
 
-              {/* Bulunan SonuÃ§lar */}
               {tffResults.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-xs font-bold text-slate-600">TFF SonuÃ§larÄ± (DÃ¼zenlemek iÃ§in seÃ§in):</h3>
+                  <h3 className="text-xs font-bold text-slate-600">TFF Sonuçları (Düzenlemek için seçin):</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {tffResults.map((r, idx) => (
                       <div key={idx} className="border rounded-xl p-3 flex justify-between items-center">
                         <div className="text-xs">
                           <div className="font-bold text-[#02274c]">{r.full_name}</div>
-                          <div>DoÄŸum: {r.birth_date || "?"} | Lisans: {r.license_no || "-"}</div>
+                          <div>Doğum: {r.birth_date || "?"} | Lisans: {r.license_no || "-"}</div>
                           <div className="text-slate-500">{r.club || ""}</div>
                         </div>
                         <button
@@ -1614,7 +1582,7 @@ export default function AdminPage() {
                           onClick={() => selectTffPlayerToDraft(r)}
                           className="bg-[#02274c] text-white text-xs font-bold px-3 py-1.5 rounded-lg"
                         >
-                          SeÃ§ & DÃ¼zenle
+                          Seç & Düzenle
                         </button>
                       </div>
                     ))}
@@ -1622,15 +1590,14 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* DÃ¼zenlenebilir Ä°Ã§e Aktarma Formu + Ã‡ift KayÄ±t UyarÄ±sÄ± */}
               {tffDraft && (
                 <form onSubmit={importTffDraftToSquad} className="border-2 border-[#02274c] rounded-2xl p-4 space-y-3 bg-blue-50/30">
-                  <h3 className="font-extrabold text-[#02274c]">TFF'den Gelen Bilgileri Ä°ncele / DÃ¼zenle ve Ekle</h3>
+                  <h3 className="font-extrabold text-[#02274c]">TFF'den Gelen Bilgileri İncele / Düzenle ve Ekle</h3>
 
                   {tffDuplicateMatch && (
                     <div className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-900 text-sm font-bold">
-                      âš ï¸ DÄ°KKAT: Kadronuzda aynÄ± isim ve doÄŸum tarihine sahip oyuncu zaten kayÄ±tlÄ±! (
-                      {tffDuplicateMatch.full_name} â€” ID: {tffDuplicateMatch.player_code} â€” Grup:{" "}
+                      ⚠️ DİKKAT: Kadronuzda aynı isim ve doğum tarihine sahip oyuncu zaten kayıtlı! (
+                      {tffDuplicateMatch.full_name} — ID: {tffDuplicateMatch.player_code} — Grup:{" "}
                       {tffDuplicateMatch.age_group})
                     </div>
                   )}
@@ -1646,7 +1613,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-600">DoÄŸum Tarihi</label>
+                      <label className="text-xs font-bold text-slate-600">Doğum Tarihi</label>
                       <input
                         type="date"
                         value={tffDraft.birth_date}
@@ -1702,7 +1669,7 @@ export default function AdminPage() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-600">Åifre (PIN)</label>
+                      <label className="text-xs font-bold text-slate-600">Şifre (PIN)</label>
                       <input
                         value={tffDraft.player_pin}
                         onChange={(e) => setTffDraft({ ...tffDraft, player_pin: e.target.value })}
@@ -1711,7 +1678,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <button type="submit" className="bg-[#a60513] text-white font-bold px-5 py-2 rounded-lg text-sm">
-                    DÃ¼zenlenen Bilgilerle Kadroya Ekle
+                    Düzenlenen Bilgilerle Kadroya Ekle
                   </button>
                 </form>
               )}
@@ -1719,7 +1686,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 4. AÄ°DATLAR */}
         {tab === "aidat" && role === "admin" && (
           <div className="space-y-6">
             <form onSubmit={addDue} className="bg-white p-5 rounded-2xl shadow-sm border grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -1729,7 +1695,7 @@ export default function AdminPage() {
                 onChange={(e) => setNewDue({ ...newDue, player_id: e.target.value })}
                 className="border rounded-lg px-3 py-2 text-sm"
               >
-                <option value="">Oyuncu SeÃ§...</option>
+                <option value="">Oyuncu Seç...</option>
                 {players.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name} ({p.age_group})
@@ -1748,7 +1714,7 @@ export default function AdminPage() {
                 className="border rounded-lg px-3 py-2 text-sm"
               />
               <button type="submit" className="bg-[#02274c] text-white font-bold rounded-lg px-4 py-2 text-sm">
-                Aidat KaydÄ± AÃ§
+                Aidat Kaydı Aç
               </button>
             </form>
 
@@ -1756,12 +1722,12 @@ export default function AdminPage() {
               {dues.map((d) => (
                 <div key={d.id} className="flex flex-wrap justify-between items-center border-b pb-2 text-sm">
                   <div>
-                    <strong>{d.players?.full_name}</strong> ({d.players?.age_group}) â€” {d.month_label} â€” {d.amount}â‚º
+                    <strong>{d.players?.full_name}</strong> ({d.players?.age_group}) — {d.month_label} — {d.amount}₺
                   </div>
                   <button
                     onClick={() => toggleDueStatus(d)}
                     className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                      d.status === "Ã–dendi" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      d.status === "Ödendi" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
                     }`}
                   >
                     {d.status}
@@ -1772,16 +1738,14 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 5. FORMA & EKÄ°PMAN */}
-        {tab === "envanter" && role === "admin" && <InventoryManager players={players} />}
+        {tab === "envanter" && role === "admin" && <InventoryManager />}
 
-        {/* 6. MAÃ‡ & GÃ–REVLER */}
         {tab === "gorevler" && (
           <div className="space-y-6">
             <form onSubmit={addTask} className="bg-white p-5 rounded-2xl shadow-sm border grid grid-cols-1 md:grid-cols-3 gap-3">
               <input
                 required
-                placeholder="BaÅŸlÄ±k (Ã–rn: PGL U15 Lig MaÃ§Ä±)"
+                placeholder="Başlık (Örn: PGL U15 Lig Maçı)"
                 value={newTask.title}
                 onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
                 className="border rounded-lg px-3 py-2 text-sm"
@@ -1815,14 +1779,14 @@ export default function AdminPage() {
                 className="border rounded-lg px-3 py-2 text-sm"
               />
               <button type="submit" className="bg-[#a60513] text-white font-bold rounded-lg px-4 py-2 text-sm">
-                GÃ¶rev / MaÃ§ Ekle
+                Görev / Maç Ekle
               </button>
             </form>
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-2">
               {tasks.map((t) => (
                 <div key={t.id} className="border-b pb-2 text-sm flex justify-between">
                   <div>
-                    <strong>{t.title}</strong> ({t.age_group}) â€” {t.event_date} â€” {t.location}
+                    <strong>{t.title}</strong> ({t.age_group}) — {t.event_date} — {t.location}
                   </div>
                 </div>
               ))}
@@ -1830,7 +1794,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 7. QR YOKLAMA */}
         {tab === "namaz" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
@@ -1841,7 +1804,7 @@ export default function AdminPage() {
                   className="flex-1 border rounded-lg px-3 py-2 text-sm"
                 />
                 <button type="submit" className="bg-[#02274c] text-white text-xs font-bold px-4 py-2 rounded-lg">
-                  Yeni QR OluÅŸtur
+                  Yeni QR Oluştur
                 </button>
               </form>
               {activeSession && (
@@ -1854,7 +1817,7 @@ export default function AdminPage() {
             </div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border">
               <h3 className="font-bold text-[#02274c] mb-3">
-                KatÄ±lanlar ({checkedInIds.size} / {players.length})
+                Katılanlar ({checkedInIds.size} / {players.length})
               </h3>
               <div className="space-y-1 max-h-96 overflow-y-auto">
                 {players.map((p) => {
@@ -1869,7 +1832,7 @@ export default function AdminPage() {
                       <span>
                         {p.full_name} ({p.age_group})
                       </span>
-                      <span>{ok ? "âœ“ KatÄ±ldÄ±" : "Bekleniyor"}</span>
+                      <span>{ok ? "✓ Katıldı" : "Bekleniyor"}</span>
                     </div>
                   );
                 })}
@@ -1878,27 +1841,26 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 8. ANTRENÃ–RLER SEKMESÄ° (Sadece Admin) */}
         {tab === "antrenorler" && role === "admin" && (
           <div className="space-y-6">
             <form onSubmit={addCoach} className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
-              <h2 className="font-bold text-[#02274c]">Yeni AntrenÃ¶r Ekle</h2>
+              <h2 className="font-bold text-[#02274c]">Yeni Antrenör Ekle</h2>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <input
                   required
-                  placeholder="AntrenÃ¶r Ad Soyad"
+                  placeholder="Antrenör Ad Soyad"
                   value={newCoach.full_name}
                   onChange={(e) => setNewCoach({ ...newCoach, full_name: e.target.value })}
                   className="border rounded-lg px-3 py-2 text-sm"
                 />
                 <input
-                  placeholder="AntrenÃ¶r Kodu (BoÅŸsa ANT-XXXX)"
+                  placeholder="Antrenör Kodu (Boşsa ANT-XXXX)"
                   value={newCoach.coach_code}
                   onChange={(e) => setNewCoach({ ...newCoach, coach_code: e.target.value })}
                   className="border rounded-lg px-3 py-2 text-sm uppercase"
                 />
                 <input
-                  placeholder="GiriÅŸ Åifresi (PIN)"
+                  placeholder="Giriş Şifresi (PIN)"
                   value={newCoach.pin}
                   onChange={(e) => setNewCoach({ ...newCoach, pin: e.target.value })}
                   className="border rounded-lg px-3 py-2 text-sm"
@@ -1911,7 +1873,7 @@ export default function AdminPage() {
                 />
               </div>
               <button type="submit" className="bg-[#02274c] text-white font-bold px-5 py-2 rounded-lg text-sm">
-                AntrenÃ¶rÃ¼ Kaydet
+                Antrenörü Kaydet
               </button>
             </form>
 
@@ -1919,7 +1881,7 @@ export default function AdminPage() {
               {coaches.map((c) => (
                 <div key={c.id} className="flex justify-between items-center border-b pb-2 text-sm">
                   <div>
-                    <strong>{c.full_name}</strong> â€” Kod: <span className="font-mono">{c.coach_code}</span> | Åifre:{" "}
+                    <strong>{c.full_name}</strong> — Kod: <span className="font-mono">{c.coach_code}</span> | Şifre:{" "}
                     <span className="font-mono">{c.pin}</span>
                   </div>
                   <button
@@ -1940,4 +1902,3 @@ export default function AdminPage() {
     </div>
   );
 }
-
