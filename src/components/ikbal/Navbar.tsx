@@ -34,13 +34,9 @@ function isNotificationForGroup(
   playerAgeGroup: string | null | undefined
 ): boolean {
   const tg = (targetGroup || "Tümü").trim();
-  if (!playerAgeGroup) {
-    return true;
-  }
-  if (tg === "Tümü" || tg === "Tüm Kulüp") {
-    return true;
-  }
-  return tg.toLowerCase() === playerAgeGroup.trim().toLowerCase();
+  if (!playerAgeGroup) return true;
+  if (tg === "Tümü" || tg === "Tüm Kulüp") return true;
+  return tg === playerAgeGroup.trim();
 }
 
 export function Navbar() {
@@ -194,7 +190,7 @@ export function Navbar() {
     >
       <span>!</span>
       {unreadCount > 0 && (
-        <span className=" -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center shadow">
+        <span className="-top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center shadow">
           {unreadCount}
         </span>
       )}
@@ -240,7 +236,7 @@ export function Navbar() {
             })}
           </nav>
 
-          {/* Masaüstü: Profil Sekmesi + Hemen Yanında Ayrı Ünlem (!) Bildirim Butonu */}
+          {/* Masaüstü: Profil Sekmesi + Yanında Ayrı Ünlem (!) Bildirim Butonu */}
           <div className="hidden lg:flex items-center gap-2">
             {session ? (
               <div className="flex items-center gap-2">

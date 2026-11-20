@@ -72,7 +72,7 @@ export default function BildirimlerPage() {
       .filter((m) => {
         if (!playerAgeGroup) return true;
         if (m.group === "Tümü" || m.group === "Tüm Kulüp") return true;
-        return m.group.toLowerCase() === playerAgeGroup.trim().toLowerCase();
+        return m.group === playerAgeGroup.trim();
       });
   }, [items, playerAgeGroup]);
 
