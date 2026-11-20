@@ -21,10 +21,10 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-3 shrink-0">
           <img
-  src="/logo.png"
-  alt="Çorum İkbalspor Logosu"
-  className="h-11 w-11 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25 shadow"
-/>
+            src="/logo.png"
+            alt="Çorum İkbalspor Logosu"
+            className="h-11 w-11 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25 shadow"
+          />
           <div className="leading-tight">
             <span className="block text-xl font-black tracking-wide">İKBALSPOR</span>
             <span className="block text-[11px] font-bold text-slate-300">
@@ -51,6 +51,12 @@ export function Navbar() {
         </nav>
 
         <div className="hidden lg:flex items-center gap-2">
+          <Link
+            href="/sporcu"
+            className="px-4 py-2.5 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white font-extrabold text-sm transition"
+          >
+            Sporcu Girişi
+          </Link>
           <Link
             href="/admin"
             className="px-4 py-2.5 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-sm transition"
@@ -83,9 +89,16 @@ export function Navbar() {
             </Link>
           ))}
           <Link
+            href="/sporcu"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 rounded-xl bg-[#a60513] text-white font-extrabold text-sm text-center mt-2"
+          >
+            Sporcu Girişi
+          </Link>
+          <Link
             href="/admin"
             onClick={() => setOpen(false)}
-            className="block px-4 py-2.5 rounded-xl bg-white text-[#02274c] font-extrabold text-sm text-center mt-2"
+            className="block px-4 py-2.5 rounded-xl bg-white text-[#02274c] font-extrabold text-sm text-center"
           >
             Yönetim Paneli
           </Link>
