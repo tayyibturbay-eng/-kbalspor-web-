@@ -26,62 +26,77 @@ export function Navbar() {
   useEffect(() => {
     let active = true;
 
-    async function checkAuth() {
-      if (typeof window === "undefined") return;
+    async function checkPlayer(supabase: ReturnType<typeof createClient>): Promise<AuthSession> {
+      const playerId = localStorage.getItem("ikbal_logged_player_id");
+      if (!playerId) return null;
+      const { data: p } = await supabase
+        .from("players")
+        .select("full_name, photo_url")
+        .eq("id", playerId)
+        .maybeSingle();
+      if (!p) return null;
+      return {
+        role: "player",
+        name: p.full_name || "Sporcu Profili",
+        photoUrl: p.photo_url || null,
+        href: "/sporcu",
+      };
+    }
 
-      // 1. Antrenör oturumu kontrolü
+    async function checkStaff(supabase: ReturnType<typeof createClient>): Promise<AuthSession> {
       const savedCoach = localStorage.getItem("ikbal_coach");
       if (savedCoach) {
         try {
           const parsed = JSON.parse(savedCoach);
-          if (parsed?.id && active) {
-            setSession({
+          if (parsed?.id) {
+            return {
               role: "coach",
               name: parsed.full_name || "Antrenör",
               photoUrl: null,
               href: "/admin",
-            });
-            return;
+            };
           }
         } catch {
-          // geçersiz JSON
+          // yoksay
         }
       }
 
-      // 2. Admin (Supabase Auth) oturumu kontrolü
-      const supabase = createClient();
       const { data: authData } = await supabase.auth.getSession();
-      if (authData?.session?.user && active) {
-        setSession({
+      if (authData?.session?.user) {
+        return {
           role: "admin",
           name: "Yönetim Paneli",
           photoUrl: null,
           href: "/admin",
-        });
+        };
+      }
+      return null;
+    }
+
+    async function checkAuth() {
+      if (typeof window === "undefined") return;
+      const supabase = createClient();
+
+      // /admin sayfasındaysak önce antrenör/admin oturumuna bak; diğer tüm sayfalarda sporcu girişi varsa önce onu göster
+      if (pathname.startsWith("/admin")) {
+        const staff = await checkStaff(supabase);
+        if (staff && active) {
+          setSession(staff);
+          return;
+        }
+        const player = await checkPlayer(supabase);
+        if (active) setSession(player);
         return;
       }
 
-      // 3. Sporcu oturumu kontrolü
-      const playerId = localStorage.getItem("ikbal_logged_player_id");
-      if (playerId) {
-        const { data: p } = await supabase
-          .from("players")
-          .select("full_name, photo_url")
-          .eq("id", playerId)
-          .maybeSingle();
-
-        if (p && active) {
-          setSession({
-            role: "player",
-            name: p.full_name || "Sporcu Profili",
-            photoUrl: p.photo_url || null,
-            href: "/sporcu",
-          });
-          return;
-        }
+      const player = await checkPlayer(supabase);
+      if (player && active) {
+        setSession(player);
+        return;
       }
 
-      if (active) setSession(null);
+      const staff = await checkStaff(supabase);
+      if (active) setSession(staff);
     }
 
     checkAuth();
@@ -154,7 +169,7 @@ export function Navbar() {
                 </span>
               )}
               <span className="leading-tight">
-                {session.role === "player" ? firstName : "Yönetim Paneli"}
+                {session.role === "player" ? `${firstName} • Profil` : "Yönetim Paneli"}
               </span>
             </Link>
           ) : (
