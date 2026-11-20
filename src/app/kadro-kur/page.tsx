@@ -15,15 +15,15 @@ interface Player {
 }
 
 const CATEGORIES = [
-  { key: "PGL-U19", label: "PGL U19" },
-  { key: "PGL-U17", label: "PGL U17" },
-  { key: "PGL-U16", label: "PGL U16" },
-  { key: "PGL-U15", label: "PGL U15" },
-  { key: "PGL-U14", label: "PGL U14" },
-  { key: "PGL-U13", label: "PGL U13" },
-  { key: "PGL-GENEL", label: "PGL A Takım (Açık)" },
-  { key: "U12", label: "U12" },
   { key: "U11", label: "U11" },
+  { key: "U12", label: "U12" },
+  { key: "PGL-U13", label: "U13" },
+  { key: "PGL-U14", label: "U14" },
+  { key: "PGL-U15", label: "U15" },
+  { key: "PGL-U16", label: "U16" },
+  { key: "PGL-U17", label: "U17" },
+  { key: "PGL-U19", label: "U19" },
+  { key: "PGL-GENEL", label: "PGL Kadro" },
 ];
 
 const FORMATIONS: Record<string, { label: string; rows: { role: string; count: number }[] }> = {
