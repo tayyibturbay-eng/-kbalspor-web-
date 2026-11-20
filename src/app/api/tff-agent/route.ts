@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "nodejs";
+
 
 function decodeHtml(str: string): string {
   return str
@@ -34,25 +34,25 @@ async function fetchTffProfileById(kisiId: string) {
   });
 
   if (!res.ok) {
-    throw new Error(`TFF sunucusu yanıt vermedi (HTTP ${res.status})`);
+    throw new Error(`TFF sunucusu yanÄ±t vermedi (HTTP ${res.status})`);
   }
 
   const html = await res.text();
   if (html.includes("Access Denied") || html.includes("cf-browser-verification")) {
-    throw new Error("TFF güvenlik duvarı otomatik isteği engelledi.");
+    throw new Error("TFF gÃ¼venlik duvarÄ± otomatik isteÄŸi engelledi.");
   }
 
   const text = decodeHtml(html);
 
-  // Ad Soyad başlığı
+  // Ad Soyad baÅŸlÄ±ÄŸÄ±
   const titleMatch = html.match(/<title>([^<-]+)/i);
   const nameFromLabel = html.match(/id="[^"]*lblAdiSoyadi[^"]*"[^>]*>([^<]+)</i);
   const fullName = decodeHtml(nameFromLabel?.[1] || titleMatch?.[1] || "").replace(/Futbolcu Bilgileri.*/i, "").trim();
 
-  // Doğum Tarihi
+  // DoÄŸum Tarihi
   const birthMatch =
-    html.match(/Doğum Tarihi[\s\S]{0,250}?(\d{1,2}\.\d{1,2}\.\d{4})/i) ||
-    text.match(/Doğum Tarihi\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4})/i);
+    html.match(/DoÄŸum Tarihi[\s\S]{0,250}?(\d{1,2}\.\d{1,2}\.\d{4})/i) ||
+    text.match(/DoÄŸum Tarihi\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4})/i);
   const birthDate = birthMatch ? turkishDateToIso(birthMatch[1]) : "";
 
   // Lisans No
@@ -61,14 +61,14 @@ async function fetchTffProfileById(kisiId: string) {
     text.match(/Lisans No\s*:?\s*(\d{5,12})/i);
   const licenseNo = licenseMatch ? licenseMatch[1] : "";
 
-  // Kulüp
+  // KulÃ¼p
   const clubMatch =
-    html.match(/Kulüp[\s\S]{0,250}?<a[^>]*>([^<]+)<\/a>/i) ||
-    text.match(/Mevcut Kulüp\s*:?\s*([A-ZÇĞİÖŞÜ0-9\s.\-]+?)(?:Doğum|Lisans|Uyruk|$)/i);
+    html.match(/KulÃ¼p[\s\S]{0,250}?<a[^>]*>([^<]+)<\/a>/i) ||
+    text.match(/Mevcut KulÃ¼p\s*:?\s*([A-ZÃ‡ÄÄ°Ã–ÅÃœ0-9\s.\-]+?)(?:DoÄŸum|Lisans|Uyruk|$)/i);
   const club = clubMatch ? decodeHtml(clubMatch[1]) : "";
 
-  // Doğum Yeri
-  const placeMatch = text.match(/Doğum Yeri\s*:?\s*([A-ZÇĞİÖŞÜa-zçğıöşü\s\/-]+?)(?:Doğum Tarihi|Uyruk|$)/i);
+  // DoÄŸum Yeri
+  const placeMatch = text.match(/DoÄŸum Yeri\s*:?\s*([A-ZÃ‡ÄÄ°Ã–ÅÃœa-zÃ§ÄŸÄ±Ã¶ÅŸÃ¼\s\/-]+?)(?:DoÄŸum Tarihi|Uyruk|$)/i);
   const birthPlace = placeMatch ? placeMatch[1].trim() : "";
 
   return {
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       const idMatch = kisiIdOrUrl.match(/kisiID=(\d+)/i) || kisiIdOrUrl.match(/^(\d{4,12})$/);
       if (!idMatch) {
         return NextResponse.json(
-          { ok: false, error: "Geçerli bir TFF kisiID numarası veya TFF oyuncu linki girin." },
+          { ok: false, error: "GeÃ§erli bir TFF kisiID numarasÄ± veya TFF oyuncu linki girin." },
           { status: 400 }
         );
       }
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           ok: false,
           blocked: true,
-          error: `TFF arama sayfasına ulaşılamadı (HTTP ${initRes.status}). Aşağıdaki 'TFF Metni Yapıştır' yöntemini kullanabilirsiniz.`,
+          error: `TFF arama sayfasÄ±na ulaÅŸÄ±lamadÄ± (HTTP ${initRes.status}). AÅŸaÄŸÄ±daki 'TFF Metni YapÄ±ÅŸtÄ±r' yÃ¶ntemini kullanabilirsiniz.`,
         });
       }
 
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
       const firstName = !isLicense && parts.length > 1 ? parts.slice(0, -1).join(" ") : !isLicense ? parts[0] : "";
       const lastName = !isLicense && parts.length > 1 ? parts[parts.length - 1] : "";
 
-      // TFF ASP.NET form alanlarını tespit et
+      // TFF ASP.NET form alanlarÄ±nÄ± tespit et
       const adInput =
         initHtml.match(/name="([^"]*txtAdi[^"]*)"/i)?.[1] || "ctl00$MPane$m_130_510_ctnr$m_130_510$txtAdi";
       const soyadInput =
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
           ok: false,
           blocked: true,
           error:
-            "TFF üzerinden otomatik sonuç alınamadı (TFF bot koruması veya kayıt bulunamadı). Oyuncu profilini tff.org'dan açıp linki veya sayfa metnini yapıştırabilirsiniz.",
+            "TFF Ã¼zerinden otomatik sonuÃ§ alÄ±namadÄ± (TFF bot korumasÄ± veya kayÄ±t bulunamadÄ±). Oyuncu profilini tff.org'dan aÃ§Ä±p linki veya sayfa metnini yapÄ±ÅŸtÄ±rabilirsiniz.",
         });
       }
 
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, results: profiles });
     }
 
-    return NextResponse.json({ ok: false, error: "Geçersiz istek." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "GeÃ§ersiz istek." }, { status: 400 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata";
     return NextResponse.json({ ok: false, blocked: true, error: message }, { status: 200 });

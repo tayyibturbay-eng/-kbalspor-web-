@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 const supabase = createClient();
-import InventoryManager from "@/components/admin/InventoryManager";
+import { InventoryManager } from "@/components/admin/InventoryManager";
 import { QRCodeSVG } from "qrcode.react";
 
 type Player = {
@@ -1940,3 +1940,4 @@ export default function AdminPage() {
     </div>
   );
 }
+
