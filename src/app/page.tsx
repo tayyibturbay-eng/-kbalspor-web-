@@ -29,7 +29,9 @@ export default function IkbalHomePage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("tasks_assignments")
-        .select("id, title, task_type, age_group, event_date, match_time, location")
+        .select(
+          "id, title, task_type, age_group, event_date, match_time, location"
+        )
         .gte("event_date", todayStr)
         .order("event_date", { ascending: true })
         .limit(4);
@@ -179,59 +181,6 @@ export default function IkbalHomePage() {
               </div>
             </div>
           </div>
-        </section>
-
-        {/* Hızlı Modüller */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <Link
-            href="/kadro-kur"
-            className="rounded-2xl bg-white border border-slate-200 border-t-4 border-t-[#a60513] p-6 shadow-sm hover:shadow-lg transition space-y-2"
-          >
-            <h3 className="text-lg font-extrabold text-[#02274c]">
-              Kendi Kadronu Kur
-            </h3>
-            <p className="text-sm text-slate-600">
-              U11–U19 ve Çorum Süper Amatör Ligi gerçek oyuncu kadrolarından
-              kendi ilk 11&apos;ini oluştur.
-            </p>
-          </Link>
-
-          <Link
-            href="/gorevler"
-            className="rounded-2xl bg-white border border-slate-200 border-t-4 border-t-[#02274c] p-6 shadow-sm hover:shadow-lg transition space-y-2"
-          >
-            <h3 className="text-lg font-extrabold text-[#02274c]">
-              Antrenman & Maç Görevleri
-            </h3>
-            <p className="text-sm text-slate-600">
-              Yaş grubuna uygun antrenman faaliyetlerini ve maçları takip et.
-            </p>
-          </Link>
-
-          <Link
-            href="/mesajlar"
-            className="rounded-2xl bg-white border border-slate-200 border-t-4 border-t-[#a60513] p-6 shadow-sm hover:shadow-lg transition space-y-2"
-          >
-            <h3 className="text-lg font-extrabold text-[#02274c]">
-              Mesajlaşma & Duyurular
-            </h3>
-            <p className="text-sm text-slate-600">
-              Antrenör duyuruları, hatırlatıcılar ve hızlı iletişim alanı.
-            </p>
-          </Link>
-
-          <Link
-            href="/admin"
-            className="rounded-2xl bg-white border border-slate-200 border-t-4 border-t-[#02274c] p-6 shadow-sm hover:shadow-lg transition space-y-2"
-          >
-            <h3 className="text-lg font-extrabold text-[#02274c]">
-              Aidat, Malzeme & Sabah Namazı QR
-            </h3>
-            <p className="text-sm text-slate-600">
-              Yönetici panelinden aidat, malzeme ve Cumartesi QR yoklamasını
-              yönet.
-            </p>
-          </Link>
         </section>
 
         {/* Üyelik Başvuru Açılır Pencere Tetikleyici Alanı */}

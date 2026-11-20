@@ -9,7 +9,7 @@ const LINKS = [
   { href: "/", label: "Ana Sayfa", shortLabel: "Ana Sayfa", icon: "🏠" },
   { href: "/kadro-kur", label: "Kadro Kur", shortLabel: "Kadro", icon: "⚽" },
   { href: "/gorevler", label: "Görevler & Maçlar", shortLabel: "Maçlar", icon: "📅" },
-  { href: "/mesajlar", label: "Mesajlaşma", shortLabel: "Duyuru", icon: "📢" },
+  { href: "/bildirimler", label: "Bildirimler", shortLabel: "Bildirim", icon: "🔔" },
   { href: "/iletisim", label: "İletişim", shortLabel: "İletişim", icon: "📞" },
 ];
 
@@ -22,6 +22,7 @@ export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState<AuthSession>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -77,9 +78,27 @@ export function Navbar() {
       return null;
     }
 
+    async function loadUnreadCount(supabase: ReturnType<typeof createClient>) {
+      const { data } = await supabase
+        .from("club_messages")
+        .select("created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!active || !data) return;
+      const lastSeen = localStorage.getItem("ikbal_last_seen_notif_at");
+      const lastSeenMs = lastSeen ? new Date(lastSeen).getTime() : 0;
+      const unseen = data.filter(
+        (row: { created_at: string }) =>
+          new Date(row.created_at).getTime() > lastSeenMs
+      ).length;
+      setUnreadCount(unseen);
+    }
+
     async function checkAuth() {
       if (typeof window === "undefined") return;
       const supabase = createClient();
+      await loadUnreadCount(supabase);
 
       if (pathname.startsWith("/admin")) {
         const staff = await checkStaff(supabase);
@@ -104,12 +123,18 @@ export function Navbar() {
 
     checkAuth();
     const onAuthChange = () => checkAuth();
+    const onNotifSeen = () => {
+      if (active) setUnreadCount(0);
+    };
+
     window.addEventListener("storage", onAuthChange);
     window.addEventListener("ikbal-auth-changed", onAuthChange);
+    window.addEventListener("ikbal-notifications-seen", onNotifSeen);
     return () => {
       active = false;
       window.removeEventListener("storage", onAuthChange);
       window.removeEventListener("ikbal-auth-changed", onAuthChange);
+      window.removeEventListener("ikbal-notifications-seen", onNotifSeen);
     };
   }, [pathname]);
 
@@ -156,32 +181,45 @@ export function Navbar() {
 
           <div className="hidden lg:flex items-center gap-2">
             {session ? (
-              <Link
-                href={session.href}
-                title={
-                  session.role === "player"
-                    ? "Sporcu Profiline Git"
-                    : "Yönetim Paneline Git"
-                }
-                className="flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white font-extrabold text-sm transition shadow-sm"
-              >
-                {session.photoUrl ? (
-                  <img
-                    src={session.photoUrl}
-                    alt={session.name}
-                    className="w-8 h-8 rounded-full object-cover bg-white border border-white/40"
-                  />
-                ) : (
-                  <span className="w-8 h-8 rounded-full bg-[#a60513] text-white flex items-center justify-center text-sm font-black">
-                    {session.role === "player" ? "👤" : "🛡️"}
+              <div className="flex items-center gap-1.5">
+                <Link
+                  href={session.href}
+                  title={
+                    session.role === "player"
+                      ? "Sporcu Profiline Git"
+                      : "Yönetim Paneline Git"
+                  }
+                  className="flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white font-extrabold text-sm transition shadow-sm"
+                >
+                  {session.photoUrl ? (
+                    <img
+                      src={session.photoUrl}
+                      alt={session.name}
+                      className="w-8 h-8 rounded-full object-cover bg-white border border-white/40"
+                    />
+                  ) : (
+                    <span className="w-8 h-8 rounded-full bg-[#a60513] text-white flex items-center justify-center text-sm font-black">
+                      {session.role === "player" ? "👤" : "🛡️"}
+                    </span>
+                  )}
+                  <span className="leading-tight">
+                    {session.role === "player"
+                      ? `${firstName} • Profil`
+                      : "Yönetim Paneli"}
                   </span>
+                </Link>
+
+                {unreadCount > 0 && (
+                  <Link
+                    href="/bildirimler"
+                    title={`${unreadCount} görülmemiş bildirim`}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#a60513] hover:bg-red-700 text-white text-xs font-black shadow-sm transition"
+                  >
+                    <span>!</span>
+                    <span>{unreadCount}</span>
+                  </Link>
                 )}
-                <span className="leading-tight">
-                  {session.role === "player"
-                    ? `${firstName} • Profil`
-                    : "Yönetim Paneli"}
-                </span>
-              </Link>
+              </div>
             ) : (
               <>
                 <Link
@@ -216,37 +254,53 @@ export function Navbar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className={`block px-4 py-2.5 rounded-xl font-bold text-sm ${
+                className={`flex items-center justify-between px-4 py-2.5 rounded-xl font-bold text-sm ${
                   pathname === item.href
                     ? "bg-[#a60513] text-white"
                     : "text-slate-100"
                 }`}
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.href === "/bildirimler" && unreadCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-xs font-black">
+                    ! {unreadCount}
+                  </span>
+                )}
               </Link>
             ))}
 
             {session ? (
-              <Link
-                href={session.href}
-                onClick={() => setOpen(false)}
-                className="flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#a60513] text-white font-extrabold text-sm mt-2"
-              >
-                {session.photoUrl ? (
-                  <img
-                    src={session.photoUrl}
-                    alt={session.name}
-                    className="w-6 h-6 rounded-full object-cover bg-white"
-                  />
-                ) : (
-                  <span>{session.role === "player" ? "👤" : "🛡️"}</span>
+              <div className="flex items-center gap-2 mt-2">
+                <Link
+                  href={session.href}
+                  onClick={() => setOpen(false)}
+                  className="flex-1 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#a60513] text-white font-extrabold text-sm"
+                >
+                  {session.photoUrl ? (
+                    <img
+                      src={session.photoUrl}
+                      alt={session.name}
+                      className="w-6 h-6 rounded-full object-cover bg-white"
+                    />
+                  ) : (
+                    <span>{session.role === "player" ? "👤" : "🛡️"}</span>
+                  )}
+                  <span>
+                    {session.role === "player"
+                      ? `Profilim (${firstName})`
+                      : "Yönetim Paneline Git"}
+                  </span>
+                </Link>
+                {unreadCount > 0 && (
+                  <Link
+                    href="/bildirimler"
+                    onClick={() => setOpen(false)}
+                    className="px-3 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-black text-xs"
+                  >
+                    ! {unreadCount}
+                  </Link>
                 )}
-                <span>
-                  {session.role === "player"
-                    ? `Profilim (${firstName})`
-                    : "Yönetim Paneline Git"}
-                </span>
-              </Link>
+              </div>
             ) : (
               <>
                 <Link
@@ -269,7 +323,6 @@ export function Navbar() {
         )}
       </header>
 
-      {/* Mobil Alt Gezinme Çubuğu (PWA Deneyimi) */}
       <nav
         aria-label="Mobil Alt Menü"
         className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(2,39,76,0.08)]"
@@ -281,18 +334,23 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition ${
+                className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition ${
                   active ? "text-[#a60513]" : "text-slate-600"
                 }`}
               >
                 <span className="text-base leading-none">{item.icon}</span>
                 <span>{item.shortLabel}</span>
+                {item.href === "/bildirimler" && unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-3 px-1.5 py-0.2 rounded-full bg-[#a60513] text-white text-[9px] font-black">
+                    !{unreadCount}
+                  </span>
+                )}
               </Link>
             );
           })}
           <Link
             href={session ? session.href : "/sporcu"}
-            className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition ${
               pathname === "/sporcu" || pathname === "/admin"
                 ? "text-[#a60513]"
                 : "text-[#02274c]"
@@ -310,6 +368,11 @@ export function Navbar() {
                   : "Panel"
                 : "Giriş"}
             </span>
+            {session && unreadCount > 0 && (
+              <span className="absolute top-1.5 right-2 px-1.5 py-0.2 rounded-full bg-[#a60513] text-white text-[9px] font-black">
+                !{unreadCount}
+              </span>
+            )}
           </Link>
         </div>
       </nav>

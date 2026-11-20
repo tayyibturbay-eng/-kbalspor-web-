@@ -45,7 +45,6 @@ export default function SquadBuilderPage() {
     })();
   }, []);
 
-  // Kategori değiştiğinde varsa kayıtlı taslağı yükle
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -65,7 +64,6 @@ export default function SquadBuilderPage() {
     }
   }, [selectedCategory]);
 
-  // Taslağı otomatik kaydet
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem(
@@ -259,7 +257,8 @@ export default function SquadBuilderPage() {
     const posPrefix = (player.position || "").toLowerCase().split(" ")[0];
     const preferredEmpty =
       allSlotKeys.find(
-        (s) => !slots[s.key] && posPrefix && s.role.toLowerCase().includes(posPrefix)
+        (s) =>
+          !slots[s.key] && posPrefix && s.role.toLowerCase().includes(posPrefix)
       ) || allSlotKeys.find((s) => !slots[s.key]);
 
     if (!preferredEmpty) {
@@ -313,43 +312,60 @@ export default function SquadBuilderPage() {
       .filter((n) => n !== "")
   );
 
+  const activeCategoryLabel =
+    SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label ||
+    selectedCategory;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
       <Navbar />
 
       <section className="bg-gradient-to-r from-[#02274c] via-[#04376b] to-[#a60513] text-white py-6 px-4 shadow-sm">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Taktik Tahtası & Kadro Kur
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
-              Oyuncuları sahaya sürükleyin veya listeye tıklayarak hızlıca dizin.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {SQUAD_CATEGORIES.map((cat) => (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => handleCategoryChange(cat.key)}
-                className={`px-3.5 py-2 rounded-xl font-extrabold text-xs transition cursor-pointer ${
-                  selectedCategory === cat.key
-                    ? "bg-white text-[#02274c] shadow-md scale-[1.03]"
-                    : "bg-white/15 text-white hover:bg-white/25"
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            Taktik Tahtası & Kadro Kur
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
+            Yaş grubunu seçin, oyuncuları sahaya sürükleyin veya listeye
+            tıklayarak hızlıca dizin.
+          </p>
         </div>
       </section>
 
       <main className="max-w-7xl mx-auto px-4 pt-6 space-y-5">
+        {/* Kategori / Yaş Grubu & Taktik Kontrol Paneli */}
         <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+                Kategori / Yaş Grubu Seçimi
+              </span>
+              <span className="text-xs font-extrabold text-[#a60513]">
+                Aktif: {activeCategoryLabel}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+              {SQUAD_CATEGORIES.map((cat) => {
+                const active = selectedCategory === cat.key;
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat.key)}
+                    className={`py-2.5 px-3 rounded-xl font-extrabold text-xs border transition cursor-pointer text-center ${
+                      active
+                        ? "bg-[#02274c] text-white border-[#02274c] shadow-sm"
+                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-[#02274c]"
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
             <div>
               <label className="block text-[11px] font-extrabold text-slate-500 uppercase mb-1.5">
                 Diziliş (Formasyon)
