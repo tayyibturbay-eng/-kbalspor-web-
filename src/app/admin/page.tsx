@@ -1738,7 +1738,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "envanter" && role === "admin" && <InventoryManager />}
+        {tab === "envanter" && role === "admin" && <InventoryManager players={players} />}
 
         {tab === "gorevler" && (
           <div className="space-y-6">
