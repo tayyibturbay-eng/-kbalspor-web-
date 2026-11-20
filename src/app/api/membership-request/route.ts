@@ -64,17 +64,27 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/\/rest\/v1\/?$/, "");
 
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        { ok: false, error: "Sunucu yapılandırma hatası: Supabase URL veya Key eksik." },
-        { status: 500 }
-      );
-    }
+    const supabaseUrl = rawUrl.startsWith("http")
+      ? rawUrl
+      : "https://aimaeqouwsyftwtjdtoo.supabase.co";
+
+    const rawKey = (
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+      ""
+    )
+      .trim()
+      .replace(/^["']|["']$/g, "");
+
+    const supabaseKey =
+      rawKey.length > 20
+        ? rawKey
+        : "sb_publishable_rV2Gq89vqhvDLCEpyUXwEg_3JaZteJU";
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const ageGroup = calcAgeGroup(birth_date || null);
