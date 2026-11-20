@@ -131,7 +131,7 @@ export default function IkbalHomePage() {
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
                 <a
-                  href="APK_LINKI_BURAYA"
+                  href="https://expo.dev/artifacts/eas/Kt_SlZ1A77tyn2jT6QugMbFWt3Y_Fw_V6LGgqadQIxM.apk"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-3 rounded-xl shadow-md transition text-sm"
