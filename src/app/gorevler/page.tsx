@@ -17,6 +17,7 @@ type Training = {
   start_time: string;
   end_time: string | null;
   location: string | null;
+  coach_name?: string | null;
   notes: string | null;
 };
 
@@ -94,7 +95,7 @@ export default function GorevlerPage() {
             href="/kayit"
             className="shrink-0 px-5 py-3 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-sm font-extrabold text-center transition shadow"
           >
-            Deneme / Üyelik Başvurusu
+            Üyelik Başvurusu
           </Link>
         </div>
 
@@ -154,6 +155,9 @@ export default function GorevlerPage() {
                       </span>
                     ))}
                   </div>
+                  {tr.coach_name && (
+                    <p className="text-xs font-bold text-[#02274c]">👨‍🏫 Antrenör: {tr.coach_name}</p>
+                  )}
                   {tr.location && (
                     <p className="text-xs text-slate-500 pt-1">📍 {tr.location}</p>
                   )}

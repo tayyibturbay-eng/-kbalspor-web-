@@ -80,6 +80,8 @@ type Training = {
   start_time: string;
   end_time: string | null;
   location: string | null;
+  coach_id?: string | null;
+  coach_name?: string | null;
   extra_player_ids: string[];
   notes: string | null;
   created_by: string | null;
@@ -120,7 +122,7 @@ const TR_MONTHS = [
 ];
 
 function buildDueMonths(): string[] {
-  const startDate = new Date(2026, 10, 1); // Kasım 2026 (0 tabanlı ay: 10)
+  const startDate = new Date(2026, 10, 1);
   const now = new Date();
   const endDate = new Date(now.getFullYear(), now.getMonth() + 3, 1);
   const list: string[] = [];
@@ -279,6 +281,7 @@ export default function AdminPage() {
     start_time: "17:00",
     end_time: "18:30",
     location: NAZMI_AVLUCA,
+    coach_id: "",
     extra_player_ids: [] as string[],
     notes: "",
   });
@@ -299,9 +302,11 @@ export default function AdminPage() {
         const savedCoach = typeof window !== "undefined" ? localStorage.getItem("ikbal_coach") : null;
         if (savedCoach) {
           try {
-            setActiveCoach(JSON.parse(savedCoach) as Coach);
+            const parsedCoach = JSON.parse(savedCoach) as Coach;
+            setActiveCoach(parsedCoach);
             setRole("coach");
             setTab("antrenmanlar");
+            setTrainingForm((prev) => ({ ...prev, coach_id: parsedCoach.id }));
             await loadAll();
           } catch {
             localStorage.removeItem("ikbal_coach");
@@ -374,10 +379,12 @@ export default function AdminPage() {
       setAuthError("Antrenör kodu veya şifre hatalı.");
       return;
     }
-    localStorage.setItem("ikbal_coach", JSON.stringify(data));
-    setActiveCoach(data as Coach);
+    const c = data as Coach;
+    localStorage.setItem("ikbal_coach", JSON.stringify(c));
+    setActiveCoach(c);
     setRole("coach");
     setTab("antrenmanlar");
+    setTrainingForm((prev) => ({ ...prev, coach_id: c.id }));
     await loadAll();
   }
 
@@ -532,7 +539,6 @@ export default function AdminPage() {
     loadAll();
   }
 
-  // Aidat: Aylık ücret güncelleme
   async function updateMonthlyFee() {
     const feeNum = Number(monthlyFee);
     if (isNaN(feeNum) || feeNum <= 0) {
@@ -560,7 +566,6 @@ export default function AdminPage() {
     loadAll();
   }
 
-  // Aidat: Kişi + Ay + Özel Tutar ile Ödendi Kaydet
   async function handleManualDuePayment(e: React.FormEvent) {
     e.preventDefault();
     const target = players.find((p) => p.id === manualPayPlayerId);
@@ -608,7 +613,6 @@ export default function AdminPage() {
     setManualPayPlayerId("");
   }
 
-  // Aidat: Tablodan tek tıkla Ödendi / Bekleniyor değiştirme
   async function togglePlayerMonthDue(player: Player, existingDue?: Due) {
     const feeNum = Number(monthlyFee) || 500;
     if (!existingDue) {
@@ -654,7 +658,6 @@ export default function AdminPage() {
     }
   }
 
-  // Geçmiş aydan borcu kalanlara toplu bildirim gönder
   async function sendBulkPastDueNotification(unpaidPlayers: Player[]) {
     if (unpaidPlayers.length === 0) {
       setFeedback(`${pastDueMonth} için ödemesi kalan oyuncu bulunmuyor.`);
@@ -701,6 +704,9 @@ export default function AdminPage() {
       : ["Çarşamba"];
 
     const authorName = role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : "Yönetici";
+    const selectedCoachObj = coaches.find((c) => c.id === trainingForm.coach_id);
+    const assignedCoachId = selectedCoachObj ? selectedCoachObj.id : null;
+    const assignedCoachName = selectedCoachObj ? selectedCoachObj.full_name : null;
 
     if (isEdit) {
       const { error } = await supabase
@@ -714,6 +720,8 @@ export default function AdminPage() {
           start_time: trainingForm.start_time,
           end_time: trainingForm.end_time || null,
           location: trainingForm.location,
+          coach_id: assignedCoachId,
+          coach_name: assignedCoachName,
           extra_player_ids: trainingForm.extra_player_ids,
           notes: trainingForm.notes || null,
         })
@@ -725,7 +733,7 @@ export default function AdminPage() {
       }
       await logActivity(
         "Antrenman Güncelleme",
-        `${trainingForm.age_groups.join(", ")} — ${daysToSave[0]} ${trainingForm.start_time}`
+        `${trainingForm.age_groups.join(", ")} — ${daysToSave[0]} ${trainingForm.start_time}${assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""}`
       );
     } else {
       const rows = daysToSave.map((day) => ({
@@ -739,6 +747,8 @@ export default function AdminPage() {
         start_time: trainingForm.start_time,
         end_time: trainingForm.end_time || null,
         location: trainingForm.location,
+        coach_id: assignedCoachId,
+        coach_name: assignedCoachName,
         extra_player_ids: trainingForm.extra_player_ids,
         notes: trainingForm.notes || null,
         created_by: authorName,
@@ -750,7 +760,7 @@ export default function AdminPage() {
       }
       await logActivity(
         "Antrenman Ekleme",
-        `${trainingForm.age_groups.join(", ")} — ${daysToSave.join(", ")} ${trainingForm.start_time}`
+        `${trainingForm.age_groups.join(", ")} — ${daysToSave.join(", ")} ${trainingForm.start_time}${assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""}`
       );
     }
 
@@ -781,6 +791,8 @@ export default function AdminPage() {
         : `${daysToSave.join(", ")} Saat ${trainingForm.start_time}${trainingForm.end_time ? `-${trainingForm.end_time}` : ""}`;
 
     const fullMsg = `${header}\nGruplar: ${trainingForm.age_groups.join(", ") || "-"}${
+      assignedCoachName ? `\nAntrenör: ${assignedCoachName}` : ""
+    }${
       extraNames.length > 0 ? `\nÖzel Çağrılan Oyuncular: ${extraNames.join(", ")}` : ""
     }\nZaman: ${whenText}\nYer: ${trainingForm.location}${trainingForm.notes ? `\nNot: ${trainingForm.notes}` : ""}`;
 
@@ -803,6 +815,7 @@ export default function AdminPage() {
       start_time: "17:00",
       end_time: "18:30",
       location: NAZMI_AVLUCA,
+      coach_id: role === "coach" && activeCoach ? activeCoach.id : "",
       extra_player_ids: [],
       notes: "",
     });
@@ -820,6 +833,7 @@ export default function AdminPage() {
       start_time: tr.start_time,
       end_time: tr.end_time || "",
       location: tr.location || NAZMI_AVLUCA,
+      coach_id: tr.coach_id || "",
       extra_player_ids: tr.extra_player_ids || [],
       notes: tr.notes || "",
     });
@@ -1610,7 +1624,7 @@ export default function AdminPage() {
                 {trainingForm.id ? "Antrenman Düzenle" : "Toplu / Ekstra Antrenman Ekle"}
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <select
                   value={trainingForm.training_type}
                   onChange={(e) =>
@@ -1627,6 +1641,20 @@ export default function AdminPage() {
                   onChange={(e) => setTrainingForm({ ...trainingForm, title: e.target.value })}
                   className="border rounded-lg px-3 py-2 text-sm"
                 />
+                <select
+                  value={trainingForm.coach_id}
+                  onChange={(e) => setTrainingForm({ ...trainingForm, coach_id: e.target.value })}
+                  className="border rounded-lg px-3 py-2 text-sm font-bold text-[#02274c]"
+                >
+                  <option value="">-- Çalıştıracak Antrenörü Seç --</option>
+                  {coaches
+                    .filter((c) => c.is_active)
+                    .map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Antrenör: {c.full_name}
+                      </option>
+                    ))}
+                </select>
                 <input
                   value={trainingForm.location}
                   onChange={(e) => setTrainingForm({ ...trainingForm, location: e.target.value })}
@@ -1774,7 +1802,7 @@ export default function AdminPage() {
 
             <div className="bg-white p-5 rounded-2xl shadow-sm border grid grid-cols-1 md:grid-cols-2 gap-3">
               {trainings.map((tr) => (
-                <div key={tr.id} className="border rounded-xl p-4 space-y-2">
+                <div key={tr.id} className="border rounded-xl p-4 space-y-1.5">
                   <div className="flex justify-between">
                     <h3 className="font-bold text-[#02274c]">{tr.title}</h3>
                     <div className="flex gap-1.5">
@@ -1795,6 +1823,9 @@ export default function AdminPage() {
                   <div className="text-xs text-slate-600">
                     {(tr.age_groups || []).join(", ")} • {tr.day_of_week || tr.training_date} {tr.start_time}
                   </div>
+                  {tr.coach_name && (
+                    <div className="text-xs font-bold text-[#a60513]">👨‍🏫 Antrenör: {tr.coach_name}</div>
+                  )}
                 </div>
               ))}
             </div>
@@ -2223,7 +2254,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <AttendanceReport />
+            <AttendanceReport isAdmin={role === "admin"} onSessionDeleted={loadAll} />
           </div>
         )}
 

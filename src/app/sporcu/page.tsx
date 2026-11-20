@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import { QRCodeSVG } from "qrcode.react";
@@ -42,6 +42,7 @@ type Training = {
   start_time: string;
   end_time: string | null;
   location: string | null;
+  coach_name?: string | null;
   extra_player_ids: string[];
   notes: string | null;
 };
@@ -74,6 +75,20 @@ type PrayerAttendance = {
   checked_in_at: string;
 };
 
+const TR_MONTHS = [
+  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+];
+
+function parseMonthIndex(label: string): number {
+  const parts = label.trim().split(/\s+/);
+  if (parts.length < 2) return 0;
+  const mIdx = TR_MONTHS.findIndex((m) => m.toLowerCase() === parts[0].toLowerCase());
+  const yr = parseInt(parts[1], 10);
+  if (mIdx === -1 || isNaN(yr)) return 0;
+  return yr * 12 + mIdx;
+}
+
 function getOrCreateWebDeviceId(): string {
   if (typeof window === "undefined") return "web-ssr";
   const key = "ikbal_web_device_id";
@@ -93,31 +108,27 @@ export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [tab, setTab] = useState<"qr" | "program" | "aidat" | "profil">("qr");
 
-  // Giriş Formu
   const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Veriler
   const [dues, setDues] = useState<Due[]>([]);
+  const [defaultFee, setDefaultFee] = useState<number>(500);
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [activeSessions, setActiveSessions] = useState<PrayerSession[]>([]);
   const [attendances, setAttendances] = useState<PrayerAttendance[]>([]);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
 
-  // QR Okutma
   const [scanning, setScanning] = useState(false);
   const [manualToken, setManualToken] = useState("");
   const [qrStatus, setQrStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
 
-  // PIN Değiştirme
   const [newPin, setNewPin] = useState("");
   const [pinMsg, setPinMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // Oturum kontrolü (sayfa yenilenince açık kalsın)
   useEffect(() => {
     const savedId = localStorage.getItem("ikbal_logged_player_id");
     if (savedId) {
@@ -129,11 +140,7 @@ export default function SporcuPortalPage() {
   }, []);
 
   async function restoreSession(playerId: string) {
-    const { data } = await supabase
-      .from("players")
-      .select("*")
-      .eq("id", playerId)
-      .maybeSingle();
+    const { data } = await supabase.from("players").select("*").eq("id", playerId).maybeSingle();
     if (!data) {
       localStorage.removeItem("ikbal_logged_player_id");
       return;
@@ -178,7 +185,6 @@ export default function SporcuPortalPage() {
       return;
     }
 
-    // Cihaz kilidi kontrolü
     const deviceId = getOrCreateWebDeviceId();
     if (p.bound_device_id && p.bound_device_id !== deviceId) {
       setAuthError(
@@ -189,10 +195,7 @@ export default function SporcuPortalPage() {
     }
 
     if (!p.bound_device_id) {
-      await supabase
-        .from("players")
-        .update({ bound_device_id: deviceId })
-        .eq("id", p.id);
+      await supabase.from("players").update({ bound_device_id: deviceId }).eq("id", p.id);
       p.bound_device_id = deviceId;
     }
 
@@ -203,7 +206,7 @@ export default function SporcuPortalPage() {
   }
 
   async function loadPlayerData(p: Player) {
-    const [duesRes, trRes, taskRes, sessRes, attRes] = await Promise.all([
+    const [duesRes, trRes, taskRes, sessRes, attRes, feeRes] = await Promise.all([
       supabase.from("dues").select("*").eq("player_id", p.id),
       supabase.from("trainings").select("*").order("start_time", { ascending: true }),
       supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
@@ -213,9 +216,12 @@ export default function SporcuPortalPage() {
         .eq("is_active", true)
         .order("session_date", { ascending: false }),
       supabase.from("prayer_attendance").select("*"),
+      supabase.from("club_settings").select("*").eq("key", "monthly_fee").maybeSingle(),
     ]);
 
     if (duesRes.data) setDues(duesRes.data as Due[]);
+    if (feeRes.data?.value) setDefaultFee(Number(feeRes.data.value) || 500);
+
     if (trRes.data) {
       const filtered = (trRes.data as Training[]).filter(
         (t) =>
@@ -245,6 +251,47 @@ export default function SporcuPortalPage() {
     }
   }
 
+  const dueItems = useMemo(() => {
+    const now = new Date();
+    const currentIdx = now.getFullYear() * 12 + now.getMonth();
+    const startIdx = 2026 * 12 + 10; // Kasım 2026
+
+    const monthSet = new Set<string>();
+    for (let idx = startIdx; idx <= currentIdx; idx++) {
+      const yr = Math.floor(idx / 12);
+      const m = idx % 12;
+      monthSet.add(`${TR_MONTHS[m]} ${yr}`);
+    }
+    dues.forEach((d) => monthSet.add(d.month_label));
+
+    return Array.from(monthSet)
+      .sort((a, b) => parseMonthIndex(b) - parseMonthIndex(a))
+      .map((monthLabel) => {
+        const record = dues.find((d) => d.month_label === monthLabel);
+        const paid = Boolean(
+          record && (record.status === "odendi" || record.status === "Ödendi" || record.status === "paid")
+        );
+        const mIdx = parseMonthIndex(monthLabel);
+        const isPast = mIdx > 0 && mIdx < currentIdx;
+        const isCurrent = mIdx === currentIdx;
+
+        let state: "paid" | "overdue" | "unpaid" | "upcoming" = "unpaid";
+        if (paid) state = "paid";
+        else if (isPast) state = "overdue";
+        else if (isCurrent) state = "unpaid";
+        else state = "upcoming";
+
+        return {
+          monthLabel,
+          amount: record?.amount ?? defaultFee,
+          state,
+        };
+      });
+  }, [dues, defaultFee]);
+
+  const overdueCount = dueItems.filter((x) => x.state === "overdue").length;
+  const currentUnpaid = dueItems.some((x) => x.state === "unpaid");
+
   function handleLogout() {
     stopScanner();
     localStorage.removeItem("ikbal_logged_player_id");
@@ -257,8 +304,6 @@ export default function SporcuPortalPage() {
   async function startScanner() {
     setQrStatus(null);
     setScanning(true);
-
-    // DOM'un #qr-reader alanını render etmesi için kısa bekleme
     setTimeout(async () => {
       try {
         const { Html5Qrcode } = await import("html5-qrcode");
@@ -316,9 +361,7 @@ export default function SporcuPortalPage() {
       return;
     }
 
-    const already = attendances.some(
-      (a) => a.session_id === sess.id && a.player_id === player.id
-    );
+    const already = attendances.some((a) => a.session_id === sess.id && a.player_id === player.id);
     if (already) {
       setQrStatus({ ok: true, text: `"${sess.title}" için yoklamanız zaten kayıtlı.` });
       return;
@@ -343,9 +386,7 @@ export default function SporcuPortalPage() {
   }
 
   async function markTeammatePresent(sessionId: string, targetPlayerId: string) {
-    const exists = attendances.some(
-      (a) => a.session_id === sessionId && a.player_id === targetPlayerId
-    );
+    const exists = attendances.some((a) => a.session_id === sessionId && a.player_id === targetPlayerId);
     if (exists) return;
 
     const { data: inserted } = await supabase
@@ -400,9 +441,7 @@ export default function SporcuPortalPage() {
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  Sporcu Kodu
-                </label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Sporcu Kodu</label>
                 <input
                   type="text"
                   value={code}
@@ -413,9 +452,7 @@ export default function SporcuPortalPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  PIN Kodu
-                </label>
+                <label className="block text-xs font-bold text-slate-600 mb-1">PIN Kodu</label>
                 <input
                   type="password"
                   inputMode="numeric"
@@ -475,7 +512,10 @@ export default function SporcuPortalPage() {
               {[
                 { key: "qr", label: "QR Yoklama" },
                 { key: "program", label: "Program & Maçlar" },
-                { key: "aidat", label: "Aidatlarım" },
+                {
+                  key: "aidat",
+                  label: overdueCount > 0 ? `Aidatlarım (⚠️ ${overdueCount})` : currentUnpaid ? "Aidatlarım (!)" : "Aidatlarım",
+                },
                 { key: "profil", label: "Profil & PIN" },
               ].map((item) => (
                 <button
@@ -499,9 +539,7 @@ export default function SporcuPortalPage() {
             {tab === "qr" && (
               <div className="space-y-6">
                 <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
-                  <h2 className="text-lg font-black text-[#02274c]">
-                    Tarayıcıdan QR Yoklama Okut
-                  </h2>
+                  <h2 className="text-lg font-black text-[#02274c]">Tarayıcıdan QR Yoklama Okut</h2>
                   <p className="text-sm text-slate-600">
                     Kamerayı açıp hocanızın veya temsilcinin gösterdiği QR kodu okutun.
                   </p>
@@ -528,7 +566,6 @@ export default function SporcuPortalPage() {
                     </div>
                   )}
 
-                  {/* Yedek Manuel Kod Alanı */}
                   <div className="pt-4 border-t border-slate-100">
                     <label className="block text-xs font-bold text-slate-500 mb-1.5">
                       Kamera açılmazsa QR kod metnini buraya yazabilirsiniz:
@@ -563,16 +600,11 @@ export default function SporcuPortalPage() {
                   )}
                 </div>
 
-                {/* Temsilci Özel Bölümü */}
                 {player.is_representative && (
                   <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
-                    <h3 className="text-lg font-black text-[#a60513]">
-                      Temsilci Yoklama Paneli
-                    </h3>
+                    <h3 className="text-lg font-black text-[#a60513]">Temsilci Yoklama Paneli</h3>
                     {activeSessions.length === 0 ? (
-                      <p className="text-sm text-slate-500">
-                        Şu anda aktif bir QR oturumu bulunmuyor.
-                      </p>
+                      <p className="text-sm text-slate-500">Şu anda aktif bir QR oturumu bulunmuyor.</p>
                     ) : (
                       activeSessions.map((sess) => {
                         const sessAtt = attendances.filter((a) => a.session_id === sess.id);
@@ -607,13 +639,9 @@ export default function SporcuPortalPage() {
                                         key={tp.id}
                                         className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200 text-xs"
                                       >
-                                        <span className="font-bold text-slate-800">
-                                          {tp.full_name}
-                                        </span>
+                                        <span className="font-bold text-slate-800">{tp.full_name}</span>
                                         {ok ? (
-                                          <span className="text-emerald-600 font-extrabold">
-                                            Geldi ✓
-                                          </span>
+                                          <span className="text-emerald-600 font-extrabold">Geldi ✓</span>
                                         ) : (
                                           <button
                                             onClick={() => markTeammatePresent(sess.id, tp.id)}
@@ -645,19 +673,16 @@ export default function SporcuPortalPage() {
                     <p className="text-sm text-slate-500">Kayıtlı antrenman bulunamadı.</p>
                   ) : (
                     trainings.map((t) => (
-                      <div
-                        key={t.id}
-                        className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1"
-                      >
+                      <div key={t.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
                         <div className="font-extrabold text-slate-900">{t.title}</div>
                         <div className="text-xs text-slate-600">
-                          {t.training_type === "duzenli" ? t.day_of_week : t.training_date} •{" "}
-                          {t.start_time}
+                          {t.training_type === "duzenli" ? t.day_of_week : t.training_date} • {t.start_time}
                           {t.end_time ? ` - ${t.end_time}` : ""}
                         </div>
-                        {t.location && (
-                          <div className="text-xs text-slate-500">Saha: {t.location}</div>
+                        {t.coach_name && (
+                          <div className="text-xs font-bold text-[#02274c]">Antrenör: {t.coach_name}</div>
                         )}
+                        {t.location && <div className="text-xs text-slate-500">Saha: {t.location}</div>}
                       </div>
                     ))
                   )}
@@ -669,10 +694,7 @@ export default function SporcuPortalPage() {
                     <p className="text-sm text-slate-500">Yaklaşan maç veya görev yok.</p>
                   ) : (
                     tasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1"
-                      >
+                      <div key={task.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
                         <div className="font-extrabold text-slate-900">{task.title}</div>
                         <div className="text-xs text-slate-600">
                           {task.event_date} {task.match_time ? `• ${task.match_time}` : ""}
@@ -694,35 +716,57 @@ export default function SporcuPortalPage() {
             {tab === "aidat" && (
               <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
                 <h2 className="text-lg font-black text-[#02274c]">Aidat Durumum</h2>
-                {dues.length === 0 ? (
-                  <p className="text-sm text-slate-500">Henüz adınıza tanımlı aidat kaydı yok.</p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {dues.map((d) => {
-                      const paid = d.status === "odendi" || d.status === "Ödendi";
-                      return (
-                        <div
-                          key={d.id}
-                          className="flex items-center justify-between p-4 rounded-2xl border border-slate-200 bg-slate-50"
-                        >
-                          <div>
-                            <div className="font-extrabold text-slate-900">{d.month_label}</div>
-                            <div className="text-xs text-slate-500">{d.amount} TL</div>
-                          </div>
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-extrabold ${
-                              paid
-                                ? "bg-emerald-100 text-emerald-800"
-                                : "bg-red-100 text-red-700"
-                            }`}
-                          >
-                            {paid ? "Ödendi" : "Ödenmedi"}
-                          </span>
-                        </div>
-                      );
-                    })}
+
+                {overdueCount > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-extrabold">
+                    ⚠️ Geçmiş dönemden gecikmiş {overdueCount} adet aidat ödemeniz bulunmaktadır. Lütfen yöneticinizle iletişime geçin.
                   </div>
                 )}
+
+                <div className="space-y-2.5">
+                  {dueItems.map((item) => (
+                    <div
+                      key={item.monthLabel}
+                      className={`flex items-center justify-between p-4 rounded-2xl border ${
+                        item.state === "overdue"
+                          ? "bg-red-50 border-red-200"
+                          : item.state === "unpaid"
+                          ? "bg-amber-50 border-amber-200"
+                          : "bg-slate-50 border-slate-200"
+                      }`}
+                    >
+                      <div>
+                        <div className="font-extrabold text-slate-900">{item.monthLabel}</div>
+                        <div className="text-xs text-slate-600">
+                          {item.amount} TL
+                          {item.state === "overdue" && " • Ödeme süresi geçti"}
+                          {item.state === "unpaid" && " • Güncel dönem ödemesi"}
+                        </div>
+                      </div>
+
+                      {item.state === "paid" && (
+                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800">
+                          ✓ Ödendi
+                        </span>
+                      )}
+                      {item.state === "unpaid" && (
+                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-200 text-amber-950">
+                          Ödenmedi
+                        </span>
+                      )}
+                      {item.state === "overdue" && (
+                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-red-600 text-white">
+                          ⚠️ Gecikti
+                        </span>
+                      )}
+                      {item.state === "upcoming" && (
+                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-200 text-slate-700">
+                          Bekleniyor
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -762,11 +806,7 @@ export default function SporcuPortalPage() {
                     </button>
                   </div>
                   {pinMsg && (
-                    <div
-                      className={`text-xs font-bold ${
-                        pinMsg.ok ? "text-emerald-700" : "text-red-600"
-                      }`}
-                    >
+                    <div className={`text-xs font-bold ${pinMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
                       {pinMsg.text}
                     </div>
                   )}
