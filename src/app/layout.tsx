@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +17,12 @@ export const metadata: Metadata = {
   title: "Çorum İkbalspor • Resmi Kulüp ve Sporcu Portalı",
   description:
     "Çorum İkbalspor antrenman, maç takvimi, taktik kadro, aidat ve QR yoklama portalı.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "İkbalspor",
+    statusBarStyle: "black-translucent",
+  },
   icons: {
     icon: "/logo.png",
     shortcut: "/logo.png",
@@ -23,7 +30,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="tr"

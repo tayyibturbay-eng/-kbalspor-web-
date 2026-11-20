@@ -107,7 +107,7 @@ type ActivityLog = {
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MATCH_FIELDS = ["İtfaiye Sahası", "Devane Sahası", "Mimarsinan Sahası", "Diğer"];
-const DUE_MONTHS = ["Kasım 2026", "Aralık 2026", "Ocak 2027", "Şubat 2027"];
+const DUE_MONTHS = ["Ekim 2026", "Kasım 2026", "Aralık 2026", "Ocak 2027", "Şubat 2027"];
 const NAZMI_AVLUCA =
   "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad. (Çiftlik Çayırı - Küçük Evler Yolu civarı), Merkez / Çorum";
 
@@ -206,6 +206,11 @@ export default function AdminPage() {
   const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
   const [monthlyFee, setMonthlyFee] = useState("500");
   const [feeWaMsg, setFeeWaMsg] = useState<string | null>(null);
+  const [manualPayPlayerId, setManualPayPlayerId] = useState("");
+  const [manualPayMonth, setManualPayMonth] = useState("Kasım 2026");
+  const [manualPayAmount, setManualPayAmount] = useState("500");
+  const [pastDueMonth, setPastDueMonth] = useState("Ekim 2026");
+  const [pastDueCustomNote, setPastDueCustomNote] = useState("");
 
   // Son işlemler filtre
   const [logSearch, setLogSearch] = useState("");
@@ -259,6 +264,7 @@ export default function AdminPage() {
   } | null>(null);
 
   useEffect(() => {
+    setNewSessionDate(new Date().toISOString().slice(0, 10));
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -309,7 +315,10 @@ export default function AdminPage() {
     if (c.data) setCoaches(c.data);
     if (tr.data) setTrainings(tr.data as Training[]);
     if (lg.data) setLogs(lg.data as ActivityLog[]);
-    if (st.data?.value) setMonthlyFee(st.data.value);
+    if (st.data?.value) {
+      setMonthlyFee(st.data.value);
+      setManualPayAmount(st.data.value);
+    }
   }
 
   async function handleAdminLogin(e: React.FormEvent) {
@@ -498,14 +507,20 @@ export default function AdminPage() {
     loadAll();
   }
 
-  // Aidat: Aylık ücret güncelleme (Bildirim + WP)
+  // Aidat: Aylık ücret güncelleme
   async function updateMonthlyFee() {
     const feeNum = Number(monthlyFee);
     if (isNaN(feeNum) || feeNum <= 0) {
       setFeedback("Geçerli bir aidat tutarı girin.");
       return;
     }
-    await supabase.from("club_settings").upsert({ key: "monthly_fee", value: String(feeNum) }, { onConflict: "key" });
+    const { error: setErr } = await supabase
+      .from("club_settings")
+      .upsert({ key: "monthly_fee", value: String(feeNum) }, { onConflict: "key" });
+    if (setErr) {
+      setFeedback("Aidat ücreti kaydedilemedi: " + setErr.message);
+      return;
+    }
     const msg = `📢 AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbalspor aylık kulüp aidat ücreti ${feeNum}₺ olarak güncellenmiştir. Bilginize sunarız. 🔴🔵`;
     await supabase.from("club_messages").insert({
       title: `📢 Aidat Ücreti Güncellendi (${feeNum}₺)`,
@@ -515,28 +530,132 @@ export default function AdminPage() {
     });
     await logActivity("Aidat Ücreti Güncelleme", `Aylık aidat ücreti ${feeNum}₺ yapıldı ve duyuru gönderildi.`);
     setFeeWaMsg(msg);
+    setManualPayAmount(String(feeNum));
     setFeedback(`✅ Aidat ücreti ${feeNum}₺ olarak güncellendi ve bildirim yayınlandı.`);
     loadAll();
   }
 
-  // Aidat: Oyuncu + Seçili Ay için tek tıkla Ödendi / Bekleniyor değiştirme
+  // Aidat: Kişi + Ay + Özel Tutar ile Ödendi Kaydet
+  async function handleManualDuePayment(e: React.FormEvent) {
+    e.preventDefault();
+    const target = players.find((p) => p.id === manualPayPlayerId);
+    if (!target) {
+      setFeedback("Lütfen ödeme yapan oyuncuyu seçin.");
+      return;
+    }
+    const amountNum = Number(manualPayAmount) || Number(monthlyFee) || 500;
+    const existing = dues.find((d) => d.player_id === target.id && d.month_label === manualPayMonth);
+
+    if (existing) {
+      const { error } = await supabase
+        .from("dues")
+        .update({ status: "Ödendi", amount: amountNum, paid_at: new Date().toISOString() })
+        .eq("id", existing.id);
+      if (error) {
+        setFeedback("Aidat güncellenemedi: " + error.message);
+        return;
+      }
+      setDues((prev) =>
+        prev.map((d) => (d.id === existing.id ? { ...d, status: "Ödendi", amount: amountNum } : d))
+      );
+    } else {
+      const { data, error } = await supabase
+        .from("dues")
+        .insert({
+          player_id: target.id,
+          month_label: manualPayMonth,
+          amount: amountNum,
+          status: "Ödendi",
+          paid_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (error) {
+        setFeedback("Aidat kaydedilemedi: " + error.message);
+        return;
+      }
+      if (data) setDues((prev) => [data as Due, ...prev]);
+    }
+
+    await logActivity("Aidat Tahsilatı", `${target.full_name} — ${manualPayMonth} (${amountNum}₺) Ödendi`);
+    setSelectedDueMonth(manualPayMonth);
+    setFeedback(`✅ ${target.full_name} için ${manualPayMonth} ödemesi (${amountNum}₺) Ödendi olarak kaydedildi.`);
+    setManualPayPlayerId("");
+  }
+
+  // Aidat: Tablodan tek tıkla Ödendi / Bekleniyor değiştirme
   async function togglePlayerMonthDue(player: Player, existingDue?: Due) {
     const feeNum = Number(monthlyFee) || 500;
     if (!existingDue) {
-      await supabase.from("dues").insert({
-        player_id: player.id,
-        month_label: selectedDueMonth,
-        amount: feeNum,
-        status: "Ödendi",
-      });
+      const { data, error } = await supabase
+        .from("dues")
+        .insert({
+          player_id: player.id,
+          month_label: selectedDueMonth,
+          amount: feeNum,
+          status: "Ödendi",
+          paid_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (error) {
+        setFeedback("Aidat güncellenemedi: " + error.message);
+        return;
+      }
+      if (data) setDues((prev) => [data as Due, ...prev]);
       await logActivity("Aidat Tahsilatı", `${player.full_name} — ${selectedDueMonth} (${feeNum}₺) Ödendi`);
+      setFeedback(`✅ ${player.full_name} (${selectedDueMonth}) Ödendi olarak işaretlendi.`);
     } else {
       const isPaid = existingDue.status === "Ödendi" || existingDue.status === "paid";
       const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
-      await supabase.from("dues").update({ status: nextStatus, amount: feeNum }).eq("id", existingDue.id);
+      const nextAmount = existingDue.amount || feeNum;
+      const { error } = await supabase
+        .from("dues")
+        .update({
+          status: nextStatus,
+          amount: nextAmount,
+          paid_at: nextStatus === "Ödendi" ? new Date().toISOString() : null,
+        })
+        .eq("id", existingDue.id);
+      if (error) {
+        setFeedback("Aidat güncellenemedi: " + error.message);
+        return;
+      }
+      setDues((prev) =>
+        prev.map((d) => (d.id === existingDue.id ? { ...d, status: nextStatus, amount: nextAmount } : d))
+      );
       await logActivity("Aidat Güncelleme", `${player.full_name} — ${selectedDueMonth} → ${nextStatus}`);
+      setFeedback(`✅ ${player.full_name} (${selectedDueMonth}) durumu: ${nextStatus}`);
     }
-    loadAll();
+  }
+
+  // Geçmiş aydan borcu kalanlara toplu bildirim gönder
+  async function sendBulkPastDueNotification(unpaidPlayers: Player[]) {
+    if (unpaidPlayers.length === 0) {
+      setFeedback(`${pastDueMonth} için ödemesi kalan oyuncu bulunmuyor.`);
+      return;
+    }
+    const bodyText =
+      pastDueCustomNote.trim() ||
+      `📢 AİDAT HATIRLATMA (${pastDueMonth})\nSayın velilerimiz ve sporcularımız, ${pastDueMonth} dönemine ait kulüp aidat ödemesini henüz gerçekleştirmeyen sporcularımızın ödemelerini en kısa sürede tamamlamalarını rica ederiz. 🔴🔵`;
+
+    const { error } = await supabase.from("club_messages").insert({
+      title: `⚠️ ${pastDueMonth} Aidat Hatırlatması (${unpaidPlayers.length} Sporcu)`,
+      body: bodyText,
+      target_group: "Aidat Bekleyenler",
+      sender_name: "Yönetici",
+    });
+
+    if (error) {
+      setFeedback("Bildirim gönderilemedi: " + error.message);
+      return;
+    }
+
+    await logActivity(
+      "Toplu Aidat Hatırlatma",
+      `${pastDueMonth} dönemi için ödemesi kalan ${unpaidPlayers.length} sporcuya kulüp bildirimi gönderildi.`
+    );
+    setFeedback(`✅ ${pastDueMonth} ödemesi kalan ${unpaidPlayers.length} sporcu için toplu kulüp bildirimi gönderildi!`);
   }
 
   async function saveTraining(e: React.FormEvent) {
@@ -801,15 +920,32 @@ export default function AdminPage() {
     e.preventDefault();
     const token = `IKB-QR-${Date.now().toString(36).toUpperCase()}`;
     const chosenDate = newSessionDate || new Date().toISOString().slice(0, 10);
-    await supabase.from("prayer_sessions").update({ is_active: false }).eq("is_active", true);
-    await supabase.from("prayer_sessions").insert({
-      title: newSessionTitle || "Kulüp Yoklaması",
+
+    const { error: deactErr } = await supabase
+      .from("prayer_sessions")
+      .update({ is_active: false })
+      .eq("is_active", true);
+
+    if (deactErr) {
+      setFeedback("Eski QR oturumu kapatılamadı: " + deactErr.message);
+      return;
+    }
+
+    const { error: insErr } = await supabase.from("prayer_sessions").insert({
+      title: newSessionTitle.trim() || "Kulüp Yoklaması",
       qr_token: token,
       session_date: chosenDate,
       is_active: true,
     });
+
+    if (insErr) {
+      setFeedback("QR oluşturma hatası: " + insErr.message);
+      return;
+    }
+
     await logActivity("QR Yoklama Başlatma", `${newSessionTitle} (${chosenDate})`);
-    loadAll();
+    setFeedback("✅ Yeni QR yoklama oturumu oluşturuldu!");
+    await loadAll();
   }
 
   async function toggleManualAttendance(sessionId: string, player: Player, isPresent: boolean) {
@@ -962,12 +1098,20 @@ export default function AdminPage() {
           const isPaid = Boolean(due && (due.status === "Ödendi" || due.status === "paid"));
           return { player: p, due, isPaid };
         })
-        .sort((a, b) => Number(a.isPaid) - Number(b.isPaid)); // Ödemeyenler (false=0) en üstte!
+        .sort((a, b) => Number(a.isPaid) - Number(b.isPaid));
       const paidCount = rows.filter((r) => r.isPaid).length;
       const paidTotal = rows.reduce((sum, r) => sum + (r.isPaid ? Number(r.due?.amount || monthlyFee) : 0), 0);
       return { group: g, rows, paidCount, paidTotal };
     })
     .filter((x) => x.rows.length > 0);
+
+  // Geçmiş aydan borcu kalan oyuncular
+  const pastDuePaidIds = new Set(
+    dues
+      .filter((d) => d.month_label === pastDueMonth && (d.status === "Ödendi" || d.status === "paid"))
+      .map((d) => d.player_id)
+  );
+  const pastUnpaidPlayers = players.filter((p) => !pastDuePaidIds.has(p.id));
 
   const pendingRequests = requests.filter((r) => r.status === "bekliyor");
   const activeSession = sessions.find((s) => s.is_active) || sessions[0];
@@ -1613,9 +1757,10 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* AİDATLAR (HER AY AYRI, 3 AY İLERİ ÖDEME, ÖDEMEYENLER EN ÜSTTE, ÜCRET GÜNCELLEME) */}
+        {/* AİDATLAR */}
         {tab === "aidat" && role === "admin" && (
           <div className="space-y-6">
+            {/* Güncel Ücret Belirleme */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="font-extrabold text-[#02274c]">Aylık Aidat Ücreti & Dönem Seçimi</h2>
@@ -1655,8 +1800,107 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Kişi & Tutar Seçerek Ödeme Ekleme */}
+            <form onSubmit={handleManualDuePayment} className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
+              <h3 className="font-extrabold text-[#02274c] text-sm">
+                Ödeme Ekle (Kişi, Ay ve Verilen Tutarı Seç)
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <select
+                  required
+                  value={manualPayPlayerId}
+                  onChange={(e) => setManualPayPlayerId(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">-- Ödeme Yapan Oyuncuyu Seç --</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name} ({p.age_group})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={manualPayMonth}
+                  onChange={(e) => setManualPayMonth(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm"
+                >
+                  {DUE_MONTHS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  required
+                  placeholder="Verilen Tutar (₺)"
+                  value={manualPayAmount}
+                  onChange={(e) => setManualPayAmount(e.target.value)}
+                  className="border rounded-lg px-3 py-2 text-sm font-bold"
+                />
+                <button type="submit" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-4 py-2 text-sm">
+                  ✓ Ödendi Olarak Kaydet
+                </button>
+              </div>
+            </form>
+
+            {/* Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim & Mesaj Kutucuğu */}
+            <div className="bg-amber-50 border border-amber-300 p-5 rounded-2xl space-y-3">
+              <div className="flex flex-wrap justify-between items-center gap-3">
+                <div>
+                  <h3 className="font-extrabold text-amber-950 text-sm">
+                    📢 Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim & Mesaj
+                  </h3>
+                  <p className="text-xs text-amber-800 mt-0.5">
+                    <strong>{pastDueMonth}</strong> döneminde ödemesi henüz alınmamış{" "}
+                    <strong>{pastUnpaidPlayers.length} sporcu</strong> bulunuyor.
+                  </p>
+                </div>
+                <select
+                  value={pastDueMonth}
+                  onChange={(e) => setPastDueMonth(e.target.value)}
+                  className="border border-amber-400 bg-white rounded-lg px-3 py-1.5 text-xs font-bold"
+                >
+                  {DUE_MONTHS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <textarea
+                rows={2}
+                value={pastDueCustomNote}
+                onChange={(e) => setPastDueCustomNote(e.target.value)}
+                placeholder={`Özel mesaj yaz (boş bırakırsan ${pastDueMonth} için otomatik aidat hatırlatma metni gönderilir)`}
+                className="w-full border border-amber-300 bg-white rounded-xl px-3 py-2 text-xs"
+              />
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => sendBulkPastDueNotification(pastUnpaidPlayers)}
+                  className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-4 py-2.5 rounded-xl"
+                >
+                  🔔 Ödemeyenlere Toplu Kulüp Bildirimi Gönder ({pastUnpaidPlayers.length})
+                </button>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(
+                    pastDueCustomNote.trim() ||
+                      `📢 ${pastDueMonth} Aidat Hatırlatması: Henüz ödemesini yapmayan sporcularımızın/velilerimizin aidatlarını tamamlamasını rica ederiz. 🔴🔵`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl"
+                >
+                  📲 WhatsApp Grubunda Hatırlat
+                </a>
+              </div>
+            </div>
+
+            {/* Aylık Liste */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
-              {/* Ay Seçimi (3 ay sonrasına kadar peşin ödeme) */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
                   {DUE_MONTHS.map((m) => (
@@ -1725,12 +1969,13 @@ export default function AdminPage() {
                               </a>
                             )}
                             <button
+                              type="button"
                               onClick={() => togglePlayerMonthDue(player, due)}
                               className={`px-3 py-1 rounded-lg text-xs font-bold ${
                                 isPaid ? "bg-emerald-600 text-white" : "bg-amber-200 text-amber-950"
                               }`}
                             >
-                              {isPaid ? "✓ Ödendi" : "Bekleniyor (Ödendi Yap)"}
+                              {isPaid ? `✓ Ödendi (${due?.amount || monthlyFee}₺)` : "Bekleniyor (Ödendi Yap)"}
                             </button>
                           </div>
                         </div>
@@ -1879,13 +2124,17 @@ export default function AdminPage() {
                   Yeni QR Oluştur
                 </button>
               </form>
-              {activeSession && (
+              {activeSession ? (
                 <div className="flex flex-col items-center p-4 bg-slate-50 rounded-xl border">
                   <p className="font-bold text-[#02274c]">{activeSession.title}</p>
                   <p className="text-xs text-slate-500 mb-3">Tarih: {activeSession.session_date}</p>
                   <QRCodeSVG value={activeSession.qr_token} size={200} />
                   <p className="text-xs font-mono text-slate-500 mt-2">{activeSession.qr_token}</p>
                 </div>
+              ) : (
+                <p className="text-xs text-slate-500 text-center py-6">
+                  Henüz aktif bir QR oturumu yok. Yukarıdan &ldquo;Yeni QR Oluştur&rdquo; butonuna basın.
+                </p>
               )}
             </div>
 

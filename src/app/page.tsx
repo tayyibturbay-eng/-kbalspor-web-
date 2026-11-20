@@ -216,10 +216,10 @@ export default function IkbalHomePage() {
                   <span>Android Uygulamamız Yayında (APK İndir)</span>
                 </a>
 
-                <div className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-slate-100 font-semibold px-4 py-3 rounded-xl text-sm">
-                  <span>🍎</span>
-                  <span>iOS Çok Yakında</span>
-                </div>
+                <div className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-slate-100 font-semibold px-4 py-3 rounded-xl text-xs sm:text-sm">
+  <span>🍎</span>
+  <span>iPhone: Safari → Paylaş → Ana Ekrana Ekle</span>
+</div>
               </div>
             </div>
 
