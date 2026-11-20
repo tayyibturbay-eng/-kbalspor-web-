@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
-import { AGE_GROUPS } from "@/types/club";
 
 const supabase = createClient();
 
@@ -18,16 +17,29 @@ interface ClubNotificationRow {
   created_at: string;
 }
 
-const FILTER_GROUPS = ["Tümü", ...AGE_GROUPS];
-
 export default function BildirimlerPage() {
   const [items, setItems] = useState<ClubNotificationRow[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState("Tümü");
+  const [playerAgeGroup, setPlayerAgeGroup] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
+
+      let currentGroup: string | null = null;
+      if (typeof window !== "undefined") {
+        const playerId = localStorage.getItem("ikbal_logged_player_id");
+        if (playerId) {
+          const { data: player } = await supabase
+            .from("players")
+            .select("age_group")
+            .eq("id", playerId)
+            .maybeSingle();
+          currentGroup = player?.age_group || null;
+          setPlayerAgeGroup(currentGroup);
+        }
+      }
+
       const { data, error } = await supabase
         .from("club_messages")
         .select("*")
@@ -46,26 +58,23 @@ export default function BildirimlerPage() {
     })();
   }, []);
 
-  const notifications = useMemo(() => {
+  const individualNotifications = useMemo(() => {
     return items
       .map((m) => ({
         id: m.id,
         sender: m.sender_name || "Kulüp Yönetimi",
         title: m.title || "Kulüp Bildirimi",
         body: m.body || m.message_text || "",
-        group: m.target_group || m.age_group || "Tüm Kulüp",
+        group: (m.target_group || m.age_group || "Tümü").trim(),
         createdAt: m.created_at,
       }))
       .filter((m) => m.body.trim().length > 0)
       .filter((m) => {
-        if (selectedFilter === "Tümü") return true;
-        return (
-          m.group.includes(selectedFilter) ||
-          m.group === "Tümü" ||
-          m.group === "Tüm Kulüp"
-        );
+        if (!playerAgeGroup) return true;
+        if (m.group === "Tümü" || m.group === "Tüm Kulüp") return true;
+        return m.group.toLowerCase() === playerAgeGroup.trim().toLowerCase();
       });
-  }, [items, selectedFilter]);
+  }, [items, playerAgeGroup]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
@@ -73,80 +82,53 @@ export default function BildirimlerPage() {
 
       <section className="bg-gradient-to-r from-[#02274c] to-[#a60513] text-white py-10 px-4">
         <div className="max-w-4xl mx-auto space-y-2">
-          <h1 className="text-3xl font-black">Bildirimler & Duyurular</h1>
+          <h1 className="text-3xl font-black">Bildirimler</h1>
           <p className="text-slate-100 text-sm sm:text-base">
-            Antrenman, maç, aidat ve kulüp bilgilendirmelerini buradan takip
-            edebilirsiniz.
+            {playerAgeGroup
+              ? `${playerAgeGroup} grubunuza ve tüm kulübe gönderilen bireysel bildirimler.`
+              : "Size gönderilen bireysel bildirimler ve duyurular."}
           </p>
         </div>
       </section>
 
-      <main className="max-w-4xl mx-auto px-4 pt-8 space-y-6">
-        <div className="flex flex-wrap gap-1.5">
-          {FILTER_GROUPS.map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setSelectedFilter(g)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
-                selectedFilter === g
-                  ? "bg-[#02274c] text-white border-[#02274c]"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-              }`}
-            >
-              {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
-            </button>
-          ))}
-        </div>
-
+      <main className="max-w-4xl mx-auto px-4 pt-8 space-y-3">
         {loading ? (
           <p className="text-sm text-slate-500">Bildirimler yükleniyor...</p>
-        ) : notifications.length === 0 ? (
+        ) : individualNotifications.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500 text-center">
-            Bu kategori için henüz bildirim bulunmuyor.
+            Henüz yeni bildirim bulunmuyor.
           </div>
         ) : (
-          <div className="space-y-3">
-            {notifications.map((n) => (
-              <div
-                key={n.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-2"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded-lg bg-[#a60513] text-white text-xs font-bold">
-                      {n.group}
-                    </span>
-                    <strong className="text-sm text-[#02274c]">{n.sender}</strong>
-                  </div>
-                  <span className="text-xs text-slate-500">
-                    {new Date(n.createdAt).toLocaleString("tr-TR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
+          individualNotifications.map((n) => (
+            <article
+              key={n.id}
+              className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-[#a60513] text-white text-xs font-black flex items-center justify-center">
+                    !
+                  </span>
+                  <strong className="text-sm text-[#02274c]">{n.sender}</strong>
+                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold">
+                    {n.group}
                   </span>
                 </div>
-                <h2 className="font-extrabold text-base text-slate-900">
-                  {n.title}
-                </h2>
-                <p className="text-sm text-slate-700 whitespace-pre-line">
-                  {n.body}
-                </p>
-                <div className="pt-1">
-                  <a
-                    href={`https://wa.me/?text=${encodeURIComponent(
-                      `[İkbalspor - ${n.group}] ${n.title}\n${n.body}`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold"
-                  >
-                    WhatsApp ile İlet
-                  </a>
-                </div>
+                <span className="text-xs text-slate-500">
+                  {new Date(n.createdAt).toLocaleString("tr-TR", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  })}
+                </span>
               </div>
-            ))}
-          </div>
+              <h2 className="font-extrabold text-base text-slate-900">
+                {n.title}
+              </h2>
+              <p className="text-sm text-slate-700 whitespace-pre-line">
+                {n.body}
+              </p>
+            </article>
+          ))
         )}
       </main>
     </div>
