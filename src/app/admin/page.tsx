@@ -82,6 +82,18 @@ type Training = {
   created_by: string | null;
 };
 
+type MembershipRequest = {
+  id: string;
+  full_name: string;
+  birth_date: string | null;
+  age_group: string;
+  parent_phone: string;
+  position: string | null;
+  notes: string | null;
+  status: string;
+  created_at: string;
+};
+
 type TffResult = {
   tff_kisi_id: string;
   full_name: string;
@@ -149,10 +161,11 @@ export default function AdminPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   const [tab, setTab] = useState<
-    "oyuncular" | "antrenmanlar" | "tff" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler"
+    "oyuncular" | "talepler" | "antrenmanlar" | "tff" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler"
   >("oyuncular");
 
   const [players, setPlayers] = useState<Player[]>([]);
+  const [requests, setRequests] = useState<MembershipRequest[]>([]);
   const [dues, setDues] = useState<Due[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [sessions, setSessions] = useState<PrayerSession[]>([]);
@@ -257,8 +270,9 @@ export default function AdminPage() {
   }, []);
 
   async function loadAll() {
-    const [p, d, t, s, a, c, tr] = await Promise.all([
+    const [p, r, d, t, s, a, c, tr] = await Promise.all([
       supabase.from("players").select("*").order("full_name"),
+      supabase.from("membership_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("dues").select("*, players(full_name, age_group, parent_phone)").order("created_at", { ascending: false }),
       supabase.from("tasks_assignments").select("*").order("created_at", { ascending: false }),
       supabase.from("prayer_sessions").select("*").order("created_at", { ascending: false }),
@@ -267,6 +281,7 @@ export default function AdminPage() {
       supabase.from("trainings").select("*").order("created_at", { ascending: false }),
     ]);
     if (p.data) setPlayers(p.data);
+    if (r.data) setRequests(r.data as MembershipRequest[]);
     if (d.data) setDues(d.data as Due[]);
     if (t.data) setTasks(t.data);
     if (s.data) setSessions(s.data);
@@ -314,6 +329,35 @@ export default function AdminPage() {
     localStorage.removeItem("ikbal_coach");
     setRole("none");
     setActiveCoach(null);
+  }
+
+  // Üyelik Talebi Onayla / Sil
+  async function approveRequest(req: MembershipRequest) {
+    const code = `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
+    const pin = defaultPinFromPhone(req.parent_phone);
+    const { error } = await supabase.from("players").insert({
+      full_name: req.full_name,
+      birth_date: req.birth_date || null,
+      age_group: req.age_group || calcAgeGroupFromBirthDate(req.birth_date || ""),
+      position: req.position || "Orta Saha",
+      parent_phone: req.parent_phone,
+      player_code: code,
+      player_pin: pin,
+      pin_changed: false,
+    });
+    if (error) {
+      setFeedback("Onay hatası: " + error.message);
+      return;
+    }
+    await supabase.from("membership_requests").update({ status: "onaylandi" }).eq("id", req.id);
+    setFeedback(`✅ ${req.full_name} onaylandı ve kadroya eklendi! Giriş ID: ${code} | Şifre: ${pin}`);
+    loadAll();
+  }
+
+  async function deleteRequest(id: string) {
+    await supabase.from("membership_requests").delete().eq("id", id);
+    setFeedback("Üyelik talebi silindi.");
+    loadAll();
   }
 
   const duplicateKeys = useMemo(() => {
@@ -703,13 +747,14 @@ export default function AdminPage() {
       player_id: newDue.player_id,
       month_label: newDue.month_label,
       amount: Number(newDue.amount) || 500,
-      status: "Bekliyor",
+      status: "Bekleniyor",
     });
     loadAll();
   }
 
   async function toggleDueStatus(due: Due) {
-    const nextStatus = due.status === "Ödendi" ? "Bekliyor" : "Ödendi";
+    const isPaid = due.status === "Ödendi" || due.status === "paid";
+    const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
     await supabase.from("dues").update({ status: nextStatus }).eq("id", due.id);
     loadAll();
   }
@@ -833,6 +878,7 @@ export default function AdminPage() {
       p.age_group.toLowerCase().includes(playerSearch.toLowerCase())
   );
 
+  const pendingRequests = requests.filter((r) => r.status === "bekliyor");
   const activeSession = sessions.find((s) => s.is_active) || sessions[0];
   const checkedInIds = new Set(
     attendance.filter((a) => activeSession && a.session_id === activeSession.id).map((a) => a.player_id)
@@ -842,6 +888,7 @@ export default function AdminPage() {
     role === "admin"
       ? [
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
+          { id: "talepler", label: `Üyelik Talepleri (${pendingRequests.length})` },
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
           { id: "tff", label: "TFF Bilgi Bankası Ajanı" },
           { id: "aidat", label: "Aidatlar" },
@@ -904,6 +951,56 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {/* ÜYELİK TALEPLERİ SEKMESİ */}
+        {tab === "talepler" && role === "admin" && (
+          <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
+            <h2 className="text-lg font-extrabold text-[#02274c]">Gelen Üyelik Talepleri</h2>
+            {requests.length === 0 ? (
+              <p className="text-sm text-slate-500">Henüz üyelik talebi yok.</p>
+            ) : (
+              <div className="space-y-3">
+                {requests.map((r) => (
+                  <div
+                    key={r.id}
+                    className={`border rounded-xl p-4 flex flex-wrap justify-between items-center gap-3 ${
+                      r.status === "bekliyor" ? "bg-amber-50 border-amber-300" : "bg-slate-50"
+                    }`}
+                  >
+                    <div className="text-sm">
+                      <div className="font-bold text-[#02274c]">
+                        {r.full_name} ({r.age_group})
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-white border">
+                          {r.status === "bekliyor" ? "Onay Bekliyor" : "Onaylandı"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-slate-600">
+                        Doğum: {r.birth_date || "-"} | Telefon: {r.parent_phone} | Mevki: {r.position || "-"}
+                      </div>
+                      {r.notes && <div className="text-xs text-slate-500 mt-1">Not: {r.notes}</div>}
+                    </div>
+                    <div className="flex gap-2">
+                      {r.status === "bekliyor" && (
+                        <button
+                          onClick={() => approveRequest(r)}
+                          className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                        >
+                          Onayla & ID Aç
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteRequest(r.id)}
+                        className="bg-red-100 text-red-700 text-xs font-bold px-4 py-2 rounded-lg"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {tab === "oyuncular" && (
           <div className="space-y-6">
@@ -1719,21 +1816,24 @@ export default function AdminPage() {
             </form>
 
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-2">
-              {dues.map((d) => (
-                <div key={d.id} className="flex flex-wrap justify-between items-center border-b pb-2 text-sm">
-                  <div>
-                    <strong>{d.players?.full_name}</strong> ({d.players?.age_group}) — {d.month_label} — {d.amount}₺
+              {dues.map((d) => {
+                const isPaid = d.status === "Ödendi" || d.status === "paid";
+                return (
+                  <div key={d.id} className="flex flex-wrap justify-between items-center border-b pb-2 text-sm">
+                    <div>
+                      <strong>{d.players?.full_name}</strong> ({d.players?.age_group}) — {d.month_label} — {d.amount}₺
+                    </div>
+                    <button
+                      onClick={() => toggleDueStatus(d)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                        isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {isPaid ? "Ödendi" : "Bekleniyor"}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => toggleDueStatus(d)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                      d.status === "Ödendi" ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {d.status}
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
