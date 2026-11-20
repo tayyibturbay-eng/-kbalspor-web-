@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { InventoryManager } from "@/components/admin/InventoryManager";
+import { AttendanceReport } from "@/components/admin/AttendanceReport";
 import { QRCodeSVG } from "qrcode.react";
 
 const supabase = createClient();
@@ -2103,83 +2104,87 @@ export default function AdminPage() {
 
         {/* QR YOKLAMA */}
         {tab === "namaz" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
-              <form onSubmit={createQrSession} className="space-y-2">
-                <div className="flex gap-2">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
+                <form onSubmit={createQrSession} className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      value={newSessionTitle}
+                      onChange={(e) => setNewSessionTitle(e.target.value)}
+                      placeholder="Yoklama Başlığı"
+                      className="flex-1 border rounded-lg px-3 py-2 text-sm"
+                    />
+                    <input
+                      type="date"
+                      value={newSessionDate}
+                      onChange={(e) => setNewSessionDate(e.target.value)}
+                      className="border rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <button type="submit" className="w-full bg-[#02274c] text-white text-xs font-bold px-4 py-2.5 rounded-lg">
+                    Yeni QR Oluştur
+                  </button>
+                </form>
+                {activeSession ? (
+                  <div className="flex flex-col items-center p-4 bg-slate-50 rounded-xl border">
+                    <p className="font-bold text-[#02274c]">{activeSession.title}</p>
+                    <p className="text-xs text-slate-500 mb-3">Tarih: {activeSession.session_date}</p>
+                    <QRCodeSVG value={activeSession.qr_token} size={200} />
+                    <p className="text-xs font-mono text-slate-500 mt-2">{activeSession.qr_token}</p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 text-center py-6">
+                    Henüz aktif bir QR oturumu yok. Yukarıdan &ldquo;Yeni QR Oluştur&rdquo; butonuna basın.
+                  </p>
+                )}
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
+                <div className="flex justify-between items-center gap-2">
+                  <h3 className="font-bold text-[#02274c]">
+                    Yoklama Listesi ({checkedInIds.size} / {players.length})
+                  </h3>
                   <input
-                    value={newSessionTitle}
-                    onChange={(e) => setNewSessionTitle(e.target.value)}
-                    placeholder="Yoklama Başlığı"
-                    className="flex-1 border rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="date"
-                    value={newSessionDate}
-                    onChange={(e) => setNewSessionDate(e.target.value)}
-                    className="border rounded-lg px-3 py-2 text-sm"
+                    placeholder="İsim ara..."
+                    value={qrSearch}
+                    onChange={(e) => setQrSearch(e.target.value)}
+                    className="border rounded-lg px-2.5 py-1 text-xs"
                   />
                 </div>
-                <button type="submit" className="w-full bg-[#02274c] text-white text-xs font-bold px-4 py-2.5 rounded-lg">
-                  Yeni QR Oluştur
-                </button>
-              </form>
-              {activeSession ? (
-                <div className="flex flex-col items-center p-4 bg-slate-50 rounded-xl border">
-                  <p className="font-bold text-[#02274c]">{activeSession.title}</p>
-                  <p className="text-xs text-slate-500 mb-3">Tarih: {activeSession.session_date}</p>
-                  <QRCodeSVG value={activeSession.qr_token} size={200} />
-                  <p className="text-xs font-mono text-slate-500 mt-2">{activeSession.qr_token}</p>
+                <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                  {players
+                    .filter((p) => p.full_name.toLowerCase().includes(qrSearch.toLowerCase()))
+                    .map((p) => {
+                      const ok = checkedInIds.has(p.id);
+                      return (
+                        <div
+                          key={p.id}
+                          className={`px-3 py-2 rounded-lg text-sm flex justify-between items-center ${
+                            ok ? "bg-emerald-100 text-emerald-900 font-bold" : "bg-slate-50 text-slate-700"
+                          }`}
+                        >
+                          <span>
+                            {p.full_name} ({p.age_group})
+                          </span>
+                          {activeSession && (
+                            <button
+                              onClick={() => toggleManualAttendance(activeSession.id, p, ok)}
+                              className={`text-xs font-bold px-3 py-1 rounded-lg ${
+                                ok ? "bg-emerald-700 text-white" : "bg-[#02274c] text-white"
+                              }`}
+                            >
+                              {ok ? "✓ Geldi" : "Geldi İşaretle"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
-              ) : (
-                <p className="text-xs text-slate-500 text-center py-6">
-                  Henüz aktif bir QR oturumu yok. Yukarıdan &ldquo;Yeni QR Oluştur&rdquo; butonuna basın.
-                </p>
-              )}
+              </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
-              <div className="flex justify-between items-center gap-2">
-                <h3 className="font-bold text-[#02274c]">
-                  Yoklama Listesi ({checkedInIds.size} / {players.length})
-                </h3>
-                <input
-                  placeholder="İsim ara..."
-                  value={qrSearch}
-                  onChange={(e) => setQrSearch(e.target.value)}
-                  className="border rounded-lg px-2.5 py-1 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5 max-h-96 overflow-y-auto">
-                {players
-                  .filter((p) => p.full_name.toLowerCase().includes(qrSearch.toLowerCase()))
-                  .map((p) => {
-                    const ok = checkedInIds.has(p.id);
-                    return (
-                      <div
-                        key={p.id}
-                        className={`px-3 py-2 rounded-lg text-sm flex justify-between items-center ${
-                          ok ? "bg-emerald-100 text-emerald-900 font-bold" : "bg-slate-50 text-slate-700"
-                        }`}
-                      >
-                        <span>
-                          {p.full_name} ({p.age_group})
-                        </span>
-                        {activeSession && (
-                          <button
-                            onClick={() => toggleManualAttendance(activeSession.id, p, ok)}
-                            className={`text-xs font-bold px-3 py-1 rounded-lg ${
-                              ok ? "bg-emerald-700 text-white" : "bg-[#02274c] text-white"
-                            }`}
-                          >
-                            {ok ? "✓ Geldi" : "Geldi İşaretle"}
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
+            <AttendanceReport />
           </div>
         )}
 
