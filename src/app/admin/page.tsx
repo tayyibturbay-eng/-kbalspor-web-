@@ -19,7 +19,6 @@ type Player = {
   player_pin: string | null;
   pin_changed?: boolean;
   is_representative?: boolean;
-  tff_kisi_id?: string | null;
   license_no?: string | null;
 };
 
@@ -94,16 +93,6 @@ type MembershipRequest = {
   created_at: string;
 };
 
-type TffResult = {
-  tff_kisi_id: string;
-  full_name: string;
-  birth_date: string;
-  license_no: string;
-  club: string;
-  birth_place?: string;
-  profile_url?: string;
-};
-
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 
@@ -161,7 +150,7 @@ export default function AdminPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   const [tab, setTab] = useState<
-    "oyuncular" | "talepler" | "antrenmanlar" | "tff" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler"
+    "oyuncular" | "talepler" | "antrenmanlar" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler"
   >("oyuncular");
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -226,25 +215,6 @@ export default function AdminPage() {
     targetPlayers: Player[];
   } | null>(null);
 
-  const [tffQuery, setTffQuery] = useState("");
-  const [tffUrlOrId, setTffUrlOrId] = useState("");
-  const [tffPasteText, setTffPasteText] = useState("");
-  const [tffLoading, setTffLoading] = useState(false);
-  const [tffError, setTffError] = useState("");
-  const [tffResults, setTffResults] = useState<TffResult[]>([]);
-  const [tffDraft, setTffDraft] = useState<{
-    full_name: string;
-    birth_date: string;
-    age_group: string;
-    license_no: string;
-    tff_kisi_id: string;
-    parent_phone: string;
-    position: string;
-    jersey_number: string;
-    player_code: string;
-    player_pin: string;
-  } | null>(null);
-
   useEffect(() => {
     (async () => {
       const { data } = await supabase.auth.getSession();
@@ -299,6 +269,7 @@ export default function AdminPage() {
       return;
     }
     setRole("admin");
+    setTab("oyuncular");
     await loadAll();
   }
 
@@ -331,7 +302,6 @@ export default function AdminPage() {
     setActiveCoach(null);
   }
 
-  // Üyelik Talebi Onayla / Sil
   async function approveRequest(req: MembershipRequest) {
     const code = `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
     const pin = defaultPinFromPhone(req.parent_phone);
@@ -614,113 +584,6 @@ export default function AdminPage() {
     loadAll();
   }
 
-  async function runTffAgent(mode: "search" | "profile") {
-    setTffLoading(true);
-    setTffError("");
-    setTffResults([]);
-    try {
-      const res = await fetch("/api/tff-agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          mode === "search" ? { action: "search", query: tffQuery } : { action: "profile", kisiIdOrUrl: tffUrlOrId }
-        ),
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setTffError(data.error || "TFF verisi çekilemedi.");
-      } else {
-        setTffResults(data.results || []);
-        if (data.results?.length === 1) {
-          selectTffPlayerToDraft(data.results[0]);
-        }
-      }
-    } catch {
-      setTffError("TFF bağlantı hatası oluştu.");
-    } finally {
-      setTffLoading(false);
-    }
-  }
-
-  function parseTffPastedText() {
-    setTffError("");
-    const text = tffPasteText.trim();
-    if (!text) return;
-
-    const birthMatch = text.match(/Doğum Tarihi\s*:?\s*(\d{1,2}\.\d{1,2}\.\d{4})/i) || text.match(/(\d{1,2}\.\d{1,2}\.\d{4})/);
-    let isoBirth = "";
-    if (birthMatch) {
-      const [, d, mo, y] = birthMatch[1].match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/) || [];
-      if (d && mo && y) isoBirth = `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}`;
-    }
-
-    const licenseMatch = text.match(/Lisans No\s*:?\s*(\d{5,12})/i);
-    const nameMatch =
-      text.match(/Adı Soyadı\s*:?\s*([A-ZÇĞİÖŞÜa-zçğıöşü\s]+)/i) ||
-      text.split("\n").find((line) => line.trim().length > 4 && !line.includes("Doğum") && !line.includes("Lisans"));
-
-    const extractedName = (typeof nameMatch === "string" ? nameMatch : nameMatch?.[1] || "").trim();
-    selectTffPlayerToDraft({
-      tff_kisi_id: "",
-      full_name: extractedName,
-      birth_date: isoBirth,
-      license_no: licenseMatch?.[1] || "",
-      club: "",
-    });
-  }
-
-  function selectTffPlayerToDraft(item: TffResult) {
-    const ageGroup = calcAgeGroupFromBirthDate(item.birth_date);
-    setTffDraft({
-      full_name: item.full_name || "",
-      birth_date: item.birth_date || "",
-      age_group: ageGroup,
-      license_no: item.license_no || "",
-      tff_kisi_id: item.tff_kisi_id || "",
-      parent_phone: "",
-      position: "Orta Saha",
-      jersey_number: "",
-      player_code: `IKB-${Math.floor(1000 + Math.random() * 9000)}`,
-      player_pin: "1234",
-    });
-  }
-
-  const tffDuplicateMatch = useMemo(() => {
-    if (!tffDraft || !tffDraft.full_name || !tffDraft.birth_date) return null;
-    return players.find(
-      (p) => normalizeTr(p.full_name) === normalizeTr(tffDraft.full_name) && p.birth_date === tffDraft.birth_date
-    );
-  }, [tffDraft, players]);
-
-  async function importTffDraftToSquad(e: React.FormEvent) {
-    e.preventDefault();
-    if (!tffDraft) return;
-    const finalAgeGroup = tffDraft.birth_date ? calcAgeGroupFromBirthDate(tffDraft.birth_date) : tffDraft.age_group;
-    const finalPin = tffDraft.player_pin.trim() || defaultPinFromPhone(tffDraft.parent_phone);
-
-    const { error } = await supabase.from("players").insert({
-      full_name: tffDraft.full_name.trim(),
-      birth_date: tffDraft.birth_date || null,
-      age_group: finalAgeGroup,
-      position: tffDraft.position,
-      jersey_number: tffDraft.jersey_number ? Number(tffDraft.jersey_number) : null,
-      parent_phone: tffDraft.parent_phone.trim() || null,
-      player_code: tffDraft.player_code.trim().toUpperCase(),
-      player_pin: finalPin,
-      pin_changed: false,
-      tff_kisi_id: tffDraft.tff_kisi_id || null,
-      license_no: tffDraft.license_no || null,
-    });
-
-    if (error) {
-      setFeedback("TFF oyuncusu eklenemedi: " + error.message);
-      return;
-    }
-    setFeedback(`✅ TFF Ajanı ile ${tffDraft.full_name} (${finalAgeGroup}) kadroya eklendi!`);
-    setTffDraft(null);
-    loadAll();
-  }
-
   async function addCoach(e: React.FormEvent) {
     e.preventDefault();
     const code = newCoach.coach_code.trim().toUpperCase() || `ANT-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -890,7 +753,6 @@ export default function AdminPage() {
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
           { id: "talepler", label: `Üyelik Talepleri (${pendingRequests.length})` },
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
-          { id: "tff", label: "TFF Bilgi Bankası Ajanı" },
           { id: "aidat", label: "Aidatlar" },
           { id: "envanter", label: "Forma & Ekipman" },
           { id: "gorevler", label: "Maç & Görevler" },
@@ -899,8 +761,6 @@ export default function AdminPage() {
         ]
       : [
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
-          { id: "oyuncular", label: `Oyuncular (${players.length})` },
-          { id: "tff", label: "TFF Bilgi Bankası Ajanı" },
           { id: "gorevler", label: "Maç & Görevler" },
           { id: "namaz", label: "QR Yoklama" },
         ];
@@ -952,7 +812,6 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* ÜYELİK TALEPLERİ SEKMESİ */}
         {tab === "talepler" && role === "admin" && (
           <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
             <h2 className="text-lg font-extrabold text-[#02274c]">Gelen Üyelik Talepleri</h2>
@@ -1002,7 +861,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "oyuncular" && (
+        {tab === "oyuncular" && role === "admin" && (
           <div className="space-y-6">
             {flaggedPlayersCount > 0 && (
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-sm">
@@ -1243,14 +1102,12 @@ export default function AdminPage() {
                             >
                               Düzenle
                             </button>
-                            {role === "admin" && (
-                              <button
-                                onClick={() => deletePlayer(p.id, p.full_name)}
-                                className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg"
-                              >
-                                Sil
-                              </button>
-                            )}
+                            <button
+                              onClick={() => deletePlayer(p.id, p.full_name)}
+                              className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1.5 rounded-lg"
+                            >
+                              Sil
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1573,212 +1430,6 @@ export default function AdminPage() {
                   );
                 })}
               </div>
-            </div>
-          </div>
-        )}
-
-        {tab === "tff" && (
-          <div className="space-y-6">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
-              <div className="flex flex-wrap justify-between items-center gap-2">
-                <div>
-                  <h2 className="text-lg font-extrabold text-[#02274c]">🤖 TFF Futbol Bilgi Bankası Ajanı</h2>
-                  <p className="text-xs text-slate-500">
-                    TFF'den oyuncu bilgilerini otomatik çeker, kadroda aynı isim ve doğum tarihi varsa sizi uyarır.
-                  </p>
-                </div>
-                <a
-                  href="https://www.tff.org/default.aspx?pageID=130"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-bold bg-slate-100 px-3 py-2 rounded-lg text-[#02274c]"
-                >
-                  TFF Arama Sayfasını Aç ↗
-                </a>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border rounded-xl p-3 space-y-2">
-                  <label className="text-xs font-bold text-slate-600">1. Yöntem: İsim veya Lisans No ile TFF'de Ara</label>
-                  <div className="flex gap-2">
-                    <input
-                      placeholder="Örn: Ahmet Yılmaz veya 1234567"
-                      value={tffQuery}
-                      onChange={(e) => setTffQuery(e.target.value)}
-                      className="flex-1 border rounded-lg px-3 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      disabled={tffLoading}
-                      onClick={() => runTffAgent("search")}
-                      className="bg-[#02274c] text-white text-xs font-bold px-4 py-2 rounded-lg"
-                    >
-                      {tffLoading ? "Aranıyor..." : "TFF'den Çek"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="border rounded-xl p-3 space-y-2">
-                  <label className="text-xs font-bold text-slate-600">2. Yöntem: TFF Oyuncu Linki veya Kişi ID</label>
-                  <div className="flex gap-2">
-                    <input
-                      placeholder="https://www.tff.org/Default.aspx?pageID=30&kisiID=..."
-                      value={tffUrlOrId}
-                      onChange={(e) => setTffUrlOrId(e.target.value)}
-                      className="flex-1 border rounded-lg px-3 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      disabled={tffLoading}
-                      onClick={() => runTffAgent("profile")}
-                      className="bg-[#a60513] text-white text-xs font-bold px-4 py-2 rounded-lg"
-                    >
-                      Profili Getir
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="border rounded-xl p-3 bg-slate-50 space-y-2">
-                <label className="text-xs font-bold text-slate-600">
-                  3. Yöntem (Yedek): TFF Oyuncu Sayfasından Kopyaladığınız Metni Yapıştırın
-                </label>
-                <div className="flex flex-col md:flex-row gap-2">
-                  <textarea
-                    rows={2}
-                    placeholder="TFF oyuncu sayfasından Adı Soyadı, Doğum Tarihi, Lisans No alanlarını kopyalayıp yapıştırın..."
-                    value={tffPasteText}
-                    onChange={(e) => setTffPasteText(e.target.value)}
-                    className="flex-1 border rounded-lg px-3 py-2 text-xs bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={parseTffPastedText}
-                    className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-lg"
-                  >
-                    Metinden Ayrıştır
-                  </button>
-                </div>
-              </div>
-
-              {tffError && <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs">{tffError}</div>}
-
-              {tffResults.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-xs font-bold text-slate-600">TFF Sonuçları (Düzenlemek için seçin):</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {tffResults.map((r, idx) => (
-                      <div key={idx} className="border rounded-xl p-3 flex justify-between items-center">
-                        <div className="text-xs">
-                          <div className="font-bold text-[#02274c]">{r.full_name}</div>
-                          <div>Doğum: {r.birth_date || "?"} | Lisans: {r.license_no || "-"}</div>
-                          <div className="text-slate-500">{r.club || ""}</div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => selectTffPlayerToDraft(r)}
-                          className="bg-[#02274c] text-white text-xs font-bold px-3 py-1.5 rounded-lg"
-                        >
-                          Seç & Düzenle
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {tffDraft && (
-                <form onSubmit={importTffDraftToSquad} className="border-2 border-[#02274c] rounded-2xl p-4 space-y-3 bg-blue-50/30">
-                  <h3 className="font-extrabold text-[#02274c]">TFF'den Gelen Bilgileri İncele / Düzenle ve Ekle</h3>
-
-                  {tffDuplicateMatch && (
-                    <div className="p-3 rounded-xl bg-red-100 border border-red-300 text-red-900 text-sm font-bold">
-                      ⚠️ DİKKAT: Kadronuzda aynı isim ve doğum tarihine sahip oyuncu zaten kayıtlı! (
-                      {tffDuplicateMatch.full_name} — ID: {tffDuplicateMatch.player_code} — Grup:{" "}
-                      {tffDuplicateMatch.age_group})
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Ad Soyad</label>
-                      <input
-                        required
-                        value={tffDraft.full_name}
-                        onChange={(e) => setTffDraft({ ...tffDraft, full_name: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Doğum Tarihi</label>
-                      <input
-                        type="date"
-                        value={tffDraft.birth_date}
-                        onChange={(e) => setTffDraft({ ...tffDraft, birth_date: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Lisans No</label>
-                      <input
-                        value={tffDraft.license_no}
-                        onChange={(e) => setTffDraft({ ...tffDraft, license_no: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Veli Telefon</label>
-                      <input
-                        placeholder="05xx..."
-                        value={tffDraft.parent_phone}
-                        onChange={(e) => setTffDraft({ ...tffDraft, parent_phone: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Mevki</label>
-                      <select
-                        value={tffDraft.position}
-                        onChange={(e) => setTffDraft({ ...tffDraft, position: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      >
-                        <option>Kaleci</option>
-                        <option>Defans</option>
-                        <option>Orta Saha</option>
-                        <option>Forvet</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Forma No</label>
-                      <input
-                        type="number"
-                        value={tffDraft.jersey_number}
-                        onChange={(e) => setTffDraft({ ...tffDraft, jersey_number: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Oyuncu ID</label>
-                      <input
-                        value={tffDraft.player_code}
-                        onChange={(e) => setTffDraft({ ...tffDraft, player_code: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white uppercase"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-600">Şifre (PIN)</label>
-                      <input
-                        value={tffDraft.player_pin}
-                        onChange={(e) => setTffDraft({ ...tffDraft, player_pin: e.target.value })}
-                        className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                  </div>
-                  <button type="submit" className="bg-[#a60513] text-white font-bold px-5 py-2 rounded-lg text-sm">
-                    Düzenlenen Bilgilerle Kadroya Ekle
-                  </button>
-                </form>
-              )}
             </div>
           </div>
         )}
