@@ -94,7 +94,6 @@ export default function IkbalAdminPage() {
   const [sessions, setSessions] = useState<PrayerSession[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
 
-  // Oyuncu Formu (Doğum Tarihi ile)
   const [pName, setPName] = useState("");
   const [pBirthDate, setPBirthDate] = useState("2015-01-01");
   const [pPos, setPPos] = useState("Orta Saha");
