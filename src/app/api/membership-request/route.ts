@@ -1,6 +1,30 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const FALLBACK_URL = "https://aimaeqouwsyftwtjdtoo.supabase.co";
+const FALLBACK_KEY = "sb_publishable_rV2Gq89vqhvDLCEpyUXwEg_3JaZteJU";
+
+function getSupabaseClient() {
+  const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
+    .replace(/['"]/g, "")
+    .trim()
+    .replace(/\/rest\/v1\/?$/i, "")
+    .replace(/\/+$/, "");
+
+  const rawKey = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    ""
+  )
+    .replace(/['"]/g, "")
+    .trim();
+
+  const supabaseUrl = rawUrl.startsWith("http") ? rawUrl : FALLBACK_URL;
+  const supabaseKey = rawKey.length > 20 ? rawKey : FALLBACK_KEY;
+
+  return createClient(supabaseUrl, supabaseKey);
+}
+
 function calcAgeGroup(birthDate: string | null): string {
   if (!birthDate) return "U15";
   const year = parseInt(birthDate.slice(0, 4), 10);
@@ -36,7 +60,6 @@ export async function POST(req: Request) {
       full_name,
       birth_date,
       parent_phone,
-      position,
       notes,
       guardian_name,
       kvkk_accepted,
@@ -64,29 +87,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
-      .trim()
-      .replace(/^["']|["']$/g, "")
-      .replace(/\/rest\/v1\/?$/, "");
-
-    const supabaseUrl = rawUrl.startsWith("http")
-      ? rawUrl
-      : "https://aimaeqouwsyftwtjdtoo.supabase.co";
-
-    const rawKey = (
-      process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-      ""
-    )
-      .trim()
-      .replace(/^["']|["']$/g, "");
-
-    const supabaseKey =
-      rawKey.length > 20
-        ? rawKey
-        : "sb_publishable_rV2Gq89vqhvDLCEpyUXwEg_3JaZteJU";
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = getSupabaseClient();
     const ageGroup = calcAgeGroup(birth_date || null);
 
     const { error: insertErr } = await supabase.from("membership_requests").insert({
@@ -94,7 +95,7 @@ export async function POST(req: Request) {
       birth_date: birth_date || null,
       age_group: ageGroup,
       parent_phone: parent_phone.trim(),
-      position: position || "Orta Saha",
+      position: null,
       notes: notes?.trim() || null,
       guardian_name: guardian_name?.trim() || null,
       kvkk_accepted: true,
@@ -107,7 +108,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: insertErr.message }, { status: 500 });
     }
 
-    // Admin Push Bildirimi (hata olsa bile başvuruyu bozmaz)
     try {
       const { data: tokens } = await supabase
         .from("admin_push_tokens")
@@ -128,12 +128,11 @@ export async function POST(req: Request) {
         });
       }
     } catch {
-      // Bildirim hatasını sessiz geç
+      // Bildirim hatası üyelik kaydını etkilemesin
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Sunucu hatası.";
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+  } catch {
+    return NextResponse.json({ ok: false, error: "Sunucu hatası." }, { status: 500 });
   }
 }

@@ -23,7 +23,6 @@ export default function IkbalHomePage() {
     full_name: "",
     birth_date: "",
     parent_phone: "",
-    position: "Orta Saha",
     guardian_name: "",
     notes: "",
   });
@@ -93,7 +92,6 @@ export default function IkbalHomePage() {
           full_name: "",
           birth_date: "",
           parent_phone: "",
-          position: "Orta Saha",
           guardian_name: "",
           notes: "",
         });
@@ -366,35 +364,17 @@ export default function IkbalHomePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Doğum Tarihi *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={regForm.birth_date}
-                    onChange={(e) => setRegForm({ ...regForm, birth_date: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Mevki
-                  </label>
-                  <select
-                    value={regForm.position}
-                    onChange={(e) => setRegForm({ ...regForm, position: e.target.value })}
-                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-                  >
-                    <option value="Kaleci">Kaleci</option>
-                    <option value="Defans">Defans</option>
-                    <option value="Orta Saha">Orta Saha</option>
-                    <option value="Forvet">Forvet</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Doğum Tarihi *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={regForm.birth_date}
+                  onChange={(e) => setRegForm({ ...regForm, birth_date: e.target.value })}
+                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                />
               </div>
 
               {isMinor && (
