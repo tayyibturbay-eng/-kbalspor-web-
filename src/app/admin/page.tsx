@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { createClient } from "@/lib/supabase/client";
+import { InventoryManager } from "@/components/admin/InventoryManager";
 
 interface Player {
   id: string;
@@ -24,15 +25,6 @@ interface DueRow {
   amount: number;
   status: "pending" | "paid" | "overdue";
   paid_at: string | null;
-}
-
-interface EquipmentRow {
-  id: string;
-  player_id: string;
-  item_name: string;
-  item_size: string | null;
-  given_date: string;
-  status: "teslim_edildi" | "iade_edildi";
 }
 
 interface TaskRow {
@@ -89,7 +81,6 @@ export default function IkbalAdminPage() {
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [dues, setDues] = useState<DueRow[]>([]);
-  const [equipment, setEquipment] = useState<EquipmentRow[]>([]);
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [sessions, setSessions] = useState<PrayerSession[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
@@ -103,11 +94,7 @@ export default function IkbalAdminPage() {
 
   const [duePlayerId, setDuePlayerId] = useState("");
   const [dueMonth, setDueMonth] = useState("Kasım 2026");
-  const [dueAmount, setDueAmount] = useState("1000");
-
-  const [eqPlayerId, setEqPlayerId] = useState("");
-  const [eqName, setEqName] = useState("Maç Forması");
-  const [eqSize, setEqSize] = useState("M");
+  const [dueAmount, setDueAmount] = useState("500");
 
   const [tTitle, setTTitle] = useState("");
   const [tType, setTType] = useState<"antrenman" | "mac" | "etkinlik">("antrenman");
@@ -121,23 +108,18 @@ export default function IkbalAdminPage() {
 
   const loadAll = async () => {
     const supabase = createClient();
-    const [pRes, dRes, eRes, tRes, sRes, aRes] = await Promise.all([
+    const [pRes, dRes, tRes, sRes, aRes] = await Promise.all([
       supabase.from("players").select("*").order("age_group", { ascending: true }),
       supabase.from("dues").select("*").order("created_at", { ascending: false }),
-      supabase.from("equipment_logs").select("*").order("created_at", { ascending: false }),
       supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
       supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
       supabase.from("prayer_attendance").select("*").order("scanned_at", { ascending: false }),
     ]);
     if (pRes.data) {
       setPlayers(pRes.data as Player[]);
-      if (pRes.data.length > 0) {
-        setDuePlayerId((prev) => prev || pRes.data[0].id);
-        setEqPlayerId((prev) => prev || pRes.data[0].id);
-      }
+      if (pRes.data.length > 0) setDuePlayerId((prev) => prev || pRes.data[0].id);
     }
     if (dRes.data) setDues(dRes.data as DueRow[]);
-    if (eRes.data) setEquipment(eRes.data as EquipmentRow[]);
     if (tRes.data) setTasks(tRes.data as TaskRow[]);
     if (sRes.data) {
       setSessions(sRes.data as PrayerSession[]);
@@ -221,7 +203,7 @@ export default function IkbalAdminPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("dues")
-      .insert({ player_id: duePlayerId, month_label: dueMonth.trim(), amount: Number(dueAmount) || 0, status: "pending" })
+      .insert({ player_id: duePlayerId, month_label: dueMonth.trim(), amount: Number(dueAmount) || 500, status: "pending" })
       .select()
       .single();
     if (!error && data) setDues((prev) => [data as DueRow, ...prev]);
@@ -234,23 +216,34 @@ export default function IkbalAdminPage() {
     if (!error) setDues((prev) => prev.map((x) => (x.id === d.id ? { ...x, status, paid_at } : x)));
   };
 
-  const handleAddEquipment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!eqPlayerId) return;
+  const sendDueNotification = async (d: DueRow, pl: Player | undefined) => {
+    if (!pl) return;
     const supabase = createClient();
-    const { data, error } = await supabase
-      .from("equipment_logs")
-      .insert({ player_id: eqPlayerId, item_name: eqName.trim(), item_size: eqSize.trim() || null, status: "teslim_edildi" })
-      .select()
-      .single();
-    if (!error && data) setEquipment((prev) => [data as EquipmentRow, ...prev]);
+    await supabase.from("club_messages").insert({
+      sender_name: "Yönetim (Aidat Takip)",
+      age_group: pl.age_group,
+      message_text: `${pl.full_name} için ${d.month_label} dönemi ${d.amount} ₺ aidat ödemesi beklenmektedir.`,
+    });
+    alert(`${pl.full_name} için bildirim mesajı gönderildi.`);
   };
 
-  const toggleEqStatus = async (eq: EquipmentRow) => {
-    const next = eq.status === "teslim_edildi" ? "iade_edildi" : "teslim_edildi";
+  const sendBulkDueNotifications = async () => {
+    const unpaid = dues.filter((d) => d.status !== "paid");
+    if (unpaid.length === 0) {
+      alert("Ödenmemiş aidat bulunmuyor.");
+      return;
+    }
     const supabase = createClient();
-    const { error } = await supabase.from("equipment_logs").update({ status: next }).eq("id", eq.id);
-    if (!error) setEquipment((prev) => prev.map((x) => (x.id === eq.id ? { ...x, status: next } : x)));
+    const rows = unpaid.map((d) => {
+      const pl = players.find((p) => p.id === d.player_id);
+      return {
+        sender_name: "Yönetim (Aidat Hatırlatma)",
+        age_group: pl?.age_group || "Tümü",
+        message_text: `${pl?.full_name || "Oyuncu"} için ${d.month_label} dönemi ${d.amount} ₺ aidat ödemesi beklenmektedir.`,
+      };
+    });
+    await supabase.from("club_messages").insert(rows);
+    alert(`${rows.length} ödenmemiş aidat için bildirim gönderildi.`);
   };
 
   const handleAddTask = async (e: React.FormEvent) => {
@@ -333,7 +326,7 @@ export default function IkbalAdminPage() {
           {[
             { k: "players", l: `Oyuncular (${players.length})` },
             { k: "dues", l: `Aidat Takibi (${dues.length})` },
-            { k: "equipment", l: `Malzeme Takibi (${equipment.length})` },
+            { k: "equipment", l: "Forma & Malzeme Takibi" },
             { k: "tasks", l: `Görev Atama (${tasks.length})` },
             { k: "prayer", l: "Sabah Namazı QR Yoklama" },
           ].map((item) => (
@@ -350,7 +343,7 @@ export default function IkbalAdminPage() {
           ))}
         </div>
 
-        {/* 1. OYUNCULAR (DOĞUM TARİHİ İLE OTOMATİK KATEGORİ + ÇOCUK ID) */}
+        {/* 1. OYUNCULAR */}
         {tab === "players" && (
           <div className="space-y-6">
             <form onSubmit={handleAddPlayer} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-6 gap-3">
@@ -398,7 +391,7 @@ export default function IkbalAdminPage() {
           </div>
         )}
 
-        {/* 2. AİDAT TAKİBİ */}
+        {/* 2. AİDAT TAKİBİ (500₺ VARSAYILAN + BİLDİRİM & WHATSAPP) */}
         {tab === "dues" && (
           <div className="space-y-6">
             <form onSubmit={handleAddDue} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-4 gap-3">
@@ -406,25 +399,34 @@ export default function IkbalAdminPage() {
                 {players.map((p) => <option key={p.id} value={p.id}>{p.age_group} - {p.full_name}</option>)}
               </select>
               <input type="text" required placeholder="Dönem" value={dueMonth} onChange={(e) => setDueMonth(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <input type="number" required placeholder="Tutar (TL)" value={dueAmount} onChange={(e) => setDueAmount(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Aidat Ekle</button>
+              <input type="number" required placeholder="Tutar (₺)" value={dueAmount} onChange={(e) => setDueAmount(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold" />
+              <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Aidat Ekle (500₺)</button>
             </form>
+
+            <div className="flex justify-end">
+              <button type="button" onClick={sendBulkDueNotifications} className="px-4 py-2 rounded-xl bg-[#a60513] text-white text-xs font-extrabold">
+                Tüm Ödemeyenlere Toplu Bildirim Gönder
+              </button>
+            </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
               {dues.map((d) => {
                 const pl = players.find((p) => p.id === d.player_id);
-                const wa = waLink(pl?.parent_phone, `Sayın Veli, İkbalspor ${pl?.full_name || ""} (${d.month_label}) dönemi ${d.amount} TL aidat ödemesi beklenmektedir.`);
+                const wa = waLink(pl?.parent_phone, `Sayın Veli, İkbalspor ${pl?.full_name || ""} (${d.month_label}) dönemi ${d.amount} ₺ aidat ödemesi beklenmektedir.`);
                 return (
                   <div key={d.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <strong className="text-[#02274c]">{pl?.full_name || "Oyuncu"}</strong>
-                      <span className="text-sm text-slate-600 ml-2">{d.month_label} • <strong>{d.amount} TL</strong></span>
+                      <span className="text-sm text-slate-600 ml-2">{d.month_label} • <strong>{d.amount} ₺</strong></span>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => toggleDueStatus(d, "paid")} className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${d.status === "paid" ? "bg-emerald-600 text-white" : "border border-slate-300"}`}>Ödendi</button>
                       <button type="button" onClick={() => toggleDueStatus(d, "pending")} className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${d.status === "pending" ? "bg-amber-500 text-white" : "border border-slate-300"}`}>Bekliyor</button>
-                      {wa && d.status !== "paid" && (
-                        <a href={wa} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold">WhatsApp Hatırlat</a>
+                      {d.status !== "paid" && (
+                        <>
+                          <button type="button" onClick={() => sendDueNotification(d, pl)} className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold">Bildirim Gönder</button>
+                          {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold">WhatsApp Hatırlat</a>}
+                        </>
                       )}
                     </div>
                   </div>
@@ -434,35 +436,8 @@ export default function IkbalAdminPage() {
           </div>
         )}
 
-        {/* 3. MALZEME TAKİBİ */}
-        {tab === "equipment" && (
-          <div className="space-y-6">
-            <form onSubmit={handleAddEquipment} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-4 gap-3">
-              <select value={eqPlayerId} onChange={(e) => setEqPlayerId(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold">
-                {players.map((p) => <option key={p.id} value={p.id}>{p.age_group} - {p.full_name}</option>)}
-              </select>
-              <input type="text" required placeholder="Malzeme" value={eqName} onChange={(e) => setEqName(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <input type="text" placeholder="Beden / Numara" value={eqSize} onChange={(e) => setEqSize(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Malzeme Teslim Et</button>
-            </form>
-
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
-              {equipment.map((eq) => {
-                const pl = players.find((p) => p.id === eq.player_id);
-                return (
-                  <div key={eq.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <strong className="text-[#02274c]">{pl?.full_name || "Oyuncu"}</strong> — {eq.item_name} ({eq.item_size || "-"}) • <span className="text-xs text-slate-500">{eq.given_date}</span>
-                    </div>
-                    <button type="button" onClick={() => toggleEqStatus(eq)} className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${eq.status === "teslim_edildi" ? "bg-teal-600 text-white" : "bg-slate-200 text-slate-700"}`}>
-                      {eq.status === "teslim_edildi" ? "Teslim Edildi" : "İade Edildi"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* 3. FORMA & MALZEME TAKİBİ */}
+        {tab === "equipment" && <InventoryManager players={players} />}
 
         {/* 4. GÖREV ATAMA */}
         {tab === "tasks" && (
@@ -485,7 +460,7 @@ export default function IkbalAdminPage() {
           </div>
         )}
 
-        {/* 5. SABAH NAMAZI QR YOKLAMA (YEŞİL KATILIM LİSTESİ) */}
+        {/* 5. SABAH NAMAZI QR YOKLAMA */}
         {tab === "prayer" && (
           <div className="space-y-6">
             <form onSubmit={handleCreatePrayerSession} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-3 gap-3">
