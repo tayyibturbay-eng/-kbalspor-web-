@@ -96,16 +96,26 @@ type MembershipRequest = {
   created_at: string;
 };
 
+type ActivityLog = {
+  id: string;
+  actor: string;
+  action: string;
+  details: string;
+  created_at: string;
+};
+
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MATCH_FIELDS = ["İtfaiye Sahası", "Devane Sahası", "Mimarsinan Sahası", "Diğer"];
 const NAZMI_AVLUCA =
   "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad. (Çiftlik Çayırı - Küçük Evler Yolu civarı), Merkez / Çorum";
 
+// 19 yaşından büyük oyuncular (2007 öncesi doğumlular) sadece PGL Kadro'da oynar
 function calcAgeGroupFromBirthDate(birthDate: string): string {
   if (!birthDate) return "U15";
   const year = parseInt(birthDate.split("-")[0], 10);
   if (isNaN(year)) return "U15";
+  if (year < 2007) return "PGL Kadro";
   if (year >= 2015) return "U11";
   if (year === 2014) return "U12";
   if (year === 2013) return "U13";
@@ -113,8 +123,7 @@ function calcAgeGroupFromBirthDate(birthDate: string): string {
   if (year === 2011) return "U15";
   if (year === 2010) return "U16";
   if (year === 2009) return "U17";
-  if (year === 2007 || year === 2008) return "U19";
-  return "PGL Kadro";
+  return "U19"; // 2007-2008
 }
 
 function subtractHours(timeStr: string, hours: number): string {
@@ -168,7 +177,7 @@ export default function AdminPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   const [tab, setTab] = useState<
-    "oyuncular" | "talepler" | "antrenmanlar" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler"
+    "oyuncular" | "talepler" | "antrenmanlar" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler" | "islemler"
   >("oyuncular");
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -179,6 +188,7 @@ export default function AdminPage() {
   const [attendance, setAttendance] = useState<PrayerAttendance[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [trainings, setTrainings] = useState<Training[]>([]);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [feedback, setFeedback] = useState("");
 
   const [playerSearch, setPlayerSearch] = useState("");
@@ -194,7 +204,15 @@ export default function AdminPage() {
   });
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
+  // Aidat state
   const [newDue, setNewDue] = useState({ player_id: "", month_label: "Kasım 2026", amount: "500" });
+  const [bulkDueGroup, setBulkDueGroup] = useState("U15");
+  const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
+  const [dueMonthFilter, setDueMonthFilter] = useState("Tümü");
+
+  // Son işlemler filtre
+  const [logSearch, setLogSearch] = useState("");
+  const [logDateFilter, setLogDateFilter] = useState("");
 
   // Maç / Görev Formu
   const [newTask, setNewTask] = useState({
@@ -276,8 +294,20 @@ export default function AdminPage() {
     })();
   }, []);
 
+  async function logActivity(action: string, details: string) {
+    const actor =
+      role === "admin"
+        ? "Yönetici"
+        : role === "coach" && activeCoach
+        ? `Antrenör (${activeCoach.full_name})`
+        : role === "rep" && activeRep
+        ? `Temsilci (${activeRep.full_name})`
+        : "Sistem";
+    await supabase.from("activity_logs").insert({ actor, action, details });
+  }
+
   async function loadAll() {
-    const [p, r, d, t, s, a, c, tr] = await Promise.all([
+    const [p, r, d, t, s, a, c, tr, lg] = await Promise.all([
       supabase.from("players").select("*").order("birth_date", { ascending: true, nullsFirst: false }),
       supabase.from("membership_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("dues").select("*, players(full_name, age_group, parent_phone)").order("created_at", { ascending: false }),
@@ -286,6 +316,7 @@ export default function AdminPage() {
       supabase.from("prayer_attendance").select("*"),
       supabase.from("coaches").select("*").order("full_name"),
       supabase.from("trainings").select("*").order("created_at", { ascending: false }),
+      supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(200),
     ]);
     if (p.data) setPlayers(p.data);
     if (r.data) setRequests(r.data as MembershipRequest[]);
@@ -295,6 +326,7 @@ export default function AdminPage() {
     if (a.data) setAttendance(a.data);
     if (c.data) setCoaches(c.data);
     if (tr.data) setTrainings(tr.data as Training[]);
+    if (lg.data) setLogs(lg.data as ActivityLog[]);
   }
 
   async function handleAdminLogin(e: React.FormEvent) {
@@ -366,10 +398,11 @@ export default function AdminPage() {
   async function approveRequest(req: MembershipRequest) {
     const code = `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
     const pin = defaultPinFromPhone(req.parent_phone);
+    const group = req.birth_date ? calcAgeGroupFromBirthDate(req.birth_date) : req.age_group;
     const { error } = await supabase.from("players").insert({
       full_name: req.full_name,
       birth_date: req.birth_date || null,
-      age_group: req.age_group || calcAgeGroupFromBirthDate(req.birth_date || ""),
+      age_group: group,
       position: req.position || "Orta Saha",
       parent_phone: req.parent_phone,
       player_code: code,
@@ -381,12 +414,14 @@ export default function AdminPage() {
       return;
     }
     await supabase.from("membership_requests").update({ status: "onaylandi" }).eq("id", req.id);
+    await logActivity("Üyelik Onayı", `${req.full_name} (${group}) onaylandı — ID: ${code}`);
     setFeedback(`✅ ${req.full_name} onaylandı! ID: ${code} | Şifre: ${pin}`);
     loadAll();
   }
 
-  async function deleteRequest(id: string) {
-    await supabase.from("membership_requests").delete().eq("id", id);
+  async function deleteRequest(req: MembershipRequest) {
+    await supabase.from("membership_requests").delete().eq("id", req.id);
+    await logActivity("Üyelik Talebi Silme", `${req.full_name} talebi silindi.`);
     setFeedback("Üyelik talebi silindi.");
     loadAll();
   }
@@ -407,7 +442,7 @@ export default function AdminPage() {
       warnings.push("Doğum tarihi eksik");
     } else {
       const yr = parseInt(p.birth_date.split("-")[0], 10);
-      if (isNaN(yr) || yr < 1995 || yr > 2020) warnings.push("Doğum tarihi şüpheli");
+      if (isNaN(yr) || yr < 1990 || yr > 2020) warnings.push("Doğum tarihi şüpheli");
     }
     const cleanName = (p.full_name || "").trim();
     if (cleanName.length < 4 || !cleanName.includes(" ") || /\d/.test(cleanName)) {
@@ -449,6 +484,7 @@ export default function AdminPage() {
       setFeedback("Hata: " + error.message);
       return;
     }
+    await logActivity("Oyuncu Ekleme", `${newPlayer.full_name} (${ageGroup}) eklendi — ID: ${autoCode}`);
     setFeedback(`✅ ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin}`);
     setNewPlayer({
       full_name: "",
@@ -489,6 +525,7 @@ export default function AdminPage() {
       setFeedback("Güncelleme hatası: " + error.message);
       return;
     }
+    await logActivity("Oyuncu Düzenleme", `${editingPlayer.full_name} (${updatedAgeGroup}) bilgileri güncellendi.`);
     setFeedback(`✅ ${editingPlayer.full_name} bilgileri güncellendi (${updatedAgeGroup}).`);
     setEditingPlayer(null);
     loadAll();
@@ -497,6 +534,7 @@ export default function AdminPage() {
   async function deletePlayer(id: string, name: string) {
     if (!confirm(`${name} adlı oyuncuyu silmek istediğinize emin misiniz?`)) return;
     await supabase.from("players").delete().eq("id", id);
+    await logActivity("Oyuncu Silme", `${name} kadrodan silindi.`);
     loadAll();
   }
 
@@ -540,6 +578,10 @@ export default function AdminPage() {
         setFeedback("Antrenman güncellenemedi: " + error.message);
         return;
       }
+      await logActivity(
+        "Antrenman Güncelleme",
+        `${trainingForm.age_groups.join(", ")} — ${daysToSave[0]} ${trainingForm.start_time}`
+      );
     } else {
       const rows = daysToSave.map((day) => ({
         title:
@@ -561,6 +603,10 @@ export default function AdminPage() {
         setFeedback("Antrenman eklenemedi: " + error.message);
         return;
       }
+      await logActivity(
+        "Antrenman Ekleme",
+        `${trainingForm.age_groups.join(", ")} — ${daysToSave.join(", ")} ${trainingForm.start_time}`
+      );
     }
 
     const targetPlayers = players.filter(
@@ -635,8 +681,9 @@ export default function AdminPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function deleteTraining(id: string) {
-    await supabase.from("trainings").delete().eq("id", id);
+  async function deleteTraining(tr: Training) {
+    await supabase.from("trainings").delete().eq("id", tr.id);
+    await logActivity("Antrenman Silme", `${tr.title} silindi.`);
     loadAll();
   }
 
@@ -698,6 +745,7 @@ export default function AdminPage() {
       sender_name: role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : "Yönetici",
     });
 
+    await logActivity("Maç Ekleme", `${newTask.title} (${newTask.age_group}) — ${newTask.event_date} ${finalLocation}`);
     setMatchWaPreview({
       message: msg,
       targets: players.filter((p) => squadIds.includes(p.id)),
@@ -738,12 +786,14 @@ export default function AdminPage() {
       target_group: t.age_group,
       sender_name: "Maç Hatırlatma",
     });
+    await logActivity("Maç Hatırlatma", `${t.title} (${t.age_group}) için 1 gün öncesi hatırlatma gönderildi.`);
 
     setMatchWaPreview({
       message: msg,
       targets: players.filter((p) => squadIds.includes(p.id)),
     });
-    setFeedback("✅ 1 gün öncesi maç hatırlatma bildirimi yayınlandı! Aşağıdan WhatsApp ile gönderebilirsiniz.");
+    setFeedback("✅ 1 gün öncesi maç hatırlatma bildirimi yayınlandı!");
+    loadAll();
   }
 
   async function createQrSession(e: React.FormEvent) {
@@ -756,14 +806,17 @@ export default function AdminPage() {
       session_date: newSessionDate || new Date().toISOString().slice(0, 10),
       is_active: true,
     });
+    await logActivity("QR Yoklama Başlatma", `${newSessionTitle} (${newSessionDate})`);
     loadAll();
   }
 
-  async function toggleManualAttendance(sessionId: string, playerId: string, isPresent: boolean) {
+  async function toggleManualAttendance(sessionId: string, player: Player, isPresent: boolean) {
     if (isPresent) {
-      await supabase.from("prayer_attendance").delete().eq("session_id", sessionId).eq("player_id", playerId);
+      await supabase.from("prayer_attendance").delete().eq("session_id", sessionId).eq("player_id", player.id);
+      await logActivity("Yoklama İptal", `${player.full_name} yoklamadan çıkarıldı.`);
     } else {
-      await supabase.from("prayer_attendance").insert({ session_id: sessionId, player_id: playerId });
+      await supabase.from("prayer_attendance").insert({ session_id: sessionId, player_id: player.id });
+      await logActivity("Yoklama İşaretleme", `${player.full_name} Geldi olarak işaretlendi.`);
     }
     loadAll();
   }
@@ -783,6 +836,7 @@ export default function AdminPage() {
       setFeedback("Antrenör eklenemedi: " + error.message);
       return;
     }
+    await logActivity("Antrenör Ekleme", `${newCoach.full_name} (${code}) eklendi.`);
     setFeedback(`✅ Antrenör ${newCoach.full_name} eklendi (Kod: ${code}, Şifre: ${newCoach.pin}).`);
     setNewCoach({ full_name: "", coach_code: "", pin: "1234", phone: "", assigned_groups: ["U13", "U14", "U15"] });
     loadAll();
@@ -790,12 +844,42 @@ export default function AdminPage() {
 
   async function addDue(e: React.FormEvent) {
     e.preventDefault();
+    const p = players.find((x) => x.id === newDue.player_id);
     await supabase.from("dues").insert({
       player_id: newDue.player_id,
       month_label: newDue.month_label,
       amount: Number(newDue.amount) || 500,
       status: "Bekleniyor",
     });
+    await logActivity("Aidat Açma", `${p?.full_name || "Oyuncu"} — ${newDue.month_label} (${newDue.amount}₺)`);
+    loadAll();
+  }
+
+  async function createBulkDuesForGroup() {
+    const groupPlayers = players.filter((p) => p.age_group === bulkDueGroup);
+    if (groupPlayers.length === 0) {
+      setFeedback(`${bulkDueGroup} grubunda oyuncu bulunamadı.`);
+      return;
+    }
+    const existingIds = new Set(
+      dues.filter((d) => d.month_label === newDue.month_label).map((d) => d.player_id)
+    );
+    const toInsert = groupPlayers
+      .filter((p) => !existingIds.has(p.id))
+      .map((p) => ({
+        player_id: p.id,
+        month_label: newDue.month_label,
+        amount: Number(newDue.amount) || 500,
+        status: "Bekleniyor",
+      }));
+
+    if (toInsert.length === 0) {
+      setFeedback(`${bulkDueGroup} grubu için ${newDue.month_label} aidatları zaten açılmış.`);
+      return;
+    }
+    await supabase.from("dues").insert(toInsert);
+    await logActivity("Toplu Aidat Açma", `${bulkDueGroup} (${toInsert.length} oyuncu) — ${newDue.month_label}`);
+    setFeedback(`✅ ${bulkDueGroup} grubundaki ${toInsert.length} oyuncuya ${newDue.month_label} aidatı açıldı.`);
     loadAll();
   }
 
@@ -803,6 +887,10 @@ export default function AdminPage() {
     const isPaid = due.status === "Ödendi" || due.status === "paid";
     const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
     await supabase.from("dues").update({ status: nextStatus }).eq("id", due.id);
+    await logActivity(
+      "Aidat Güncelleme",
+      `${due.players?.full_name || "Oyuncu"} (${due.month_label}) → ${nextStatus}`
+    );
     loadAll();
   }
 
@@ -949,6 +1037,22 @@ export default function AdminPage() {
     items: filteredPlayers.filter((p) => p.age_group === g),
   })).filter((x) => x.items.length > 0);
 
+  // Aidat gruplama
+  const uniqueMonths = Array.from(new Set(dues.map((d) => d.month_label)));
+  const filteredDues = dues.filter(
+    (d) =>
+      (dueGroupFilter === "Tümü" || d.players?.age_group === dueGroupFilter) &&
+      (dueMonthFilter === "Tümü" || d.month_label === dueMonthFilter)
+  );
+  const groupedDues = AGE_GROUPS.map((g) => {
+    const items = filteredDues.filter((d) => (d.players?.age_group || "") === g);
+    const paidCount = items.filter((d) => d.status === "Ödendi" || d.status === "paid").length;
+    const paidTotal = items
+      .filter((d) => d.status === "Ödendi" || d.status === "paid")
+      .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
+    return { group: g, items, paidCount, paidTotal };
+  }).filter((x) => x.items.length > 0);
+
   const pendingRequests = requests.filter((r) => r.status === "bekliyor");
   const activeSession = sessions.find((s) => s.is_active) || sessions[0];
   const checkedInIds = new Set(
@@ -966,6 +1070,7 @@ export default function AdminPage() {
           { id: "gorevler", label: "Maç & Görevler" },
           { id: "namaz", label: "QR Yoklama" },
           { id: "antrenorler", label: `Antrenörler (${coaches.length})` },
+          { id: "islemler", label: "Son İşlemler" },
         ]
       : role === "coach"
       ? [
@@ -993,7 +1098,7 @@ export default function AdminPage() {
                 ? "Oyuncuları yaş grubuna göre görüntüleyebilir, antrenman ve maç ekleyebilirsiniz."
                 : role === "rep"
                 ? "QR Yoklama oluşturabilir ve telefonu olmayan oyuncuları işaretleyebilirsiniz."
-                : "Tam Yetkili Kulüp Yönetimi"}
+                : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece PGL Kadro)"}
             </p>
           </div>
           <button
@@ -1028,6 +1133,78 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {/* SON İŞLEMLER SEKMESİ (GÜN & SAAT BAZLI) */}
+        {tab === "islemler" && role === "admin" && (
+          <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
+            <div className="flex flex-wrap justify-between items-center gap-3">
+              <h2 className="text-lg font-extrabold text-[#02274c]">Son İşlemler (Gün & Saat Kayıtları)</h2>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="date"
+                  value={logDateFilter}
+                  onChange={(e) => setLogDateFilter(e.target.value)}
+                  className="border rounded-lg px-3 py-1.5 text-xs"
+                />
+                <input
+                  placeholder="İşlem, kişi veya detay ara..."
+                  value={logSearch}
+                  onChange={(e) => setLogSearch(e.target.value)}
+                  className="border rounded-lg px-3 py-1.5 text-xs w-56"
+                />
+                {logDateFilter && (
+                  <button onClick={() => setLogDateFilter("")} className="text-xs underline text-slate-500">
+                    Tarihi Sıfırla
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {logs.length === 0 ? (
+              <p className="text-sm text-slate-500">Henüz kaydedilmiş işlem yok.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-100 text-[#02274c] text-xs">
+                    <tr>
+                      <th className="p-2.5">Tarih & Saat</th>
+                      <th className="p-2.5">Yapan</th>
+                      <th className="p-2.5">İşlem</th>
+                      <th className="p-2.5">Detay</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs
+                      .filter(
+                        (l) =>
+                          (!logDateFilter || l.created_at.startsWith(logDateFilter)) &&
+                          (l.action.toLowerCase().includes(logSearch.toLowerCase()) ||
+                            l.details.toLowerCase().includes(logSearch.toLowerCase()) ||
+                            l.actor.toLowerCase().includes(logSearch.toLowerCase()))
+                      )
+                      .map((l) => (
+                        <tr key={l.id} className="border-b hover:bg-slate-50">
+                          <td className="p-2.5 text-xs font-mono whitespace-nowrap">
+                            {new Date(l.created_at).toLocaleString("tr-TR", {
+                              dateStyle: "short",
+                              timeStyle: "medium",
+                            })}
+                          </td>
+                          <td className="p-2.5 text-xs font-bold text-[#02274c]">{l.actor}</td>
+                          <td className="p-2.5">
+                            <span className="text-xs bg-blue-50 text-blue-800 font-bold px-2 py-0.5 rounded">
+                              {l.action}
+                            </span>
+                          </td>
+                          <td className="p-2.5 text-xs text-slate-700">{l.details}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ÜYELİK TALEPLERİ */}
         {tab === "talepler" && role === "admin" && (
@@ -1066,7 +1243,7 @@ export default function AdminPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => deleteRequest(r.id)}
+                        onClick={() => deleteRequest(r)}
                         className="bg-red-100 text-red-700 text-xs font-bold px-4 py-2 rounded-lg"
                       >
                         Sil
@@ -1079,7 +1256,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* OYUNCULAR (Admin tam yetkili, Antrenör sadece yaş grubuna göre görüntüler) */}
+        {/* OYUNCULAR */}
         {tab === "oyuncular" && (role === "admin" || role === "coach") && (
           <div className="space-y-6">
             {role === "admin" && flaggedPlayersCount > 0 && (
@@ -1236,7 +1413,6 @@ export default function AdminPage() {
               </form>
             )}
 
-            {/* Yaş Grubuna Göre Kategorize Edilmiş Oyuncu Listesi */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <div className="flex flex-wrap justify-between items-center gap-3">
                 <div className="flex flex-wrap gap-1.5">
@@ -1344,11 +1520,9 @@ export default function AdminPage() {
         {tab === "antrenmanlar" && (role === "admin" || role === "coach") && (
           <div className="space-y-6">
             <form onSubmit={saveTraining} className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-extrabold text-[#02274c]">
-                  {trainingForm.id ? "Antrenman Düzenle" : "Toplu / Ekstra Antrenman Ekle"}
-                </h2>
-              </div>
+              <h2 className="text-lg font-extrabold text-[#02274c]">
+                {trainingForm.id ? "Antrenman Düzenle" : "Toplu / Ekstra Antrenman Ekle"}
+              </h2>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <select
@@ -1542,7 +1716,7 @@ export default function AdminPage() {
                         Değiştir
                       </button>
                       <button
-                        onClick={() => deleteTraining(tr.id)}
+                        onClick={() => deleteTraining(tr)}
                         className="bg-red-100 text-red-700 text-xs px-2.5 py-1 rounded-lg font-bold"
                       >
                         Sil
@@ -1559,65 +1733,157 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* AİDATLAR */}
+        {/* AİDATLAR (GRUPLANDIRILMIŞ & TOPLU AÇMA) */}
         {tab === "aidat" && role === "admin" && (
           <div className="space-y-6">
-            <form onSubmit={addDue} className="bg-white p-5 rounded-2xl shadow-sm border grid grid-cols-1 md:grid-cols-4 gap-3">
-              <select
-                required
-                value={newDue.player_id}
-                onChange={(e) => setNewDue({ ...newDue, player_id: e.target.value })}
-                className="border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Oyuncu Seç...</option>
-                {players.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.age_group})
-                  </option>
-                ))}
-              </select>
-              <input
-                value={newDue.month_label}
-                onChange={(e) => setNewDue({ ...newDue, month_label: e.target.value })}
-                className="border rounded-lg px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                value={newDue.amount}
-                onChange={(e) => setNewDue({ ...newDue, amount: e.target.value })}
-                className="border rounded-lg px-3 py-2 text-sm"
-              />
-              <button type="submit" className="bg-[#02274c] text-white font-bold rounded-lg px-4 py-2 text-sm">
-                Aidat Kaydı Aç
-              </button>
-            </form>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={addDue} className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
+                <h3 className="font-bold text-[#02274c] text-sm">Tekil Oyuncuya Aidat Aç</h3>
+                <select
+                  required
+                  value={newDue.player_id}
+                  onChange={(e) => setNewDue({ ...newDue, player_id: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Oyuncu Seç...</option>
+                  {players.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.full_name} ({p.age_group})
+                    </option>
+                  ))}
+                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={newDue.month_label}
+                    onChange={(e) => setNewDue({ ...newDue, month_label: e.target.value })}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={newDue.amount}
+                    onChange={(e) => setNewDue({ ...newDue, amount: e.target.value })}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <button type="submit" className="w-full bg-[#02274c] text-white font-bold rounded-lg px-4 py-2 text-sm">
+                  Aidat Kaydı Aç
+                </button>
+              </form>
 
-            <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-2">
-              {dues.map((d) => {
-                const isPaid = d.status === "Ödendi" || d.status === "paid";
-                return (
-                  <div key={d.id} className="flex flex-wrap justify-between items-center border-b pb-2 text-sm">
-                    <div>
-                      <strong>{d.players?.full_name}</strong> ({d.players?.age_group}) — {d.month_label} — {d.amount}₺
-                    </div>
+              <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
+                <h3 className="font-bold text-[#a60513] text-sm">Tüm Gruba Toplu Aidat Aç</h3>
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={bulkDueGroup}
+                    onChange={(e) => setBulkDueGroup(e.target.value)}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  >
+                    {AGE_GROUPS.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+                  <input
+                    value={newDue.month_label}
+                    onChange={(e) => setNewDue({ ...newDue, month_label: e.target.value })}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    value={newDue.amount}
+                    onChange={(e) => setNewDue({ ...newDue, amount: e.target.value })}
+                    className="border rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={createBulkDuesForGroup}
+                  className="w-full bg-[#a60513] text-white font-bold rounded-lg px-4 py-2 text-sm"
+                >
+                  {bulkDueGroup} Grubuna Toplu Aidat Oluştur
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
+              <div className="flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex flex-wrap gap-1.5">
+                  {["Tümü", ...AGE_GROUPS].map((g) => (
                     <button
-                      onClick={() => toggleDueStatus(d)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                        isPaid ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      key={g}
+                      onClick={() => setDueGroupFilter(g)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold border ${
+                        dueGroupFilter === g ? "bg-[#02274c] text-white" : "bg-slate-50 text-slate-700"
                       }`}
                     >
-                      {isPaid ? "Ödendi" : "Bekleniyor"}
+                      {g}
                     </button>
+                  ))}
+                </div>
+                <select
+                  value={dueMonthFilter}
+                  onChange={(e) => setDueMonthFilter(e.target.value)}
+                  className="border rounded-lg px-3 py-1.5 text-xs font-bold"
+                >
+                  <option value="Tümü">Tüm Aylar</option>
+                  {uniqueMonths.map((m) => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {groupedDues.map(({ group, items, paidCount, paidTotal }) => (
+                <div key={group} className="border rounded-xl overflow-hidden">
+                  <div className="bg-[#02274c] text-white px-4 py-2 text-sm font-bold flex flex-wrap justify-between">
+                    <span>{group} Aidatları</span>
+                    <span>
+                      Ödenen: {paidCount} / {items.length} • Toplanan: {paidTotal}₺
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="divide-y">
+                    {items.map((d) => {
+                      const isPaid = d.status === "Ödendi" || d.status === "paid";
+                      const waPhone = cleanWaPhone(d.players?.parent_phone);
+                      return (
+                        <div key={d.id} className="px-4 py-2.5 flex flex-wrap justify-between items-center gap-2 text-sm">
+                          <div>
+                            <strong className="text-[#02274c]">{d.players?.full_name}</strong> — {d.month_label} —{" "}
+                            <span className="font-bold">{d.amount}₺</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {!isPaid && waPhone && (
+                              <a
+                                href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
+                                  `Merhaba, ${d.players?.full_name} için ${d.month_label} kulüp aidatı (${d.amount}₺) henüz ödenmemiştir. Bilginize sunarız.`
+                                )}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg"
+                              >
+                                WP Hatırlat
+                              </a>
+                            )}
+                            <button
+                              onClick={() => toggleDueStatus(d)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                                isPaid ? "bg-emerald-600 text-white" : "bg-amber-100 text-amber-900"
+                              }`}
+                            >
+                              {isPaid ? "✓ Ödendi" : "Bekleniyor (Ödendi Yap)"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
 
         {tab === "envanter" && role === "admin" && <InventoryManager players={players} />}
 
-        {/* MAÇ & GÖREVLER (Saha Seçimi + Servis Var/Yok + 1 Gün Önce Bildirim) */}
+        {/* MAÇ & GÖREVLER */}
         {tab === "gorevler" && (role === "admin" || role === "coach") && (
           <div className="space-y-6">
             <form onSubmit={addTask} className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
@@ -1748,7 +2014,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* QR YOKLAMA (Admin + Antrenör + Temsilci) */}
+        {/* QR YOKLAMA */}
         {tab === "namaz" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
@@ -1810,7 +2076,7 @@ export default function AdminPage() {
                         </span>
                         {activeSession && (
                           <button
-                            onClick={() => toggleManualAttendance(activeSession.id, p.id, ok)}
+                            onClick={() => toggleManualAttendance(activeSession.id, p, ok)}
                             className={`text-xs font-bold px-3 py-1 rounded-lg ${
                               ok ? "bg-emerald-700 text-white" : "bg-[#02274c] text-white"
                             }`}
@@ -1873,6 +2139,7 @@ export default function AdminPage() {
                   <button
                     onClick={async () => {
                       await supabase.from("coaches").delete().eq("id", c.id);
+                      await logActivity("Antrenör Silme", `${c.full_name} silindi.`);
                       loadAll();
                     }}
                     className="text-xs text-red-700 font-bold"
