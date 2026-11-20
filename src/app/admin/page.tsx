@@ -20,6 +20,7 @@ type Player = {
   pin_changed?: boolean;
   is_representative?: boolean;
   license_no?: string | null;
+  bound_device_id?: string | null;
 };
 
 type Due = {
@@ -28,7 +29,6 @@ type Due = {
   month_label: string;
   amount: number;
   status: string;
-  players?: { full_name: string; age_group: string; parent_phone: string | null };
 };
 
 type TaskAssignment = {
@@ -107,10 +107,10 @@ type ActivityLog = {
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MATCH_FIELDS = ["İtfaiye Sahası", "Devane Sahası", "Mimarsinan Sahası", "Diğer"];
+const DUE_MONTHS = ["Kasım 2026", "Aralık 2026", "Ocak 2027", "Şubat 2027"];
 const NAZMI_AVLUCA =
   "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad. (Çiftlik Çayırı - Küçük Evler Yolu civarı), Merkez / Çorum";
 
-// 19 yaşından büyük oyuncular (2007 öncesi doğumlular) sadece PGL Kadro'da oynar
 function calcAgeGroupFromBirthDate(birthDate: string): string {
   if (!birthDate) return "U15";
   const year = parseInt(birthDate.split("-")[0], 10);
@@ -123,7 +123,7 @@ function calcAgeGroupFromBirthDate(birthDate: string): string {
   if (year === 2011) return "U15";
   if (year === 2010) return "U16";
   if (year === 2009) return "U17";
-  return "U19"; // 2007-2008
+  return "U19";
 }
 
 function subtractHours(timeStr: string, hours: number): string {
@@ -162,17 +162,14 @@ function defaultPinFromPhone(phone: string): string {
 }
 
 export default function AdminPage() {
-  const [role, setRole] = useState<"none" | "admin" | "coach" | "rep">("none");
+  const [role, setRole] = useState<"none" | "admin" | "coach">("none");
   const [activeCoach, setActiveCoach] = useState<Coach | null>(null);
-  const [activeRep, setActiveRep] = useState<Player | null>(null);
-  const [loginMode, setLoginMode] = useState<"admin" | "coach" | "rep">("admin");
+  const [loginMode, setLoginMode] = useState<"admin" | "coach">("admin");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [coachCode, setCoachCode] = useState("");
   const [coachPin, setCoachPin] = useState("");
-  const [repCode, setRepCode] = useState("");
-  const [repPin, setRepPin] = useState("");
   const [authError, setAuthError] = useState("");
   const [checkingAuth, setCheckingAuth] = useState(true);
 
@@ -205,10 +202,10 @@ export default function AdminPage() {
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
   // Aidat state
-  const [newDue, setNewDue] = useState({ player_id: "", month_label: "Kasım 2026", amount: "500" });
-  const [bulkDueGroup, setBulkDueGroup] = useState("U15");
+  const [selectedDueMonth, setSelectedDueMonth] = useState("Kasım 2026");
   const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
-  const [dueMonthFilter, setDueMonthFilter] = useState("Tümü");
+  const [monthlyFee, setMonthlyFee] = useState("500");
+  const [feeWaMsg, setFeeWaMsg] = useState<string | null>(null);
 
   // Son işlemler filtre
   const [logSearch, setLogSearch] = useState("");
@@ -269,7 +266,6 @@ export default function AdminPage() {
         await loadAll();
       } else {
         const savedCoach = typeof window !== "undefined" ? localStorage.getItem("ikbal_coach") : null;
-        const savedRep = typeof window !== "undefined" ? localStorage.getItem("ikbal_rep") : null;
         if (savedCoach) {
           try {
             setActiveCoach(JSON.parse(savedCoach) as Coach);
@@ -279,15 +275,6 @@ export default function AdminPage() {
           } catch {
             localStorage.removeItem("ikbal_coach");
           }
-        } else if (savedRep) {
-          try {
-            setActiveRep(JSON.parse(savedRep) as Player);
-            setRole("rep");
-            setTab("namaz");
-            await loadAll();
-          } catch {
-            localStorage.removeItem("ikbal_rep");
-          }
         }
       }
       setCheckingAuth(false);
@@ -296,27 +283,22 @@ export default function AdminPage() {
 
   async function logActivity(action: string, details: string) {
     const actor =
-      role === "admin"
-        ? "Yönetici"
-        : role === "coach" && activeCoach
-        ? `Antrenör (${activeCoach.full_name})`
-        : role === "rep" && activeRep
-        ? `Temsilci (${activeRep.full_name})`
-        : "Sistem";
+      role === "admin" ? "Yönetici" : role === "coach" && activeCoach ? `Antrenör (${activeCoach.full_name})` : "Sistem";
     await supabase.from("activity_logs").insert({ actor, action, details });
   }
 
   async function loadAll() {
-    const [p, r, d, t, s, a, c, tr, lg] = await Promise.all([
+    const [p, r, d, t, s, a, c, tr, lg, st] = await Promise.all([
       supabase.from("players").select("*").order("birth_date", { ascending: true, nullsFirst: false }),
       supabase.from("membership_requests").select("*").order("created_at", { ascending: false }),
-      supabase.from("dues").select("*, players(full_name, age_group, parent_phone)").order("created_at", { ascending: false }),
+      supabase.from("dues").select("*").order("created_at", { ascending: false }),
       supabase.from("tasks_assignments").select("*").order("created_at", { ascending: false }),
       supabase.from("prayer_sessions").select("*").order("created_at", { ascending: false }),
       supabase.from("prayer_attendance").select("*"),
       supabase.from("coaches").select("*").order("full_name"),
       supabase.from("trainings").select("*").order("created_at", { ascending: false }),
       supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(200),
+      supabase.from("club_settings").select("*").eq("key", "monthly_fee").maybeSingle(),
     ]);
     if (p.data) setPlayers(p.data);
     if (r.data) setRequests(r.data as MembershipRequest[]);
@@ -327,6 +309,7 @@ export default function AdminPage() {
     if (c.data) setCoaches(c.data);
     if (tr.data) setTrainings(tr.data as Training[]);
     if (lg.data) setLogs(lg.data as ActivityLog[]);
+    if (st.data?.value) setMonthlyFee(st.data.value);
   }
 
   async function handleAdminLogin(e: React.FormEvent) {
@@ -364,35 +347,11 @@ export default function AdminPage() {
     await loadAll();
   }
 
-  async function handleRepLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setAuthError("");
-    const { data, error } = await supabase
-      .from("players")
-      .select("*")
-      .eq("player_code", repCode.trim().toUpperCase())
-      .eq("player_pin", repPin.trim())
-      .eq("is_representative", true)
-      .maybeSingle();
-
-    if (error || !data) {
-      setAuthError("Temsilci ID, şifre hatalı veya temsilci yetkisi tanımlı değil.");
-      return;
-    }
-    localStorage.setItem("ikbal_rep", JSON.stringify(data));
-    setActiveRep(data as Player);
-    setRole("rep");
-    setTab("namaz");
-    await loadAll();
-  }
-
   async function handleLogout() {
     await supabase.auth.signOut();
     localStorage.removeItem("ikbal_coach");
-    localStorage.removeItem("ikbal_rep");
     setRole("none");
     setActiveCoach(null);
-    setActiveRep(null);
   }
 
   async function approveRequest(req: MembershipRequest) {
@@ -518,6 +477,7 @@ export default function AdminPage() {
         player_pin: editingPlayer.player_pin?.trim() || "1234",
         is_representative: Boolean(editingPlayer.is_representative),
         license_no: editingPlayer.license_no?.trim() || null,
+        bound_device_id: editingPlayer.bound_device_id,
       })
       .eq("id", editingPlayer.id);
 
@@ -535,6 +495,47 @@ export default function AdminPage() {
     if (!confirm(`${name} adlı oyuncuyu silmek istediğinize emin misiniz?`)) return;
     await supabase.from("players").delete().eq("id", id);
     await logActivity("Oyuncu Silme", `${name} kadrodan silindi.`);
+    loadAll();
+  }
+
+  // Aidat: Aylık ücret güncelleme (Bildirim + WP)
+  async function updateMonthlyFee() {
+    const feeNum = Number(monthlyFee);
+    if (isNaN(feeNum) || feeNum <= 0) {
+      setFeedback("Geçerli bir aidat tutarı girin.");
+      return;
+    }
+    await supabase.from("club_settings").upsert({ key: "monthly_fee", value: String(feeNum) }, { onConflict: "key" });
+    const msg = `📢 AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbalspor aylık kulüp aidat ücreti ${feeNum}₺ olarak güncellenmiştir. Bilginize sunarız. 🔴🔵`;
+    await supabase.from("club_messages").insert({
+      title: `📢 Aidat Ücreti Güncellendi (${feeNum}₺)`,
+      body: msg,
+      target_group: "Tüm Kulüp",
+      sender_name: "Yönetici",
+    });
+    await logActivity("Aidat Ücreti Güncelleme", `Aylık aidat ücreti ${feeNum}₺ yapıldı ve duyuru gönderildi.`);
+    setFeeWaMsg(msg);
+    setFeedback(`✅ Aidat ücreti ${feeNum}₺ olarak güncellendi ve bildirim yayınlandı.`);
+    loadAll();
+  }
+
+  // Aidat: Oyuncu + Seçili Ay için tek tıkla Ödendi / Bekleniyor değiştirme
+  async function togglePlayerMonthDue(player: Player, existingDue?: Due) {
+    const feeNum = Number(monthlyFee) || 500;
+    if (!existingDue) {
+      await supabase.from("dues").insert({
+        player_id: player.id,
+        month_label: selectedDueMonth,
+        amount: feeNum,
+        status: "Ödendi",
+      });
+      await logActivity("Aidat Tahsilatı", `${player.full_name} — ${selectedDueMonth} (${feeNum}₺) Ödendi`);
+    } else {
+      const isPaid = existingDue.status === "Ödendi" || existingDue.status === "paid";
+      const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
+      await supabase.from("dues").update({ status: nextStatus, amount: feeNum }).eq("id", existingDue.id);
+      await logActivity("Aidat Güncelleme", `${player.full_name} — ${selectedDueMonth} → ${nextStatus}`);
+    }
     loadAll();
   }
 
@@ -799,14 +800,15 @@ export default function AdminPage() {
   async function createQrSession(e: React.FormEvent) {
     e.preventDefault();
     const token = `IKB-QR-${Date.now().toString(36).toUpperCase()}`;
+    const chosenDate = newSessionDate || new Date().toISOString().slice(0, 10);
     await supabase.from("prayer_sessions").update({ is_active: false }).eq("is_active", true);
     await supabase.from("prayer_sessions").insert({
       title: newSessionTitle || "Kulüp Yoklaması",
       qr_token: token,
-      session_date: newSessionDate || new Date().toISOString().slice(0, 10),
+      session_date: chosenDate,
       is_active: true,
     });
-    await logActivity("QR Yoklama Başlatma", `${newSessionTitle} (${newSessionDate})`);
+    await logActivity("QR Yoklama Başlatma", `${newSessionTitle} (${chosenDate})`);
     loadAll();
   }
 
@@ -842,58 +844,6 @@ export default function AdminPage() {
     loadAll();
   }
 
-  async function addDue(e: React.FormEvent) {
-    e.preventDefault();
-    const p = players.find((x) => x.id === newDue.player_id);
-    await supabase.from("dues").insert({
-      player_id: newDue.player_id,
-      month_label: newDue.month_label,
-      amount: Number(newDue.amount) || 500,
-      status: "Bekleniyor",
-    });
-    await logActivity("Aidat Açma", `${p?.full_name || "Oyuncu"} — ${newDue.month_label} (${newDue.amount}₺)`);
-    loadAll();
-  }
-
-  async function createBulkDuesForGroup() {
-    const groupPlayers = players.filter((p) => p.age_group === bulkDueGroup);
-    if (groupPlayers.length === 0) {
-      setFeedback(`${bulkDueGroup} grubunda oyuncu bulunamadı.`);
-      return;
-    }
-    const existingIds = new Set(
-      dues.filter((d) => d.month_label === newDue.month_label).map((d) => d.player_id)
-    );
-    const toInsert = groupPlayers
-      .filter((p) => !existingIds.has(p.id))
-      .map((p) => ({
-        player_id: p.id,
-        month_label: newDue.month_label,
-        amount: Number(newDue.amount) || 500,
-        status: "Bekleniyor",
-      }));
-
-    if (toInsert.length === 0) {
-      setFeedback(`${bulkDueGroup} grubu için ${newDue.month_label} aidatları zaten açılmış.`);
-      return;
-    }
-    await supabase.from("dues").insert(toInsert);
-    await logActivity("Toplu Aidat Açma", `${bulkDueGroup} (${toInsert.length} oyuncu) — ${newDue.month_label}`);
-    setFeedback(`✅ ${bulkDueGroup} grubundaki ${toInsert.length} oyuncuya ${newDue.month_label} aidatı açıldı.`);
-    loadAll();
-  }
-
-  async function toggleDueStatus(due: Due) {
-    const isPaid = due.status === "Ödendi" || due.status === "paid";
-    const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
-    await supabase.from("dues").update({ status: nextStatus }).eq("id", due.id);
-    await logActivity(
-      "Aidat Güncelleme",
-      `${due.players?.full_name || "Oyuncu"} (${due.month_label}) → ${nextStatus}`
-    );
-    loadAll();
-  }
-
   if (checkingAuth) {
     return <div className="min-h-screen flex items-center justify-center text-[#02274c] font-bold">Yükleniyor...</div>;
   }
@@ -903,20 +853,20 @@ export default function AdminPage() {
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border-t-4 border-[#a60513]">
           <h1 className="text-2xl font-extrabold text-[#02274c] text-center mb-1">Çorum İkbalspor</h1>
-          <p className="text-sm text-slate-600 text-center mb-5">Yönetim, Antrenör ve Temsilci Portalı</p>
+          <p className="text-sm text-slate-600 text-center mb-5">Yönetim ve Antrenör Portalı</p>
 
-          <div className="grid grid-cols-3 gap-1.5 mb-5 bg-slate-100 p-1 rounded-xl">
+          <div className="grid grid-cols-2 gap-2 mb-5 bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
               onClick={() => {
                 setLoginMode("admin");
                 setAuthError("");
               }}
-              className={`py-2 rounded-lg text-xs font-bold transition ${
+              className={`py-2 rounded-lg text-sm font-bold transition ${
                 loginMode === "admin" ? "bg-[#02274c] text-white" : "text-slate-700"
               }`}
             >
-              Yönetici
+              Yönetici (Admin)
             </button>
             <button
               type="button"
@@ -924,23 +874,11 @@ export default function AdminPage() {
                 setLoginMode("coach");
                 setAuthError("");
               }}
-              className={`py-2 rounded-lg text-xs font-bold transition ${
+              className={`py-2 rounded-lg text-sm font-bold transition ${
                 loginMode === "coach" ? "bg-[#a60513] text-white" : "text-slate-700"
               }`}
             >
-              Antrenör
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setLoginMode("rep");
-                setAuthError("");
-              }}
-              className={`py-2 rounded-lg text-xs font-bold transition ${
-                loginMode === "rep" ? "bg-emerald-700 text-white" : "text-slate-700"
-              }`}
-            >
-              Temsilci
+              Antrenör Girişi
             </button>
           </div>
 
@@ -948,7 +886,7 @@ export default function AdminPage() {
             <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{authError}</div>
           )}
 
-          {loginMode === "admin" && (
+          {loginMode === "admin" ? (
             <form onSubmit={handleAdminLogin} className="space-y-3">
               <input
                 type="email"
@@ -970,9 +908,7 @@ export default function AdminPage() {
                 Admin Olarak Giriş Yap
               </button>
             </form>
-          )}
-
-          {loginMode === "coach" && (
+          ) : (
             <form onSubmit={handleCoachLogin} className="space-y-3">
               <input
                 type="text"
@@ -995,30 +931,6 @@ export default function AdminPage() {
               </button>
             </form>
           )}
-
-          {loginMode === "rep" && (
-            <form onSubmit={handleRepLogin} className="space-y-3">
-              <input
-                type="text"
-                required
-                placeholder="Temsilci Oyuncu ID (örn: IKB-1234)"
-                value={repCode}
-                onChange={(e) => setRepCode(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase text-slate-900 placeholder:text-slate-500"
-              />
-              <input
-                type="password"
-                required
-                placeholder="Şifre"
-                value={repPin}
-                onChange={(e) => setRepPin(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
-              />
-              <button type="submit" className="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-lg">
-                Temsilci Olarak Giriş Yap
-              </button>
-            </form>
-          )}
         </div>
       </div>
     );
@@ -1037,21 +949,25 @@ export default function AdminPage() {
     items: filteredPlayers.filter((p) => p.age_group === g),
   })).filter((x) => x.items.length > 0);
 
-  // Aidat gruplama
-  const uniqueMonths = Array.from(new Set(dues.map((d) => d.month_label)));
-  const filteredDues = dues.filter(
-    (d) =>
-      (dueGroupFilter === "Tümü" || d.players?.age_group === dueGroupFilter) &&
-      (dueMonthFilter === "Tümü" || d.month_label === dueMonthFilter)
-  );
-  const groupedDues = AGE_GROUPS.map((g) => {
-    const items = filteredDues.filter((d) => (d.players?.age_group || "") === g);
-    const paidCount = items.filter((d) => d.status === "Ödendi" || d.status === "paid").length;
-    const paidTotal = items
-      .filter((d) => d.status === "Ödendi" || d.status === "paid")
-      .reduce((acc, cur) => acc + Number(cur.amount || 0), 0);
-    return { group: g, items, paidCount, paidTotal };
-  }).filter((x) => x.items.length > 0);
+  // Seçili aya göre tüm oyuncuları grupla (Ödemeyenler en üstte!)
+  const monthDuesMap = new Map<string, Due>();
+  dues.filter((d) => d.month_label === selectedDueMonth).forEach((d) => monthDuesMap.set(d.player_id, d));
+
+  const groupedMonthlyDues = AGE_GROUPS.filter((g) => dueGroupFilter === "Tümü" || dueGroupFilter === g)
+    .map((g) => {
+      const groupPlayers = players.filter((p) => p.age_group === g);
+      const rows = groupPlayers
+        .map((p) => {
+          const due = monthDuesMap.get(p.id);
+          const isPaid = Boolean(due && (due.status === "Ödendi" || due.status === "paid"));
+          return { player: p, due, isPaid };
+        })
+        .sort((a, b) => Number(a.isPaid) - Number(b.isPaid)); // Ödemeyenler (false=0) en üstte!
+      const paidCount = rows.filter((r) => r.isPaid).length;
+      const paidTotal = rows.reduce((sum, r) => sum + (r.isPaid ? Number(r.due?.amount || monthlyFee) : 0), 0);
+      return { group: g, rows, paidCount, paidTotal };
+    })
+    .filter((x) => x.rows.length > 0);
 
   const pendingRequests = requests.filter((r) => r.status === "bekliyor");
   const activeSession = sessions.find((s) => s.is_active) || sessions[0];
@@ -1072,14 +988,12 @@ export default function AdminPage() {
           { id: "antrenorler", label: `Antrenörler (${coaches.length})` },
           { id: "islemler", label: "Son İşlemler" },
         ]
-      : role === "coach"
-      ? [
+      : [
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
           { id: "gorevler", label: "Maç & Görevler" },
           { id: "namaz", label: "QR Yoklama" },
-        ]
-      : [{ id: "namaz", label: "Temsilci QR & Yoklama" }];
+        ];
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 text-slate-900">
@@ -1087,17 +1001,11 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-extrabold">
-              {role === "admin"
-                ? "Çorum İkbalspor — Yönetici Paneli"
-                : role === "coach"
-                ? `Antrenör Paneli (${activeCoach?.full_name})`
-                : `Temsilci Paneli (${activeRep?.full_name})`}
+              {role === "admin" ? "Çorum İkbalspor — Yönetici Paneli" : `Antrenör Paneli (${activeCoach?.full_name})`}
             </h1>
             <p className="text-xs text-slate-300">
               {role === "coach"
                 ? "Oyuncuları yaş grubuna göre görüntüleyebilir, antrenman ve maç ekleyebilirsiniz."
-                : role === "rep"
-                ? "QR Yoklama oluşturabilir ve telefonu olmayan oyuncuları işaretleyebilirsiniz."
                 : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece PGL Kadro)"}
             </p>
           </div>
@@ -1134,7 +1042,7 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* SON İŞLEMLER SEKMESİ (GÜN & SAAT BAZLI) */}
+        {/* SON İŞLEMLER */}
         {tab === "islemler" && role === "admin" && (
           <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
             <div className="flex flex-wrap justify-between items-center gap-3">
@@ -1152,57 +1060,47 @@ export default function AdminPage() {
                   onChange={(e) => setLogSearch(e.target.value)}
                   className="border rounded-lg px-3 py-1.5 text-xs w-56"
                 />
-                {logDateFilter && (
-                  <button onClick={() => setLogDateFilter("")} className="text-xs underline text-slate-500">
-                    Tarihi Sıfırla
-                  </button>
-                )}
               </div>
             </div>
-
-            {logs.length === 0 ? (
-              <p className="text-sm text-slate-500">Henüz kaydedilmiş işlem yok.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-100 text-[#02274c] text-xs">
-                    <tr>
-                      <th className="p-2.5">Tarih & Saat</th>
-                      <th className="p-2.5">Yapan</th>
-                      <th className="p-2.5">İşlem</th>
-                      <th className="p-2.5">Detay</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logs
-                      .filter(
-                        (l) =>
-                          (!logDateFilter || l.created_at.startsWith(logDateFilter)) &&
-                          (l.action.toLowerCase().includes(logSearch.toLowerCase()) ||
-                            l.details.toLowerCase().includes(logSearch.toLowerCase()) ||
-                            l.actor.toLowerCase().includes(logSearch.toLowerCase()))
-                      )
-                      .map((l) => (
-                        <tr key={l.id} className="border-b hover:bg-slate-50">
-                          <td className="p-2.5 text-xs font-mono whitespace-nowrap">
-                            {new Date(l.created_at).toLocaleString("tr-TR", {
-                              dateStyle: "short",
-                              timeStyle: "medium",
-                            })}
-                          </td>
-                          <td className="p-2.5 text-xs font-bold text-[#02274c]">{l.actor}</td>
-                          <td className="p-2.5">
-                            <span className="text-xs bg-blue-50 text-blue-800 font-bold px-2 py-0.5 rounded">
-                              {l.action}
-                            </span>
-                          </td>
-                          <td className="p-2.5 text-xs text-slate-700">{l.details}</td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-100 text-[#02274c] text-xs">
+                  <tr>
+                    <th className="p-2.5">Tarih & Saat</th>
+                    <th className="p-2.5">Yapan</th>
+                    <th className="p-2.5">İşlem</th>
+                    <th className="p-2.5">Detay</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs
+                    .filter(
+                      (l) =>
+                        (!logDateFilter || l.created_at.startsWith(logDateFilter)) &&
+                        (l.action.toLowerCase().includes(logSearch.toLowerCase()) ||
+                          l.details.toLowerCase().includes(logSearch.toLowerCase()) ||
+                          l.actor.toLowerCase().includes(logSearch.toLowerCase()))
+                    )
+                    .map((l) => (
+                      <tr key={l.id} className="border-b hover:bg-slate-50">
+                        <td className="p-2.5 text-xs font-mono whitespace-nowrap">
+                          {new Date(l.created_at).toLocaleString("tr-TR", {
+                            dateStyle: "short",
+                            timeStyle: "medium",
+                          })}
+                        </td>
+                        <td className="p-2.5 text-xs font-bold text-[#02274c]">{l.actor}</td>
+                        <td className="p-2.5">
+                          <span className="text-xs bg-blue-50 text-blue-800 font-bold px-2 py-0.5 rounded">
+                            {l.action}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-xs text-slate-700">{l.details}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -1231,7 +1129,6 @@ export default function AdminPage() {
                       <div className="text-xs text-slate-600">
                         Doğum: {r.birth_date || "-"} | Telefon: {r.parent_phone} | Mevki: {r.position || "-"}
                       </div>
-                      {r.notes && <div className="text-xs text-slate-500 mt-1">Not: {r.notes}</div>}
                     </div>
                     <div className="flex gap-2">
                       {r.status === "bekliyor" && (
@@ -1257,7 +1154,7 @@ export default function AdminPage() {
         )}
 
         {/* OYUNCULAR */}
-        {tab === "oyuncular" && (role === "admin" || role === "coach") && (
+        {tab === "oyuncular" && (
           <div className="space-y-6">
             {role === "admin" && flaggedPlayersCount > 0 && (
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-sm">
@@ -1330,12 +1227,13 @@ export default function AdminPage() {
                     placeholder="Şifre"
                     className="border rounded-lg px-3 py-2 text-sm"
                   />
-                  <input
-                    value={editingPlayer.license_no || ""}
-                    onChange={(e) => setEditingPlayer({ ...editingPlayer, license_no: e.target.value })}
-                    placeholder="TFF Lisans No"
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingPlayer({ ...editingPlayer, bound_device_id: null })}
+                    className="border border-amber-400 bg-amber-50 text-amber-900 rounded-lg px-3 py-2 text-xs font-bold"
+                  >
+                    {editingPlayer.bound_device_id ? "📱 Cihaz Kilidini Sıfırla" : "📱 Cihaz Bağlı Değil"}
+                  </button>
                 </div>
                 <div className="flex items-center justify-between pt-2">
                   <label className="flex items-center gap-2 text-sm font-bold text-[#02274c]">
@@ -1517,7 +1415,7 @@ export default function AdminPage() {
         )}
 
         {/* ANTRENMANLAR */}
-        {tab === "antrenmanlar" && (role === "admin" || role === "coach") && (
+        {tab === "antrenmanlar" && (
           <div className="space-y-6">
             <form onSubmit={saveTraining} className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <h2 className="text-lg font-extrabold text-[#02274c]">
@@ -1683,23 +1581,6 @@ export default function AdminPage() {
                 >
                   📲 WhatsApp Grubunda Paylaş
                 </a>
-                <div className="flex flex-wrap gap-2">
-                  {lastWaBroadcast.targetPlayers
-                    .filter((p) => cleanWaPhone(p.parent_phone))
-                    .map((p) => (
-                      <a
-                        key={p.id}
-                        href={`https://wa.me/${cleanWaPhone(p.parent_phone)}?text=${encodeURIComponent(
-                          `Merhaba ${p.full_name},\n${lastWaBroadcast.message}`
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs bg-white border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-lg"
-                      >
-                        WP: {p.full_name}
-                      </a>
-                    ))}
-                </div>
               </div>
             )}
 
@@ -1726,146 +1607,127 @@ export default function AdminPage() {
                   <div className="text-xs text-slate-600">
                     {(tr.age_groups || []).join(", ")} • {tr.day_of_week || tr.training_date} {tr.start_time}
                   </div>
-                  <div className="text-xs text-slate-500">{tr.location}</div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* AİDATLAR (GRUPLANDIRILMIŞ & TOPLU AÇMA) */}
+        {/* AİDATLAR (HER AY AYRI, 3 AY İLERİ ÖDEME, ÖDEMEYENLER EN ÜSTTE, ÜCRET GÜNCELLEME) */}
         {tab === "aidat" && role === "admin" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <form onSubmit={addDue} className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
-                <h3 className="font-bold text-[#02274c] text-sm">Tekil Oyuncuya Aidat Aç</h3>
-                <select
-                  required
-                  value={newDue.player_id}
-                  onChange={(e) => setNewDue({ ...newDue, player_id: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">Oyuncu Seç...</option>
-                  {players.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.full_name} ({p.age_group})
-                    </option>
-                  ))}
-                </select>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    value={newDue.month_label}
-                    onChange={(e) => setNewDue({ ...newDue, month_label: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    value={newDue.amount}
-                    onChange={(e) => setNewDue({ ...newDue, amount: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
-                <button type="submit" className="w-full bg-[#02274c] text-white font-bold rounded-lg px-4 py-2 text-sm">
-                  Aidat Kaydı Aç
-                </button>
-              </form>
-
-              <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
-                <h3 className="font-bold text-[#a60513] text-sm">Tüm Gruba Toplu Aidat Aç</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  <select
-                    value={bulkDueGroup}
-                    onChange={(e) => setBulkDueGroup(e.target.value)}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  >
-                    {AGE_GROUPS.map((g) => (
-                      <option key={g}>{g}</option>
-                    ))}
-                  </select>
-                  <input
-                    value={newDue.month_label}
-                    onChange={(e) => setNewDue({ ...newDue, month_label: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="number"
-                    value={newDue.amount}
-                    onChange={(e) => setNewDue({ ...newDue, amount: e.target.value })}
-                    className="border rounded-lg px-3 py-2 text-sm"
-                  />
-                </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="font-extrabold text-[#02274c]">Aylık Aidat Ücreti & Dönem Seçimi</h2>
+                <p className="text-xs text-slate-500">
+                  Tüm oyuncular seçtiğiniz ay için otomatik listelenir; ödemeyenler her zaman en üstte gösterilir.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-600">Güncel Ücret (₺):</span>
+                <input
+                  type="number"
+                  value={monthlyFee}
+                  onChange={(e) => setMonthlyFee(e.target.value)}
+                  className="w-24 border rounded-lg px-3 py-2 text-sm font-bold"
+                />
                 <button
                   type="button"
-                  onClick={createBulkDuesForGroup}
-                  className="w-full bg-[#a60513] text-white font-bold rounded-lg px-4 py-2 text-sm"
+                  onClick={updateMonthlyFee}
+                  className="bg-[#a60513] text-white text-xs font-bold px-4 py-2 rounded-lg"
                 >
-                  {bulkDueGroup} Grubuna Toplu Aidat Oluştur
+                  Ücreti Güncelle & Bildir
                 </button>
               </div>
             </div>
 
+            {feeWaMsg && (
+              <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-3">
+                <span className="text-xs text-emerald-900 font-bold">{feeWaMsg}</span>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(feeWaMsg)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
+                >
+                  📲 WhatsApp Grubunda Paylaş
+                </a>
+              </div>
+            )}
+
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
-              <div className="flex flex-wrap gap-2 items-center justify-between">
+              {/* Ay Seçimi (3 ay sonrasına kadar peşin ödeme) */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
+                  {DUE_MONTHS.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setSelectedDueMonth(m)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold border ${
+                        selectedDueMonth === m ? "bg-[#a60513] text-white" : "bg-slate-50 text-[#02274c]"
+                      }`}
+                    >
+                      📅 {m}
+                    </button>
+                  ))}
+                </div>
+
                 <div className="flex flex-wrap gap-1.5">
                   {["Tümü", ...AGE_GROUPS].map((g) => (
                     <button
                       key={g}
                       onClick={() => setDueGroupFilter(g)}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold border ${
-                        dueGroupFilter === g ? "bg-[#02274c] text-white" : "bg-slate-50 text-slate-700"
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                        dueGroupFilter === g ? "bg-[#02274c] text-white" : "bg-white text-slate-700"
                       }`}
                     >
                       {g}
                     </button>
                   ))}
                 </div>
-                <select
-                  value={dueMonthFilter}
-                  onChange={(e) => setDueMonthFilter(e.target.value)}
-                  className="border rounded-lg px-3 py-1.5 text-xs font-bold"
-                >
-                  <option value="Tümü">Tüm Aylar</option>
-                  {uniqueMonths.map((m) => (
-                    <option key={m}>{m}</option>
-                  ))}
-                </select>
               </div>
 
-              {groupedDues.map(({ group, items, paidCount, paidTotal }) => (
+              {groupedMonthlyDues.map(({ group, rows, paidCount, paidTotal }) => (
                 <div key={group} className="border rounded-xl overflow-hidden">
                   <div className="bg-[#02274c] text-white px-4 py-2 text-sm font-bold flex flex-wrap justify-between">
-                    <span>{group} Aidatları</span>
                     <span>
-                      Ödenen: {paidCount} / {items.length} • Toplanan: {paidTotal}₺
+                      {group} — {selectedDueMonth}
+                    </span>
+                    <span>
+                      Ödeyen: {paidCount} / {rows.length} • Toplanan: {paidTotal}₺
                     </span>
                   </div>
                   <div className="divide-y">
-                    {items.map((d) => {
-                      const isPaid = d.status === "Ödendi" || d.status === "paid";
-                      const waPhone = cleanWaPhone(d.players?.parent_phone);
+                    {rows.map(({ player, due, isPaid }) => {
+                      const waPhone = cleanWaPhone(player.parent_phone);
                       return (
-                        <div key={d.id} className="px-4 py-2.5 flex flex-wrap justify-between items-center gap-2 text-sm">
+                        <div
+                          key={player.id}
+                          className={`px-4 py-2.5 flex flex-wrap justify-between items-center gap-2 text-sm ${
+                            !isPaid ? "bg-amber-50/60" : "bg-white"
+                          }`}
+                        >
                           <div>
-                            <strong className="text-[#02274c]">{d.players?.full_name}</strong> — {d.month_label} —{" "}
-                            <span className="font-bold">{d.amount}₺</span>
+                            <strong className="text-[#02274c]">{player.full_name}</strong>{" "}
+                            <span className="text-xs text-slate-500">({due?.amount || monthlyFee}₺)</span>
                           </div>
                           <div className="flex items-center gap-2">
                             {!isPaid && waPhone && (
                               <a
                                 href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
-                                  `Merhaba, ${d.players?.full_name} için ${d.month_label} kulüp aidatı (${d.amount}₺) henüz ödenmemiştir. Bilginize sunarız.`
+                                  `Merhaba, ${player.full_name} için ${selectedDueMonth} kulüp aidatı (${monthlyFee}₺) beklenmektedir. Bilginize sunarız.`
                                 )}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg"
+                                className="bg-white border border-emerald-300 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg"
                               >
                                 WP Hatırlat
                               </a>
                             )}
                             <button
-                              onClick={() => toggleDueStatus(d)}
+                              onClick={() => togglePlayerMonthDue(player, due)}
                               className={`px-3 py-1 rounded-lg text-xs font-bold ${
-                                isPaid ? "bg-emerald-600 text-white" : "bg-amber-100 text-amber-900"
+                                isPaid ? "bg-emerald-600 text-white" : "bg-amber-200 text-amber-950"
                               }`}
                             >
                               {isPaid ? "✓ Ödendi" : "Bekleniyor (Ödendi Yap)"}
@@ -1884,7 +1746,7 @@ export default function AdminPage() {
         {tab === "envanter" && role === "admin" && <InventoryManager players={players} />}
 
         {/* MAÇ & GÖREVLER */}
-        {tab === "gorevler" && (role === "admin" || role === "coach") && (
+        {tab === "gorevler" && (
           <div className="space-y-6">
             <form onSubmit={addTask} className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <h2 className="text-lg font-extrabold text-[#02274c]">Yeni Maç / Görev Ekle</h2>
@@ -1973,23 +1835,6 @@ export default function AdminPage() {
                   </a>
                 </div>
                 <pre className="text-xs bg-white p-3 rounded-lg border whitespace-pre-wrap">{matchWaPreview.message}</pre>
-                <div className="flex flex-wrap gap-2">
-                  {matchWaPreview.targets
-                    .filter((p) => cleanWaPhone(p.parent_phone))
-                    .map((p) => (
-                      <a
-                        key={p.id}
-                        href={`https://wa.me/${cleanWaPhone(p.parent_phone)}?text=${encodeURIComponent(
-                          matchWaPreview.message
-                        )}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs bg-white border border-emerald-300 text-emerald-800 px-2.5 py-1 rounded-lg"
-                      >
-                        WP: {p.full_name}
-                      </a>
-                    ))}
-                </div>
               </div>
             )}
 
@@ -1998,9 +1843,6 @@ export default function AdminPage() {
                 <div key={t.id} className="border-b pb-3 text-sm flex flex-wrap justify-between items-center gap-2">
                   <div>
                     <strong>{t.title}</strong> ({t.age_group}) — {t.event_date} {t.match_time || ""} — {t.location}
-                    <span className="ml-2 text-xs px-2 py-0.5 rounded bg-slate-100">
-                      {t.has_shuttle ? "🚌 Servis Var" : "🚶 Servis Yok"}
-                    </span>
                   </div>
                   <button
                     onClick={() => sendOneDayBeforeReminder(t)}

@@ -9,7 +9,6 @@ const LINKS = [
   { href: "/kadro-kur", label: "Kadro Kur" },
   { href: "/gorevler", label: "Görevler & Maçlar" },
   { href: "/mesajlar", label: "Mesajlaşma" },
-  { href: "/temsilci", label: "Temsilci Paneli" },
   { href: "/iletisim", label: "İletişim" },
 ];
 
