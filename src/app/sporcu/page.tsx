@@ -117,7 +117,7 @@ export default function SporcuPortalPage() {
   const [defaultFee, setDefaultFee] = useState<number>(500);
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
-  const [activeSessions, setActiveSessions] = useState<PrayerSession[]>([]);
+  const [allSessions, setAllSessions] = useState<PrayerSession[]>([]);
   const [attendances, setAttendances] = useState<PrayerAttendance[]>([]);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
 
@@ -210,11 +210,7 @@ export default function SporcuPortalPage() {
       supabase.from("dues").select("*").eq("player_id", p.id),
       supabase.from("trainings").select("*").order("start_time", { ascending: true }),
       supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
-      supabase
-        .from("prayer_sessions")
-        .select("*")
-        .eq("is_active", true)
-        .order("session_date", { ascending: false }),
+      supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
       supabase.from("prayer_attendance").select("*"),
       supabase.from("club_settings").select("*").eq("key", "monthly_fee").maybeSingle(),
     ]);
@@ -239,7 +235,7 @@ export default function SporcuPortalPage() {
       );
       setTasks(filteredTasks);
     }
-    if (sessRes.data) setActiveSessions(sessRes.data as PrayerSession[]);
+    if (sessRes.data) setAllSessions(sessRes.data as PrayerSession[]);
     if (attRes.data) setAttendances(attRes.data as PrayerAttendance[]);
 
     if (p.is_representative) {
@@ -251,13 +247,19 @@ export default function SporcuPortalPage() {
     }
   }
 
+  const activeSessions = useMemo(
+    () => allSessions.filter((s) => s.is_active),
+    [allSessions]
+  );
+
   const dueItems = useMemo(() => {
     const now = new Date();
     const currentIdx = now.getFullYear() * 12 + now.getMonth();
-    const startIdx = 2026 * 12 + 10; // Kasım 2026
+    const kasim2026Idx = 2026 * 12 + 10;
+    const effectiveStartIdx = Math.min(kasim2026Idx, currentIdx);
 
     const monthSet = new Set<string>();
-    for (let idx = startIdx; idx <= currentIdx; idx++) {
+    for (let idx = effectiveStartIdx; idx <= currentIdx; idx++) {
       const yr = Math.floor(idx / 12);
       const m = idx % 12;
       monthSet.add(`${TR_MONTHS[m]} ${yr}`);
@@ -291,6 +293,7 @@ export default function SporcuPortalPage() {
 
   const overdueCount = dueItems.filter((x) => x.state === "overdue").length;
   const currentUnpaid = dueItems.some((x) => x.state === "unpaid");
+  const currentMonthItem = dueItems.find((x) => x.state === "unpaid" || x.state === "paid") || dueItems[0];
 
   function handleLogout() {
     stopScanner();
@@ -421,6 +424,10 @@ export default function SporcuPortalPage() {
     setNewPin("");
     setPinMsg({ ok: true, text: "PIN kodunuz başarıyla güncellendi." });
   }
+
+  const playerAttendedCount = player
+    ? allSessions.filter((s) => attendances.some((a) => a.session_id === s.id && a.player_id === player.id)).length
+    : 0;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
@@ -600,6 +607,54 @@ export default function SporcuPortalPage() {
                   )}
                 </div>
 
+                {/* Geçmiş Etkinlik Katılım Geçmişim */}
+                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-lg font-black text-[#02274c]">Geçmiş Etkinlik Katılım Durumum</h3>
+                    <span className="px-3 py-1 rounded-full bg-slate-100 text-xs font-extrabold text-[#02274c]">
+                      Katılım: {playerAttendedCount} / {allSessions.length} Etkinlik
+                    </span>
+                  </div>
+
+                  {allSessions.length === 0 ? (
+                    <p className="text-sm text-slate-500">Henüz kayıtlı etkinlik bulunmuyor.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                      {allSessions.map((sess) => {
+                        const attended = attendances.some(
+                          (a) => a.session_id === sess.id && a.player_id === player.id
+                        );
+                        return (
+                          <div
+                            key={sess.id}
+                            className={`flex items-center justify-between p-3.5 rounded-2xl border ${
+                              attended
+                                ? "bg-emerald-50 border-emerald-200"
+                                : "bg-red-50/50 border-red-200"
+                            }`}
+                          >
+                            <div>
+                              <div className="font-extrabold text-sm text-slate-900">{sess.title}</div>
+                              <div className="text-xs text-slate-500">
+                                Tarih: {sess.session_date} {sess.is_active ? "• (Aktif)" : ""}
+                              </div>
+                            </div>
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-extrabold ${
+                                attended
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-red-100 text-red-700"
+                              }`}
+                            >
+                              {attended ? "✓ Katıldı" : "✗ Katılmadı"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 {player.is_representative && (
                   <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4">
                     <h3 className="text-lg font-black text-[#a60513]">Temsilci Yoklama Paneli</h3>
@@ -774,7 +829,7 @@ export default function SporcuPortalPage() {
             {tab === "profil" && (
               <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5">
                 <h2 className="text-lg font-black text-[#02274c]">Bilgilerim & PIN Değiştir</h2>
-                <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                <div className="grid sm:grid-cols-3 gap-3 text-sm">
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                     <span className="text-xs text-slate-500 block">Ad Soyad</span>
                     <span className="font-bold">{player.full_name}</span>
@@ -782,6 +837,16 @@ export default function SporcuPortalPage() {
                   <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
                     <span className="text-xs text-slate-500 block">Lisans No</span>
                     <span className="font-bold">{player.license_no || "Belirtilmemiş"}</span>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
+                    <span className="text-xs text-slate-500 block">Aidat Özeti</span>
+                    {overdueCount > 0 ? (
+                      <span className="font-extrabold text-red-600">⚠️ Gecikti ({overdueCount} ay)</span>
+                    ) : currentMonthItem?.state === "paid" ? (
+                      <span className="font-extrabold text-emerald-700">✓ {currentMonthItem.monthLabel}: Ödendi</span>
+                    ) : (
+                      <span className="font-extrabold text-amber-700">{currentMonthItem?.monthLabel}: Ödenmedi</span>
+                    )}
                   </div>
                 </div>
 

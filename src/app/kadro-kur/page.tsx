@@ -132,7 +132,9 @@ export default function SquadBuilderPage() {
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<Record<string, Player | null>>({});
+  const [squadNumbers, setSquadNumbers] = useState<Record<string, number | "">>({});
   const [draggingPlayer, setDraggingPlayer] = useState<Player | null>(null);
+  const [draggingFromSlot, setDraggingFromSlot] = useState<string | null>(null);
   const [quotaWarning, setQuotaWarning] = useState("");
 
   useEffect(() => {
@@ -152,6 +154,7 @@ export default function SquadBuilderPage() {
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat);
     setSlots({});
+    setSquadNumbers({});
     setQuotaWarning("");
   };
 
@@ -166,15 +169,58 @@ export default function SquadBuilderPage() {
   const quotaGkCount = quotaPlayersInLineup.filter((p) => p.position === "Kaleci").length;
   const quotaOutfieldCount = quotaPlayersInLineup.filter((p) => p.position !== "Kaleci").length;
 
-  const assignToSlot = (slotKey: string, player: Player) => {
+  const getEffectiveNumber = (player: Player): number | "" => {
+    if (Object.prototype.hasOwnProperty.call(squadNumbers, player.id)) {
+      return squadNumbers[player.id];
+    }
+    return player.jersey_number ?? "";
+  };
+
+  const handleSquadNumberChange = (playerId: string, rawVal: string) => {
     setQuotaWarning("");
+    if (rawVal === "") {
+      setSquadNumbers((prev) => ({ ...prev, [playerId]: "" }));
+      return;
+    }
+    const num = Number(rawVal);
+    if (isNaN(num) || num < 1 || num > 99) return;
+
+    const conflict = currentLineup.find(
+      (p) => p.id !== playerId && getEffectiveNumber(p) === num
+    );
+    if (conflict) {
+      setQuotaWarning(
+        `#${num} forma numarası bu kadroda zaten ${conflict.full_name} adlı oyuncuya verilmiş! Farklı bir numara seçin.`
+      );
+      return;
+    }
+
+    setSquadNumbers((prev) => ({ ...prev, [playerId]: num }));
+  };
+
+  const assignToSlot = (targetSlotKey: string, player: Player, fromSlotKey: string | null) => {
+    setQuotaWarning("");
+
+    // Saha içi sürükle-bırak (taşıma veya yer değiştirme)
+    if (fromSlotKey) {
+      if (fromSlotKey === targetSlotKey) return;
+      setSlots((prev) => {
+        const targetOccupant = prev[targetSlotKey] || null;
+        return {
+          ...prev,
+          [targetSlotKey]: player,
+          [fromSlotKey]: targetOccupant,
+        };
+      });
+      return;
+    }
+
     const info = checkPlayerEligibility(player, selectedCategory);
     if (!info.eligible) {
       setQuotaWarning(`${player.full_name} bu kategorinin yaş kurallarına uygun değil.`);
       return;
     }
 
-    // Zaten sahada başka bir slottaysa taşınabilir, yeni kontenjan sayılmaz
     const alreadyOnPitch = currentLineup.some((p) => p.id === player.id);
 
     if (info.isQuota && !alreadyOnPitch) {
@@ -202,20 +248,48 @@ export default function SquadBuilderPage() {
       }
     }
 
+    // Kadroda aynı forma numarası çakışması varsa yeni oyuncunun kadro numarasını boş başlat
+    if (!alreadyOnPitch && player.jersey_number !== null) {
+      const numConflict = currentLineup.find(
+        (p) => p.id !== player.id && getEffectiveNumber(p) === player.jersey_number
+      );
+      if (numConflict) {
+        setSquadNumbers((prev) => ({ ...prev, [player.id]: "" }));
+        setQuotaWarning(
+          `#${player.jersey_number} numarası bu kadroda ${numConflict.full_name} tarafından kullanıldığı için ${player.full_name} için kart üzerinden yeni numara girin.`
+        );
+      } else {
+        setSquadNumbers((prev) => ({ ...prev, [player.id]: player.jersey_number as number }));
+      }
+    }
+
     setSlots((prev) => {
       const cleaned: Record<string, Player | null> = {};
       for (const [k, v] of Object.entries(prev)) {
         cleaned[k] = v?.id === player.id ? null : v;
       }
-      cleaned[slotKey] = player;
+      cleaned[targetSlotKey] = player;
       return cleaned;
     });
   };
 
+  const removeFromSlot = (slotKey: string) => {
+    const occupant = slots[slotKey];
+    setSlots((prev) => ({ ...prev, [slotKey]: null }));
+    if (occupant) {
+      setSquadNumbers((prev) => {
+        const copy = { ...prev };
+        delete copy[occupant.id];
+        return copy;
+      });
+    }
+  };
+
   const copySquadText = () => {
-    const lines = currentLineup.map(
-      (p) => `#${p.jersey_number ?? "-"} ${p.full_name} (${p.position})`
-    );
+    const lines = currentLineup.map((p) => {
+      const num = getEffectiveNumber(p);
+      return `#${num === "" ? "-" : num} ${p.full_name} (${p.position})`;
+    });
     const text = `İkbalspor ${selectedCategory} (${formation}) Kadrosu:\n` + lines.join("\n");
     navigator.clipboard.writeText(text);
     alert("Maç kadrosu kopyalandı!");
@@ -232,8 +306,8 @@ export default function SquadBuilderPage() {
         <div className="max-w-6xl mx-auto space-y-4">
           <h1 className="text-3xl font-black">PGL Ligi & Taktik Kadro Oluşturma</h1>
           <p className="text-slate-100">
-            Resmi yaş uygunluğu ve kontenjan kurallarına göre PGL maç kadronu
-            sürükle-bırak ile kur.
+            Resmi yaş uygunluğu ve kontenjan kurallarına göre PGL maç kadronu sürükle-bırak ile kur;
+            sahadaki oyuncuları sürükleyerek yer değiştirebilir ve kadroya özel forma numarası verebilirsin.
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -242,7 +316,7 @@ export default function SquadBuilderPage() {
                 key={cat.key}
                 type="button"
                 onClick={() => handleCategoryChange(cat.key)}
-                className={`px-3.5 py-1.5 rounded-xl font-extrabold text-sm transition ${
+                className={`px-3.5 py-1.5 rounded-xl font-extrabold text-sm transition cursor-pointer ${
                   selectedCategory === cat.key
                     ? "bg-white text-[#02274c]"
                     : "bg-white/15 text-white hover:bg-white/25"
@@ -261,8 +335,9 @@ export default function SquadBuilderPage() {
                 onClick={() => {
                   setFormation(key);
                   setSlots({});
+                  setSquadNumbers({});
                 }}
-                className={`px-4 py-2 rounded-xl font-extrabold text-sm border-2 transition ${
+                className={`px-4 py-2 rounded-xl font-extrabold text-sm border-2 transition cursor-pointer ${
                   formation === key
                     ? "bg-[#a60513] border-white text-white"
                     : "bg-white/10 border-white/25 text-white"
@@ -286,8 +361,7 @@ export default function SquadBuilderPage() {
               </span>
             ) : ["PGL-U13", "PGL-U14", "PGL-U15"].includes(selectedCategory) ? (
               <span>
-                Son Çeyrek Kontenjan Kullanımı:{" "}
-                <strong>{quotaPlayersInLineup.length} / 2</strong>
+                Son Çeyrek Kontenjan Kullanımı: <strong>{quotaPlayersInLineup.length} / 2</strong>
               </span>
             ) : (
               <span>Seçili Kategori: {selectedCategory}</span>
@@ -298,7 +372,7 @@ export default function SquadBuilderPage() {
             <button
               type="button"
               onClick={copySquadText}
-              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold"
+              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
             >
               Kadroyu Kopyala
             </button>
@@ -306,9 +380,10 @@ export default function SquadBuilderPage() {
               type="button"
               onClick={() => {
                 setSlots({});
+                setSquadNumbers({});
                 setQuotaWarning("");
               }}
-              className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-extrabold"
+              className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-extrabold cursor-pointer"
             >
               Sahayı Temizle
             </button>
@@ -341,7 +416,10 @@ export default function SquadBuilderPage() {
                     <div
                       key={p.id}
                       draggable
-                      onDragStart={() => setDraggingPlayer(p)}
+                      onDragStart={() => {
+                        setDraggingPlayer(p);
+                        setDraggingFromSlot(null);
+                      }}
                       className={`p-3 rounded-xl border-2 cursor-grab active:cursor-grabbing flex items-center justify-between transition ${
                         isUsed
                           ? "border-emerald-500 bg-emerald-50"
@@ -376,7 +454,7 @@ export default function SquadBuilderPage() {
 
           {/* Sağ: Taktik Tahtası */}
           <div className="lg:col-span-8">
-            <div className="rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-700 border-4 border-white shadow-xl p-6 min-h-[520px] flex flex-col justify-between gap-5">
+            <div className="rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-700 border-4 border-white shadow-xl p-6 min-h-[540px] flex flex-col justify-between gap-5">
               {currentFormation.rows.map((row, rowIdx) => (
                 <div key={`${row.role}-${rowIdx}`} className="flex justify-center flex-wrap gap-3">
                   {Array.from({ length: row.count }).map((_, colIdx) => {
@@ -384,35 +462,73 @@ export default function SquadBuilderPage() {
                     const occupant = slots[slotKey];
                     const occIsQuota =
                       occupant && checkPlayerEligibility(occupant, selectedCategory).isQuota;
+                    const effNum = occupant ? getEffectiveNumber(occupant) : "";
+
                     return (
                       <div
                         key={slotKey}
+                        draggable={Boolean(occupant)}
+                        onDragStart={() => {
+                          if (occupant) {
+                            setDraggingPlayer(occupant);
+                            setDraggingFromSlot(slotKey);
+                          }
+                        }}
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={() => {
                           if (draggingPlayer) {
-                            assignToSlot(slotKey, draggingPlayer);
+                            assignToSlot(slotKey, draggingPlayer, draggingFromSlot);
                             setDraggingPlayer(null);
+                            setDraggingFromSlot(null);
                           }
                         }}
-                        onClick={() => occupant && setSlots((prev) => ({ ...prev, [slotKey]: null }))}
-                        className={`w-28 min-h-[82px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center p-2 text-center transition ${
+                        className={`w-32 min-h-[96px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-between p-2 text-center transition ${
                           occupant
                             ? occIsQuota
-                              ? "bg-amber-600 border-white border-solid text-white shadow-lg cursor-pointer"
-                              : "bg-[#02274c] border-[#a60513] border-solid text-white shadow-lg cursor-pointer"
-                            : "bg-white/10 border-white/40 text-white/80 hover:bg-white/20"
+                              ? "bg-amber-600 border-white border-solid text-white shadow-lg cursor-grab active:cursor-grabbing"
+                              : "bg-[#02274c] border-[#a60513] border-solid text-white shadow-lg cursor-grab active:cursor-grabbing"
+                            : "bg-white/10 border-white/40 text-white/80 hover:bg-white/20 justify-center"
                         }`}
                       >
                         {occupant ? (
                           <>
-                            <span className="text-xs font-black text-red-200">
-                              #{occupant.jersey_number ?? "-"}
-                            </span>
-                            <span className="text-xs font-extrabold leading-tight mt-0.5">
+                            <div className="w-full flex items-center justify-between gap-1">
+                              <div
+                                className="flex items-center gap-0.5 bg-white/15 rounded-md px-1 py-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <span className="text-[10px] font-black text-red-200">#</span>
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={99}
+                                  value={effNum}
+                                  placeholder="-"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleSquadNumberChange(occupant.id, e.target.value)}
+                                  className="w-9 bg-transparent text-white text-xs font-black text-center focus:outline-none placeholder:text-white/50"
+                                  title="Sadece bu kadro için forma numarasını değiştir"
+                                />
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeFromSlot(slotKey);
+                                }}
+                                className="text-[11px] font-black text-white/80 hover:text-white px-1 cursor-pointer"
+                                title="Sahadan Çıkar"
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            <span className="text-xs font-extrabold leading-tight my-1">
                               {occupant.full_name}
                             </span>
-                            <span className="text-[10px] opacity-80 mt-1">
-                              {occIsQuota ? "Kontenjan • " : ""}Çıkar ✕
+
+                            <span className="text-[10px] opacity-80">
+                              {occIsQuota ? "Kontenjan • " : ""}Sürükle ↔
                             </span>
                           </>
                         ) : (
