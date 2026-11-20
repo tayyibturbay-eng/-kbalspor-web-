@@ -190,6 +190,7 @@ function defaultPinFromPhone(phone: string): string {
 
 export default function AdminPage() {
   const [role, setRole] = useState<"none" | "admin" | "coach">("none");
+  const [adminName, setAdminName] = useState("");
   const [activeCoach, setActiveCoach] = useState<Coach | null>(null);
   const [loginMode, setLoginMode] = useState<"admin" | "coach">("admin");
 
@@ -228,7 +229,6 @@ export default function AdminPage() {
   });
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
-  // Aidat state
   const [selectedDueMonth, setSelectedDueMonth] = useState("Kasım 2026");
   const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
   const [monthlyFee, setMonthlyFee] = useState("500");
@@ -239,11 +239,9 @@ export default function AdminPage() {
   const [pastDueMonth, setPastDueMonth] = useState("Kasım 2026");
   const [pastDueCustomNote, setPastDueCustomNote] = useState("");
 
-  // Son işlemler filtre
   const [logSearch, setLogSearch] = useState("");
   const [logDateFilter, setLogDateFilter] = useState("");
 
-  // Maç / Görev Formu
   const [newTask, setNewTask] = useState({
     title: "",
     task_type: "Mac",
@@ -258,7 +256,6 @@ export default function AdminPage() {
   });
   const [matchWaPreview, setMatchWaPreview] = useState<{ message: string; targets: Player[] } | null>(null);
 
-  // QR Yoklama
   const [newSessionTitle, setNewSessionTitle] = useState("Kulüp Yoklaması");
   const [newSessionDate, setNewSessionDate] = useState("");
   const [qrSearch, setQrSearch] = useState("");
@@ -297,6 +294,7 @@ export default function AdminPage() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
         setRole("admin");
+        setAdminName((data.session.user.user_metadata?.full_name as string) || "");
         await loadAll();
       } else {
         const savedCoach = typeof window !== "undefined" ? localStorage.getItem("ikbal_coach") : null;
@@ -319,7 +317,11 @@ export default function AdminPage() {
 
   async function logActivity(action: string, details: string) {
     const actor =
-      role === "admin" ? "Yönetici" : role === "coach" && activeCoach ? `Antrenör (${activeCoach.full_name})` : "Sistem";
+      role === "admin"
+        ? adminName || "Yönetici"
+        : role === "coach" && activeCoach
+        ? `Antrenör (${activeCoach.full_name})`
+        : "Sistem";
     await supabase.from("activity_logs").insert({ actor, action, details });
   }
 
@@ -354,12 +356,13 @@ export default function AdminPage() {
   async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
     setAuthError("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setAuthError("Admin girişi başarısız: " + error.message);
       return;
     }
     setRole("admin");
+    setAdminName((data.user?.user_metadata?.full_name as string) || "");
     setTab("oyuncular");
     await loadAll();
   }
@@ -392,6 +395,7 @@ export default function AdminPage() {
     await supabase.auth.signOut();
     localStorage.removeItem("ikbal_coach");
     setRole("none");
+    setAdminName("");
     setActiveCoach(null);
   }
 
@@ -557,7 +561,7 @@ export default function AdminPage() {
       title: `📢 Aidat Ücreti Güncellendi (${feeNum}₺)`,
       body: msg,
       target_group: "Tüm Kulüp",
-      sender_name: "Yönetici",
+      sender_name: adminName || "Yönetici",
     });
     await logActivity("Aidat Ücreti Güncelleme", `Aylık aidat ücreti ${feeNum}₺ yapıldı ve duyuru gönderildi.`);
     setFeeWaMsg(msg);
@@ -671,7 +675,7 @@ export default function AdminPage() {
       title: `⚠️ ${pastDueMonth} Aidat Hatırlatması (${unpaidPlayers.length} Sporcu)`,
       body: bodyText,
       target_group: "Aidat Bekleyenler",
-      sender_name: "Yönetici",
+      sender_name: adminName || "Yönetici",
     });
 
     if (error) {
@@ -703,7 +707,8 @@ export default function AdminPage() {
       ? trainingForm.selected_days
       : ["Çarşamba"];
 
-    const authorName = role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : "Yönetici";
+    const authorName =
+      role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : adminName || "Yönetici";
     const selectedCoachObj = coaches.find((c) => c.id === trainingForm.coach_id);
     const assignedCoachId = selectedCoachObj ? selectedCoachObj.id : null;
     const assignedCoachName = selectedCoachObj ? selectedCoachObj.full_name : null;
@@ -901,7 +906,7 @@ export default function AdminPage() {
       title: `⚽ MAÇ BİLGİLENDİRMESİ: ${newTask.title} (${newTask.age_group})`,
       body: msg,
       target_group: newTask.age_group,
-      sender_name: role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : "Yönetici",
+      sender_name: role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : adminName || "Yönetici",
     });
 
     await logActivity("Maç Ekleme", `${newTask.title} (${newTask.age_group}) — ${newTask.event_date} ${finalLocation}`);
@@ -1203,7 +1208,9 @@ export default function AdminPage() {
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-extrabold">
-              {role === "admin" ? "Çorum İkbalspor — Yönetici Paneli" : `Antrenör Paneli (${activeCoach?.full_name})`}
+              {role === "admin"
+                ? `Çorum İkbalspor — Yönetici Paneli${adminName ? ` (${adminName})` : ""}`
+                : `Antrenör Paneli (${activeCoach?.full_name})`}
             </h1>
             <p className="text-xs text-slate-300">
               {role === "coach"
