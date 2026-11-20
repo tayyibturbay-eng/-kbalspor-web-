@@ -17,6 +17,7 @@ interface TaskItem {
 export default function IkbalHomePage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
   const [currentYear, setCurrentYear] = useState(2026);
+  const [showRegModal, setShowRegModal] = useState(false);
 
   const [regForm, setRegForm] = useState({
     full_name: "",
@@ -131,21 +132,15 @@ export default function IkbalHomePage() {
               </p>
 
               <div className="flex flex-wrap gap-3 pt-1">
-                <a
-                  href="#uyelik-basvurusu"
-                  className="px-5 py-3 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-sm flex items-center justify-center shadow-lg transition"
-                >
-                  Sporcu Üyelik Başvurusu
-                </a>
                 <Link
                   href="/kadro-kur"
-                  className="px-5 py-3 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-sm flex items-center justify-center shadow-lg transition"
+                  className="px-6 py-3.5 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-sm flex items-center justify-center shadow-lg transition"
                 >
-                  Kendi Kadronu Kur
+                  Kendi Kadronu Kur (U11–U19 & PGL)
                 </Link>
                 <Link
                   href="/gorevler"
-                  className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-extrabold text-sm flex items-center justify-center shadow-lg transition"
+                  className="px-6 py-3.5 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-sm flex items-center justify-center shadow-lg transition"
                 >
                   Görevler & Maç Takvimi
                 </Link>
@@ -303,46 +298,61 @@ export default function IkbalHomePage() {
           </Link>
         </section>
 
-        {/* Ana Sayfa Üyelik Başvuru Formu */}
-        <section id="uyelik-basvurusu" className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-          <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-6 sm:p-10 grid lg:grid-cols-12 gap-8 items-start">
-            {/* Sol Bilgi Alanı */}
-            <div className="lg:col-span-5 space-y-5">
+        {/* Üyelik Başvuru Açılır Pencere Tetikleyici Alanı */}
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+          <div
+            onMouseEnter={() => setShowRegModal(true)}
+            onClick={() => setShowRegModal(true)}
+            className="cursor-pointer rounded-3xl bg-white border-2 border-dashed border-[#02274c]/30 hover:border-[#a60513] hover:shadow-lg transition p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4"
+          >
+            <div className="space-y-1 text-center sm:text-left">
+              <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-1">
+                Kulübe Katıl
+              </span>
+              <h2 className="text-xl sm:text-2xl font-extrabold text-[#02274c]">
+                Sporcu Üyelik Başvuru Formu
+              </h2>
+              <p className="text-sm text-slate-600">
+                Başvuru formunu açmak için fare ile üzerine gelin veya tıklayın (18 yaş altı için velisi doldurmalıdır).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRegModal(true)}
+              className="shrink-0 rounded-xl bg-[#02274c] hover:bg-[#a60513] text-white font-bold px-6 py-3.5 text-sm transition shadow"
+            >
+              Başvuru Formunu Aç
+            </button>
+          </div>
+        </section>
+      </main>
+
+      {/* Üyelik Başvurusu Açılır Pencere (Modal) */}
+      {showRegModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-5 relative">
+            <div className="flex items-start justify-between border-b border-slate-100 pb-4">
               <div>
-                <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
-                  Kulübe Katıl
+                <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-2">
+                  Çorum İkbalspor
                 </span>
-                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#02274c] leading-tight">
-                  Sporcu Üyelik Başvuru Formu
+                <h2 className="text-xl sm:text-2xl font-extrabold text-[#02274c]">
+                  Sporcu Üyelik Başvurusu
                 </h2>
-                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
-                  18 yaşından küçük sporcular için başvuru ve KVKK / Açık Rıza
-                  onayları velisi veya vasisi tarafından doldurulmalıdır.
+                <p className="text-xs sm:text-sm text-slate-600 mt-1">
+                  18 yaşından küçük sporcular için form ve KVKK/Açık Rıza onayları velisi tarafından doldurulmalıdır.
                 </p>
               </div>
-
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
-                <p className="text-xs font-extrabold uppercase text-[#02274c]">
-                  Başvuru Süreci Nasıl İşler?
-                </p>
-                <ul className="text-xs sm:text-sm text-slate-600 space-y-1.5">
-                  <li>• Formu doldurduğunuzda yöneticinin telefonuna anlık bildirim gider.</li>
-                  <li>• Onaylandığında sporcuya özel Giriş ID (IKB-XXXX) ve şifre tanımlanır.</li>
-                  <li>• Mobil uygulama üzerinden antrenman, maç ve QR yoklama takibi başlar.</li>
-                </ul>
-              </div>
-
-              <div className="bg-[#02274c] text-white rounded-2xl p-4 space-y-1">
-                <p className="text-xs font-bold text-red-300 uppercase">Antrenman Tesisimiz</p>
-                <p className="font-bold text-sm">Nazmi Avluca Spor Tesisi</p>
-                <p className="text-xs text-slate-200">
-                  Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum
-                </p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowRegModal(false)}
+                className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 text-sm transition"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Sağ Başvuru Formu */}
-            <form onSubmit={handleMembershipSubmit} className="lg:col-span-7 space-y-4">
+            <form onSubmit={handleMembershipSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Sporcu Adı Soyadı *
@@ -449,7 +459,7 @@ export default function IkbalHomePage() {
                 </div>
 
                 {showKvkkText && (
-                  <div className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto leading-relaxed space-y-2">
+                  <div className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto leading-relaxed space-y-2">
                     <p>
                       <strong>Veri Sorumlusu:</strong> Çorum İkbalspor Kulübü. 6698 sayılı Kişisel Verilerin Korunması Kanunu (&ldquo;KVKK&rdquo;) uyarınca, sporcuya ve 18 yaş altı sporcuların velisine/vasisine ait ad-soyad, doğum tarihi, iletişim bilgileri, antrenman/maç yoklama kayıtları ve lisans bilgileri kulüp faaliyetlerinin yürütülmesi, sporcu sağlığı/güvenliği ve iletişim amaçlarıyla işlenmektedir.
                     </p>
@@ -500,17 +510,26 @@ export default function IkbalHomePage() {
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={regLoading}
-                className="w-full rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-bold py-3 text-sm transition disabled:opacity-50"
-              >
-                {regLoading ? "Gönderiliyor..." : "Üyelik Talebini Gönder"}
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowRegModal(false)}
+                  className="w-1/3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 text-sm transition"
+                >
+                  Kapat
+                </button>
+                <button
+                  type="submit"
+                  disabled={regLoading}
+                  className="w-2/3 rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-bold py-3 text-sm transition disabled:opacity-50"
+                >
+                  {regLoading ? "Gönderiliyor..." : "Üyelik Talebini Gönder"}
+                </button>
+              </div>
             </form>
           </div>
-        </section>
-      </main>
+        </div>
+      )}
 
       <footer className="bg-[#02274c] text-slate-200 border-t-4 border-[#a60513] py-8 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
