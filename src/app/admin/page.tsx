@@ -189,6 +189,24 @@ function defaultPinFromPhone(phone: string): string {
   return digits.length >= 4 ? digits.slice(-4) : "1234";
 }
 
+async function sendPushViaApi(
+  ageGroups: string[],
+  title: string,
+  body: string
+): Promise<{ sentCount: number; error?: string }> {
+  try {
+    const res = await fetch("/api/send-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ageGroups, title, body }),
+    });
+    const data = await res.json();
+    return { sentCount: Number(data.sentCount) || 0, error: data.error };
+  } catch (err) {
+    return { sentCount: 0, error: err instanceof Error ? err.message : "Ağ hatası" };
+  }
+}
+
 export default function AdminPage() {
   const [role, setRole] = useState<"none" | "admin" | "coach">("none");
   const [adminName, setAdminName] = useState("");
@@ -203,7 +221,16 @@ export default function AdminPage() {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   const [tab, setTab] = useState<
-    "oyuncular" | "talepler" | "antrenmanlar" | "aidat" | "envanter" | "gorevler" | "namaz" | "antrenorler" | "islemler"
+    | "oyuncular"
+    | "talepler"
+    | "antrenmanlar"
+    | "aidat"
+    | "envanter"
+    | "gorevler"
+    | "bildirim"
+    | "namaz"
+    | "antrenorler"
+    | "islemler"
   >("oyuncular");
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -243,6 +270,13 @@ export default function AdminPage() {
 
   const [logSearch, setLogSearch] = useState("");
   const [logDateFilter, setLogDateFilter] = useState("");
+
+  // İsteğe bağlı bildirim gönderme state'leri
+  const [notifTargetGroups, setNotifTargetGroups] = useState<string[]>(["Tümü"]);
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+  const [notifSaveAnnouncement, setNotifSaveAnnouncement] = useState(true);
+  const [notifSending, setNotifSending] = useState(false);
 
   const [newTask, setNewTask] = useState({
     title: "",
@@ -366,6 +400,7 @@ export default function AdminPage() {
     setRole("admin");
     setAdminName((data.user?.user_metadata?.full_name as string) || "");
     setTab("oyuncular");
+    window.dispatchEvent(new Event("ikbal-auth-changed"));
     await loadAll();
   }
 
@@ -390,6 +425,7 @@ export default function AdminPage() {
     setRole("coach");
     setTab("antrenmanlar");
     setTrainingForm((prev) => ({ ...prev, coach_id: c.id }));
+    window.dispatchEvent(new Event("ikbal-auth-changed"));
     await loadAll();
   }
 
@@ -399,6 +435,43 @@ export default function AdminPage() {
     setRole("none");
     setAdminName("");
     setActiveCoach(null);
+    window.dispatchEvent(new Event("ikbal-auth-changed"));
+  }
+
+  async function handleSendCustomPush(e: React.FormEvent) {
+    e.preventDefault();
+    if (!notifTitle.trim() || !notifBody.trim()) {
+      setFeedback("Lütfen bildirim başlığı ve mesajını yazın.");
+      return;
+    }
+    setNotifSending(true);
+    const groups = notifTargetGroups.length === 0 ? ["Tümü"] : notifTargetGroups;
+    const pushRes = await sendPushViaApi(groups, notifTitle.trim(), notifBody.trim());
+
+    if (notifSaveAnnouncement) {
+      await supabase.from("club_messages").insert({
+        title: notifTitle.trim(),
+        body: notifBody.trim(),
+        target_group: groups.join(", "),
+        sender_name: role === "coach" && activeCoach ? activeCoach.full_name : adminName || "Yönetici",
+      });
+    }
+
+    await logActivity("Bildirim Gönderimi", `[${groups.join(", ")}] ${notifTitle.trim()} (${pushRes.sentCount} cihaz)`);
+    setNotifSending(false);
+
+    if (pushRes.error) {
+      setFeedback(`⚠️ Bildirim hatası: ${pushRes.error}`);
+    } else if (pushRes.sentCount === 0) {
+      setFeedback(
+        "ℹ️ Kayıtlı telefon token'ı bulunamadı (sporcuların mobil uygulamaya giriş yapması gerekir)." +
+          (notifSaveAnnouncement ? " Duyuru siteye/uygulamaya kaydedildi." : "")
+      );
+    } else {
+      setFeedback(`✅ ${pushRes.sentCount} cihaza anlık bildirim gönderildi!`);
+      setNotifTitle("");
+      setNotifBody("");
+    }
   }
 
   async function approveRequest(req: MembershipRequest) {
@@ -706,6 +779,7 @@ export default function AdminPage() {
       return;
     }
 
+    await sendPushViaApi(["Tümü"], `⚠️ ${pastDueMonth} Aidat Hatırlatması`, bodyText);
     await logActivity(
       "Toplu Aidat Hatırlatma",
       `${pastDueMonth} dönemi için ödemesi kalan ${unpaidPlayers.length} sporcuya kulüp bildirimi gönderildi.`
@@ -831,8 +905,14 @@ export default function AdminPage() {
       sender_name: authorName,
     });
 
+    const pushRes = await sendPushViaApi(
+      trainingForm.age_groups,
+      "⚽ Antrenman Programı Güncellendi",
+      `${trainingForm.age_groups.join(", ")} • ${whenText}`
+    );
+
     setLastWaBroadcast({ message: fullMsg, targetPlayers });
-    setFeedback("✅ Antrenman kaydedildi ve bildirim gönderildi.");
+    setFeedback(`✅ Antrenman kaydedildi (${pushRes.sentCount} telefona bildirim gönderildi).`);
     setTrainingForm({
       id: "",
       title: "",
@@ -932,12 +1012,18 @@ export default function AdminPage() {
       sender_name: role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : adminName || "Yönetici",
     });
 
+    const pushRes = await sendPushViaApi(
+      [newTask.age_group],
+      `⚽ Yeni Maç: ${newTask.title}`,
+      `${newTask.event_date} ${newTask.match_time} • ${finalLocation}`
+    );
+
     await logActivity("Maç Ekleme", `${newTask.title} (${newTask.age_group}) — ${newTask.event_date} ${finalLocation}`);
     setMatchWaPreview({
       message: msg,
       targets: players.filter((p) => squadIds.includes(p.id)),
     });
-    setFeedback("✅ Maç kaydedildi ve kadroya bildirim gönderildi!");
+    setFeedback(`✅ Maç kaydedildi ve kadroya bildirim gönderildi (${pushRes.sentCount} telefon)!`);
     setNewTask({
       title: "",
       task_type: "Mac",
@@ -973,13 +1059,18 @@ export default function AdminPage() {
       target_group: t.age_group,
       sender_name: "Maç Hatırlatma",
     });
+    const pushRes = await sendPushViaApi(
+      [t.age_group],
+      `⏰ YARIN MAÇ VAR! ${t.title}`,
+      `${t.event_date} ${t.match_time || "14:00"} • ${t.location}`
+    );
     await logActivity("Maç Hatırlatma", `${t.title} (${t.age_group}) için 1 gün öncesi hatırlatma gönderildi.`);
 
     setMatchWaPreview({
       message: msg,
       targets: players.filter((p) => squadIds.includes(p.id)),
     });
-    setFeedback("✅ 1 gün öncesi maç hatırlatma bildirimi yayınlandı!");
+    setFeedback(`✅ 1 gün öncesi maç hatırlatma bildirimi yayınlandı (${pushRes.sentCount} telefon)!`);
     loadAll();
   }
 
@@ -1214,6 +1305,7 @@ export default function AdminPage() {
           { id: "aidat", label: "Aidatlar" },
           { id: "envanter", label: "Forma & Ekipman" },
           { id: "gorevler", label: "Maç & Görevler" },
+          { id: "bildirim", label: "🔔 Bildirim Gönder" },
           { id: "namaz", label: "QR Yoklama" },
           { id: "antrenorler", label: `Antrenörler (${coaches.length})` },
           { id: "islemler", label: "Son İşlemler" },
@@ -1222,6 +1314,7 @@ export default function AdminPage() {
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
           { id: "gorevler", label: "Maç & Görevler" },
+          { id: "bildirim", label: "🔔 Bildirim Gönder" },
           { id: "namaz", label: "QR Yoklama" },
         ];
 
@@ -1273,6 +1366,88 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {/* İSTEĞE BAĞLI BİLDİRİM GÖNDERME */}
+        {tab === "bildirim" && (
+          <form onSubmit={handleSendCustomPush} className="bg-white p-6 rounded-2xl shadow-sm border space-y-4 max-w-2xl">
+            <div>
+              <h2 className="text-lg font-extrabold text-[#02274c]">🔔 İsteğe Bağlı Anlık Bildirim Gönder</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Seçtiğiniz yaş gruplarındaki sporcuların telefonuna anında bildirim gönderin.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[#02274c] mb-2">Hedef Kitle:</label>
+              <div className="flex flex-wrap gap-1.5">
+                {["Tümü", ...AGE_GROUPS].map((g) => {
+                  const selected = notifTargetGroups.includes(g);
+                  return (
+                    <button
+                      type="button"
+                      key={g}
+                      onClick={() => {
+                        if (g === "Tümü") {
+                          setNotifTargetGroups(["Tümü"]);
+                        } else {
+                          const withoutAll = notifTargetGroups.filter((x) => x !== "Tümü");
+                          const next = selected ? withoutAll.filter((x) => x !== g) : [...withoutAll, g];
+                          setNotifTargetGroups(next.length === 0 ? ["Tümü"] : next);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                        selected ? "bg-[#02274c] text-white border-[#02274c]" : "bg-slate-50 text-slate-700"
+                      }`}
+                    >
+                      {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Bildirim Başlığı</label>
+              <input
+                type="text"
+                required
+                placeholder="Örn: Antrenman Saati Değişikliği"
+                value={notifTitle}
+                onChange={(e) => setNotifTitle(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1">Bildirim Mesajı</label>
+              <textarea
+                rows={4}
+                required
+                placeholder="Sporculara iletmek istediğiniz mesajı yazın..."
+                value={notifBody}
+                onChange={(e) => setNotifBody(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm"
+              />
+            </div>
+
+            <label className="flex items-center gap-2 text-xs font-bold text-[#02274c]">
+              <input
+                type="checkbox"
+                checked={notifSaveAnnouncement}
+                onChange={(e) => setNotifSaveAnnouncement(e.target.checked)}
+              />
+              Uygulama ve web sitesindeki Duyurular bölümüne de kaydet
+            </label>
+
+            <button
+              type="submit"
+              disabled={notifSending}
+              className="bg-[#a60513] hover:bg-[#8a0410] text-white font-extrabold px-6 py-3 rounded-xl text-sm cursor-pointer disabled:opacity-60"
+            >
+              {notifSending ? "Gönderiliyor..." : "🔔 Bildirimi Gönder"}
+            </button>
+          </form>
+        )}
 
         {/* SON İŞLEMLER */}
         {tab === "islemler" && role === "admin" && (
@@ -1577,7 +1752,7 @@ export default function AdminPage() {
                         selectedGroupFilter === g ? "bg-[#02274c] text-white" : "bg-slate-50 text-slate-700"
                       }`}
                     >
-                      {g}
+                      {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
                     </button>
                   ))}
                 </div>
@@ -1750,7 +1925,7 @@ export default function AdminPage() {
                       }`}
                     >
                       {checked ? "✓ " : ""}
-                      {g}
+                      {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
                     </button>
                   );
                 })}
@@ -1892,7 +2067,7 @@ export default function AdminPage() {
                     {(tr.age_groups || []).join(", ")} • {tr.day_of_week || tr.training_date} {tr.start_time}
                   </div>
                   {tr.coach_name && (
-                    <div className="text-xs font-bold text-[#a60513]">👨🏫 Antrenör: {tr.coach_name}</div>
+                    <div className="text-xs font-bold text-[#a60513]">👨‍🏫 Antrenör: {tr.coach_name}</div>
                   )}
                 </div>
               ))}
@@ -2064,7 +2239,7 @@ export default function AdminPage() {
                         dueGroupFilter === g ? "bg-[#02274c] text-white" : "bg-white text-slate-700"
                       }`}
                     >
-                      {g}
+                      {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
                     </button>
                   ))}
                 </div>
