@@ -113,66 +113,63 @@ export default function IkbalHomePage() {
             </div>
           </div>
         </section>
+
         {/* Mobil Uygulama Tanıtım Kartı */}
-<section className="max-w-5xl mx-auto px-4 py-10">
-  <div className="bg-gradient-to-br from-[#02274c] via-[#043666] to-[#a60513] rounded-3xl p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
-    {/* Sol: Açıklama ve İndirme Butonları */}
-    <div className="space-y-4 max-w-lg text-center md:text-left">
-      <span className="inline-block bg-white/15 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full">
-        Resmi Mobil Uygulama
-      </span>
-      <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">
-        Çorum İkbalspor Cebinizde!
-      </h2>
-      <p className="text-slate-200 text-sm sm:text-base">
-        Antrenman programları, maç takvimi, taktik kadro kurma ve QR yoklama
-        işlemleri tek uygulamada.
-      </p>
+        <section className="max-w-5xl mx-auto px-4 py-10">
+          <div className="bg-gradient-to-br from-[#02274c] via-[#043666] to-[#a60513] rounded-3xl p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="space-y-4 max-w-lg text-center md:text-left">
+              <span className="inline-block bg-white/15 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full">
+                Resmi Mobil Uygulama
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">
+                Çorum İkbalspor Cebinizde!
+              </h2>
+              <p className="text-slate-200 text-sm sm:text-base">
+                Antrenman programları, maç takvimi, taktik kadro kurma ve QR yoklama
+                işlemleri tek uygulamada.
+              </p>
 
-      <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-        <a
-          href="APK_LINKI_BURAYA"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-3 rounded-xl shadow-md transition text-sm"
-        >
-          <span>🤖</span>
-          <span>Android Uygulamamız Yayında (APK İndir)</span>
-        </a>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
+                <a
+                  href="APK_LINKI_BURAYA"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-3 rounded-xl shadow-md transition text-sm"
+                >
+                  <span>🤖</span>
+                  <span>Android Uygulamamız Yayında (APK İndir)</span>
+                </a>
 
-        <div className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-slate-100 font-semibold px-4 py-3 rounded-xl text-sm">
-          <span>🍎</span>
-          <span>iOS Çok Yakında</span>
-        </div>
-      </div>
-    </div>
+                <div className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-slate-100 font-semibold px-4 py-3 rounded-xl text-sm">
+                  <span>🍎</span>
+                  <span>iOS Çok Yakında</span>
+                </div>
+              </div>
+            </div>
 
-    {/* Sağ: Telefon Ekranı İçinde İkbalspor Logosu */}
-    <div className="shrink-0">
-      <div className="w-52 h-96 bg-slate-950 rounded-[2.5rem] p-3 shadow-2xl border-4 border-slate-700 relative flex flex-col items-center justify-center">
-        {/* Üst Çentik */}
-        <div className="w-20 h-4 bg-slate-900 rounded-full absolute top-3" />
-        {/* Telefon Ekranı */}
-        <div className="w-full h-full bg-gradient-to-b from-[#02274c] to-[#0a192f] rounded-[1.8rem] flex flex-col items-center justify-center p-4 text-center border border-white/10">
-          <img
-            src="/logo.png"
-            alt="Çorum İkbalspor Logo"
-            className="w-24 h-24 object-contain rounded-2xl bg-white p-2 shadow-lg mb-4"
-          />
-          <p className="font-extrabold text-sm text-white tracking-wide">
-            ÇORUM İKBALSPOR
-          </p>
-          <p className="text-[11px] text-slate-300 mt-1">
-            Sporcu & Yönetim Portalı
-          </p>
-          <span className="mt-4 bg-[#a60513] text-white text-[10px] font-bold px-3 py-1 rounded-full">
-            Android Yayında
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+            <div className="shrink-0">
+              <div className="w-52 h-96 bg-slate-950 rounded-[2.5rem] p-3 shadow-2xl border-4 border-slate-700 relative flex flex-col items-center justify-center">
+                <div className="w-20 h-4 bg-slate-900 rounded-full absolute top-3" />
+                <div className="w-full h-full bg-gradient-to-b from-[#02274c] to-[#0a192f] rounded-[1.8rem] flex flex-col items-center justify-center p-4 text-center border border-white/10">
+                  <img
+                    src="/logo.png"
+                    alt="Çorum İkbalspor Logo"
+                    className="w-24 h-24 object-contain rounded-2xl bg-white p-2 shadow-lg mb-4"
+                  />
+                  <p className="font-extrabold text-sm text-white tracking-wide">
+                    ÇORUM İKBALSPOR
+                  </p>
+                  <p className="text-[11px] text-slate-300 mt-1">
+                    Sporcu & Yönetim Portalı
+                  </p>
+                  <span className="mt-4 bg-[#a60513] text-white text-[10px] font-bold px-3 py-1 rounded-full">
+                    Android Yayında
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Hızlı Modüller */}
         <section className="max-w-6xl mx-auto px-4 py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -224,49 +221,6 @@ export default function IkbalHomePage() {
             </p>
           </Link>
         </section>
-        {/* Mobil Uygulama Tanıtım Alanı */}
-      <section className="max-w-5xl mx-auto px-4 py-12">
-        <div className="bg-gradient-to-br from-[#02274c] to-[#0b3b6e] rounded-3xl p-8 text-white shadow-xl grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-2 bg-[#a60513] px-3 py-1 rounded-full text-xs font-bold">
-              📱 Mobil Uygulama
-            </div>
-            <h2 className="text-3xl font-extrabold">Çorum İkbalspor Cebinizde!</h2>
-            <p className="text-slate-200 text-sm leading-relaxed">
-              Antrenman saatleri, maç takvimi, taktik kadro kurma ve QR yoklama tek uygulamada.
-            </p>
-            <div className="flex flex-wrap gap-3 pt-2">
-              <a
-                href="APK_LINKI_BURAYA"
-                target="_blank"
-                rel="noreferrer"
-                className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-3 rounded-xl text-sm shadow"
-              >
-                🤖 Android Uygulamamız Yayında (İndir)
-              </a>
-              <span className="bg-white/15 border border-white/25 text-white font-bold px-5 py-3 rounded-xl text-sm">
-                🍎 iOS Çok Yakında
-              </span>
-            </div>
-          </div>
-
-          {/* Telefon Ekranı Mockup */}
-          <div className="flex justify-center">
-            <div className="w-56 h-[400px] bg-slate-900 rounded-[2.5rem] p-3 border-4 border-slate-700 shadow-2xl flex flex-col items-center justify-between">
-              <div className="w-20 h-4 bg-slate-800 rounded-full mt-1" />
-              <div className="flex-1 w-full bg-white rounded-2xl my-2 flex flex-col items-center justify-center p-4 text-center">
-                <img src="/logo.png" alt="Çorum İkbalspor Logo" className="w-24 h-24 object-contain mb-3" />
-                <div className="font-extrabold text-[#02274c] text-base">Çorum İkbalspor</div>
-                <div className="text-[11px] text-[#a60513] font-bold mt-1">Sporcu & Yönetim Portalı</div>
-                <div className="mt-4 w-full bg-[#02274c] text-white text-xs font-bold py-2 rounded-lg">
-                  Android Yayında
-                </div>
-              </div>
-              <div className="w-16 h-1 bg-slate-700 rounded-full mb-1" />
-            </div>
-          </div>
-        </div>
-      </section>
       </main>
 
       <footer className="bg-[#02274c] text-slate-200 border-t-4 border-[#a60513] py-8 px-4">
