@@ -64,12 +64,19 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey =
       process.env.SUPABASE_SERVICE_ROLE_KEY ||
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json(
+        { ok: false, error: "Sunucu yapılandırma hatası: Supabase URL veya Key eksik." },
+        { status: 500 }
+      );
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
     const ageGroup = calcAgeGroup(birth_date || null);
 
     const { error: insertErr } = await supabase.from("membership_requests").insert({
@@ -90,28 +97,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: insertErr.message }, { status: 500 });
     }
 
-    // Admin Push Bildirimi
-    const { data: tokens } = await supabase
-      .from("admin_push_tokens")
-      .select("expo_push_token");
+    // Admin Push Bildirimi (hata olsa bile başvuruyu bozmaz)
+    try {
+      const { data: tokens } = await supabase
+        .from("admin_push_tokens")
+        .select("expo_push_token");
 
-    if (tokens && tokens.length > 0) {
-      const messages = tokens.map((t) => ({
-        to: t.expo_push_token,
-        sound: "default",
-        title: "Yeni Üyelik Talebi",
-        body: `${full_name.trim()} (${ageGroup}) kulübe üyelik talebi gönderdi.`,
-      }));
+      if (tokens && tokens.length > 0) {
+        const messages = tokens.map((t) => ({
+          to: t.expo_push_token,
+          sound: "default",
+          title: "Yeni Üyelik Talebi",
+          body: `${full_name.trim()} (${ageGroup}) kulübe üyelik talebi gönderdi.`,
+        }));
 
-      await fetch("https://exp.host/--/api/v2/push/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(messages),
-      }).catch(() => {});
+        await fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(messages),
+        });
+      }
+    } catch {
+      // Bildirim hatasını sessiz geç
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, error: "Sunucu hatası." }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Sunucu hatası.";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
