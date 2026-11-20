@@ -1,0 +1,517 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { AGE_GROUPS, POSITIONS, Player, UserRole } from "@/types/club";
+import {
+  calcAgeGroupFromBirthDate,
+  defaultPinFromPhone,
+  getDuplicatePlayerKeys,
+  getPlayerWarnings,
+} from "@/lib/club-utils";
+
+const supabase = createClient();
+
+interface PlayersTabProps {
+  role: UserRole;
+  players: Player[];
+  setPlayers: React.Dispatch<React.SetStateAction<Player[]>>;
+  onFeedback: (msg: string) => void;
+  onLogActivity: (action: string, details: string) => Promise<void>;
+  onRefreshPlayers: () => Promise<void>;
+}
+
+export function PlayersTab({
+  role,
+  players,
+  setPlayers,
+  onFeedback,
+  onLogActivity,
+  onRefreshPlayers,
+}: PlayersTabProps) {
+  const [playerSearch, setPlayerSearch] = useState("");
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("Tümü");
+  const [newPlayer, setNewPlayer] = useState({
+    full_name: "",
+    birth_date: "",
+    position: "Orta Saha",
+    jersey_number: "",
+    parent_phone: "",
+    player_code: "",
+    player_pin: "",
+  });
+  const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+
+  const duplicateKeys = useMemo(() => getDuplicatePlayerKeys(players), [players]);
+
+  const flaggedPlayersCount = useMemo(
+    () => players.filter((p) => getPlayerWarnings(p, duplicateKeys).length > 0).length,
+    [players, duplicateKeys]
+  );
+
+  const filteredPlayers = useMemo(() => {
+    const q = playerSearch.toLowerCase();
+    return players.filter(
+      (p) =>
+        (selectedGroupFilter === "Tümü" || p.age_group === selectedGroupFilter) &&
+        (p.full_name.toLowerCase().includes(q) ||
+          (p.player_code || "").toLowerCase().includes(q) ||
+          p.age_group.toLowerCase().includes(q))
+    );
+  }, [players, selectedGroupFilter, playerSearch]);
+
+  const groupedPlayers = useMemo(
+    () =>
+      AGE_GROUPS.map((g) => ({
+        group: g,
+        items: filteredPlayers.filter((p) => p.age_group === g),
+      })).filter((x) => x.items.length > 0),
+    [filteredPlayers]
+  );
+
+  async function updatePlayerPosition(player: Player, newPosition: string) {
+    const { error } = await supabase
+      .from("players")
+      .update({ position: newPosition })
+      .eq("id", player.id);
+
+    if (error) {
+      onFeedback("Mevki güncellenemedi: " + error.message);
+      return;
+    }
+
+    setPlayers((prev) =>
+      prev.map((x) => (x.id === player.id ? { ...x, position: newPosition } : x))
+    );
+    await onLogActivity(
+      "Mevki Güncelleme",
+      `${player.full_name} mevkisi "${newPosition}" yapıldı.`
+    );
+    onFeedback(`✅ ${player.full_name} mevkisi "${newPosition}" olarak güncellendi.`);
+  }
+
+  async function addPlayer(e: React.FormEvent) {
+    e.preventDefault();
+    const ageGroup = calcAgeGroupFromBirthDate(newPlayer.birth_date);
+    const autoCode =
+      newPlayer.player_code.trim().toUpperCase() ||
+      `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
+    const autoPin =
+      newPlayer.player_pin.trim() || defaultPinFromPhone(newPlayer.parent_phone);
+
+    const { error } = await supabase.from("players").insert({
+      full_name: newPlayer.full_name.trim(),
+      birth_date: newPlayer.birth_date || null,
+      age_group: ageGroup,
+      position: newPlayer.position,
+      jersey_number: newPlayer.jersey_number ? Number(newPlayer.jersey_number) : null,
+      parent_phone: newPlayer.parent_phone.trim() || null,
+      player_code: autoCode,
+      player_pin: autoPin,
+      pin_changed: false,
+    });
+
+    if (error) {
+      onFeedback("Hata: " + error.message);
+      return;
+    }
+
+    await onLogActivity(
+      "Oyuncu Ekleme",
+      `${newPlayer.full_name} (${ageGroup}) eklendi — ID: ${autoCode}`
+    );
+    onFeedback(
+      `✅ ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin}`
+    );
+    setNewPlayer({
+      full_name: "",
+      birth_date: "",
+      position: "Orta Saha",
+      jersey_number: "",
+      parent_phone: "",
+      player_code: "",
+      player_pin: "",
+    });
+    await onRefreshPlayers();
+  }
+
+  async function savePlayerEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingPlayer) return;
+    const updatedAgeGroup = editingPlayer.birth_date
+      ? calcAgeGroupFromBirthDate(editingPlayer.birth_date)
+      : editingPlayer.age_group;
+
+    const { error } = await supabase
+      .from("players")
+      .update({
+        full_name: editingPlayer.full_name.trim(),
+        birth_date: editingPlayer.birth_date || null,
+        age_group: updatedAgeGroup,
+        position: editingPlayer.position,
+        jersey_number: editingPlayer.jersey_number
+          ? Number(editingPlayer.jersey_number)
+          : null,
+        parent_phone: editingPlayer.parent_phone?.trim() || null,
+        player_code: editingPlayer.player_code?.trim().toUpperCase() || null,
+        player_pin: editingPlayer.player_pin?.trim() || "1234",
+        is_representative: Boolean(editingPlayer.is_representative),
+        license_no: editingPlayer.license_no?.trim() || null,
+        bound_device_id: editingPlayer.bound_device_id,
+      })
+      .eq("id", editingPlayer.id);
+
+    if (error) {
+      onFeedback("Güncelleme hatası: " + error.message);
+      return;
+    }
+
+    await onLogActivity(
+      "Oyuncu Düzenleme",
+      `${editingPlayer.full_name} (${updatedAgeGroup}) bilgileri güncellendi.`
+    );
+    onFeedback(`✅ ${editingPlayer.full_name} bilgileri güncellendi (${updatedAgeGroup}).`);
+    setEditingPlayer(null);
+    await onRefreshPlayers();
+  }
+
+  async function deletePlayer(id: string, name: string) {
+    if (!confirm(`${name} adlı oyuncuyu silmek istediğinize emin misiniz?`)) return;
+    await supabase.from("players").delete().eq("id", id);
+    await onLogActivity("Oyuncu Silme", `${name} kadrodan silindi.`);
+    setPlayers((prev) => prev.filter((p) => p.id !== id));
+    onFeedback(`🗑️ ${name} kadrodan silindi.`);
+  }
+
+  return (
+    <div className="space-y-6">
+      {role === "admin" && flaggedPlayersCount > 0 && (
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-sm">
+          <strong>⚠️ Kontrol Edilmesi Gereken {flaggedPlayersCount} Oyuncu Var:</strong> Doğum
+          tarihi eksik, isim hatalı veya çift kayıtlar aşağıda işaretlendi.
+        </div>
+      )}
+
+      {role === "admin" && editingPlayer && (
+        <form
+          onSubmit={savePlayerEdit}
+          className="bg-white p-5 rounded-2xl shadow-md border-2 border-[#a60513] space-y-4"
+        >
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-extrabold text-[#02274c]">
+              Oyuncu Bilgilerini Düzenle
+            </h2>
+            <button
+              type="button"
+              onClick={() => setEditingPlayer(null)}
+              className="text-sm text-slate-500 underline"
+            >
+              Vazgeç
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              required
+              value={editingPlayer.full_name}
+              onChange={(e) =>
+                setEditingPlayer({ ...editingPlayer, full_name: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              type="date"
+              value={editingPlayer.birth_date || ""}
+              onChange={(e) =>
+                setEditingPlayer({ ...editingPlayer, birth_date: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              value={editingPlayer.parent_phone || ""}
+              onChange={(e) =>
+                setEditingPlayer({ ...editingPlayer, parent_phone: e.target.value })
+              }
+              placeholder="Telefon"
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <select
+              value={editingPlayer.position || "Orta Saha"}
+              onChange={(e) =>
+                setEditingPlayer({ ...editingPlayer, position: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            >
+              {POSITIONS.map((pos) => (
+                <option key={pos}>{pos}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              placeholder="Forma No"
+              value={editingPlayer.jersey_number ?? ""}
+              onChange={(e) =>
+                setEditingPlayer({
+                  ...editingPlayer,
+                  jersey_number: e.target.value ? Number(e.target.value) : null,
+                })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              value={editingPlayer.player_code || ""}
+              onChange={(e) =>
+                setEditingPlayer({ ...editingPlayer, player_code: e.target.value })
+              }
+              placeholder="Oyuncu ID"
+              className="border rounded-lg px-3 py-2 text-sm uppercase"
+            />
+            <input
+              value={editingPlayer.player_pin || ""}
+              onChange={(e) =>
+                setEditingPlayer({ ...editingPlayer, player_pin: e.target.value })
+              }
+              placeholder="Şifre"
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() =>
+                setEditingPlayer({ ...editingPlayer, bound_device_id: null })
+              }
+              className="border border-amber-400 bg-amber-50 text-amber-900 rounded-lg px-3 py-2 text-xs font-bold"
+            >
+              {editingPlayer.bound_device_id
+                ? "📱 Cihaz Kilidini Sıfırla"
+                : "📱 Cihaz Bağlı Değil"}
+            </button>
+          </div>
+          <div className="flex items-center justify-between pt-2">
+            <label className="flex items-center gap-2 text-sm font-bold text-[#02274c]">
+              <input
+                type="checkbox"
+                checked={Boolean(editingPlayer.is_representative)}
+                onChange={(e) =>
+                  setEditingPlayer({
+                    ...editingPlayer,
+                    is_representative: e.target.checked,
+                  })
+                }
+              />
+              Temsilci Yetkisi Ver
+            </label>
+            <button
+              type="submit"
+              className="bg-[#02274c] text-white font-bold px-6 py-2 rounded-lg text-sm"
+            >
+              Değişiklikleri Kaydet
+            </button>
+          </div>
+        </form>
+      )}
+
+      {role === "admin" && (
+        <form
+          onSubmit={addPlayer}
+          className="bg-white p-5 rounded-2xl shadow-sm border space-y-3"
+        >
+          <h2 className="font-bold text-[#02274c]">Yeni Oyuncu Ekle</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              required
+              placeholder="Ad Soyad"
+              value={newPlayer.full_name}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, full_name: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              type="date"
+              required
+              value={newPlayer.birth_date}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, birth_date: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Veli Telefon (05xx...)"
+              value={newPlayer.parent_phone}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, parent_phone: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <select
+              value={newPlayer.position}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, position: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            >
+              {POSITIONS.map((pos) => (
+                <option key={pos}>{pos}</option>
+              ))}
+            </select>
+            <input
+              type="number"
+              placeholder="Forma No"
+              value={newPlayer.jersey_number}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, jersey_number: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Özel ID (Boşsa IKB-XXXX)"
+              value={newPlayer.player_code}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, player_code: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm uppercase"
+            />
+            <input
+              placeholder="Şifre (Boşsa Tel Son 4)"
+              value={newPlayer.player_pin}
+              onChange={(e) =>
+                setNewPlayer({ ...newPlayer, player_pin: e.target.value })
+              }
+              className="border rounded-lg px-3 py-2 text-sm"
+            />
+            <button
+              type="submit"
+              className="bg-[#a60513] text-white font-bold rounded-lg px-4 py-2 text-sm"
+            >
+              Oyuncu Ekle
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
+        <div className="flex flex-wrap justify-between items-center gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {["Tümü", ...AGE_GROUPS].map((g) => (
+              <button
+                key={g}
+                onClick={() => setSelectedGroupFilter(g)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                  selectedGroupFilter === g
+                    ? "bg-[#02274c] text-white"
+                    : "bg-slate-50 text-slate-700"
+                }`}
+              >
+                {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
+              </button>
+            ))}
+          </div>
+          <input
+            placeholder="İsim veya ID ara..."
+            value={playerSearch}
+            onChange={(e) => setPlayerSearch(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm w-full md:w-64"
+          />
+        </div>
+
+        {groupedPlayers.map(({ group, items }) => (
+          <div key={group} className="border rounded-xl overflow-hidden">
+            <div className="bg-[#02274c] text-white px-4 py-2 font-bold text-sm flex justify-between">
+              <span>{group} Kategorisi</span>
+              <span>{items.length} Oyuncu</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="bg-slate-100 text-[#02274c] text-xs">
+                  <tr>
+                    <th className="p-2.5">Ad Soyad</th>
+                    <th className="p-2.5">Doğum Tarihi</th>
+                    <th className="p-2.5">Mevki / Forma</th>
+                    {role === "admin" && <th className="p-2.5">ID / Şifre</th>}
+                    <th className="p-2.5">Telefon</th>
+                    {role === "admin" && <th className="p-2.5">İşlem</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((p) => {
+                    const warnings =
+                      role === "admin" ? getPlayerWarnings(p, duplicateKeys) : [];
+                    return (
+                      <tr
+                        key={p.id}
+                        className={`border-b ${
+                          warnings.length > 0 ? "bg-amber-50/70" : "hover:bg-slate-50"
+                        }`}
+                      >
+                        <td className="p-2.5 font-bold text-[#02274c]">
+                          {p.full_name}
+                          {p.is_representative && (
+                            <span className="ml-2 text-[11px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                              Temsilci
+                            </span>
+                          )}
+                          {warnings.map((w) => (
+                            <span
+                              key={w}
+                              className="inline-block ml-1 text-[11px] bg-red-100 text-red-700 px-2 py-0.5 rounded"
+                            >
+                              ⚠️ {w}
+                            </span>
+                          ))}
+                        </td>
+                        <td className="p-2.5 text-xs">{p.birth_date || "Eksik"}</td>
+                        <td className="p-2.5 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={p.position || "Orta Saha"}
+                              onChange={(e) =>
+                                updatePlayerPosition(p, e.target.value)
+                              }
+                              className="border border-slate-300 bg-white rounded-lg px-2 py-1 text-xs font-bold text-[#02274c]"
+                            >
+                              {POSITIONS.map((pos) => (
+                                <option key={pos} value={pos}>
+                                  {pos}
+                                </option>
+                              ))}
+                            </select>
+                            {p.jersey_number ? (
+                              <span className="font-bold text-slate-600">
+                                #{p.jersey_number}
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        {role === "admin" && (
+                          <td className="p-2.5 font-mono text-xs">
+                            {p.player_code} / {p.player_pin || "1234"}
+                          </td>
+                        )}
+                        <td className="p-2.5 text-xs">{p.parent_phone || "-"}</td>
+                        {role === "admin" && (
+                          <td className="p-2.5 flex gap-2">
+                            <button
+                              onClick={() => setEditingPlayer(p)}
+                              className="bg-[#02274c] text-white text-xs font-bold px-3 py-1 rounded-lg"
+                            >
+                              Düzenle
+                            </button>
+                            <button
+                              onClick={() => deletePlayer(p.id, p.full_name)}
+                              className="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-lg"
+                            >
+                              Sil
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

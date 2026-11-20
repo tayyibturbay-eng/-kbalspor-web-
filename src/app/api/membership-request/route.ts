@@ -1,44 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const FALLBACK_URL = "https://aimaeqouwsyftwtjdtoo.supabase.co";
-const FALLBACK_KEY = "sb_publishable_rV2Gq89vqhvDLCEpyUXwEg_3JaZteJU";
-
-function getSupabaseClient() {
-  const rawUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
-    .replace(/['"]/g, "")
-    .trim()
-    .replace(/\/rest\/v1\/?$/i, "")
-    .replace(/\/+$/, "");
-
-  const rawKey = (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    ""
-  )
-    .replace(/['"]/g, "")
-    .trim();
-
-  const supabaseUrl = rawUrl.startsWith("http") ? rawUrl : FALLBACK_URL;
-  const supabaseKey = rawKey.length > 20 ? rawKey : FALLBACK_KEY;
-
-  return createClient(supabaseUrl, supabaseKey);
-}
-
-function calcAgeGroup(birthDate: string | null): string {
-  if (!birthDate) return "U15";
-  const year = parseInt(birthDate.slice(0, 4), 10);
-  if (isNaN(year)) return "U15";
-  if (year < 2007) return "Çorum Süper Amatör Ligi";
-  if (year <= 2008) return "U19";
-  if (year === 2009) return "U17";
-  if (year === 2010) return "U16";
-  if (year === 2011) return "U15";
-  if (year === 2012) return "U14";
-  if (year === 2013) return "U13";
-  if (year === 2014) return "U12";
-  return "U11";
-}
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { calcAgeGroupFromBirthDate } from "@/lib/club-utils";
 
 function isUnder18(birthDate: string | null): boolean {
   if (!birthDate) return true;
@@ -51,6 +13,13 @@ function isUnder18(birthDate: string | null): boolean {
     age--;
   }
   return age < 18;
+}
+
+function normalizePhoneDigits(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("90") && digits.length === 12) return "0" + digits.slice(2);
+  if (digits.startsWith("5") && digits.length === 10) return "0" + digits;
+  return digits;
 }
 
 export async function POST(req: Request) {
@@ -66,9 +35,19 @@ export async function POST(req: Request) {
       consent_accepted,
     } = body;
 
-    if (!full_name?.trim() || !parent_phone?.trim()) {
+    const cleanName = (full_name || "").trim();
+    const cleanPhone = normalizePhoneDigits(parent_phone || "");
+
+    if (cleanName.length < 3 || !cleanPhone) {
       return NextResponse.json(
         { ok: false, error: "Ad Soyad ve Telefon alanları zorunludur." },
+        { status: 400 }
+      );
+    }
+
+    if (!/^05\d{9}$/.test(cleanPhone)) {
+      return NextResponse.json(
+        { ok: false, error: "Lütfen geçerli bir cep telefonu numarası girin (05XX XXX XX XX)." },
         { status: 400 }
       );
     }
@@ -87,14 +66,31 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = getSupabaseClient();
-    const ageGroup = calcAgeGroup(birth_date || null);
+    const supabase = createServerSupabaseClient();
+
+    // Aynı telefon ve isimle halihazırda onay bekleyen talep var mı kontrol et
+    const { data: existingPending } = await supabase
+      .from("membership_requests")
+      .select("id")
+      .eq("parent_phone", cleanPhone)
+      .ilike("full_name", cleanName)
+      .eq("status", "bekliyor")
+      .maybeSingle();
+
+    if (existingPending) {
+      return NextResponse.json(
+        { ok: false, error: "Bu sporcu için halihazırda onay bekleyen bir başvurunuz bulunuyor." },
+        { status: 409 }
+      );
+    }
+
+    const ageGroup = calcAgeGroupFromBirthDate(birth_date || "");
 
     const { error: insertErr } = await supabase.from("membership_requests").insert({
-      full_name: full_name.trim(),
+      full_name: cleanName,
       birth_date: birth_date || null,
       age_group: ageGroup,
-      parent_phone: parent_phone.trim(),
+      parent_phone: cleanPhone,
       position: null,
       notes: notes?.trim() || null,
       guardian_name: guardian_name?.trim() || null,
@@ -113,12 +109,20 @@ export async function POST(req: Request) {
         .from("admin_push_tokens")
         .select("expo_push_token");
 
-      if (tokens && tokens.length > 0) {
-        const messages = tokens.map((t) => ({
-          to: t.expo_push_token,
+      const validTokens = Array.from(
+        new Set(
+          (tokens || [])
+            .map((t) => t.expo_push_token)
+            .filter((tk): tk is string => Boolean(tk) && tk.startsWith("ExponentPushToken"))
+        )
+      );
+
+      if (validTokens.length > 0) {
+        const messages = validTokens.map((to) => ({
+          to,
           sound: "default",
           title: "Yeni Üyelik Talebi",
-          body: `${full_name.trim()} (${ageGroup}) kulübe üyelik talebi gönderdi.`,
+          body: `${cleanName} (${ageGroup}) kulübe üyelik talebi gönderdi.`,
         }));
 
         await fetch("https://exp.host/--/api/v2/push/send", {

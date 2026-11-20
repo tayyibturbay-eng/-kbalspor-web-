@@ -1,159 +1,51 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
-import { QRCodeSVG } from "qrcode.react";
+import {
+  Due,
+  EquipmentLog,
+  JerseySetMini,
+  Player,
+  PrayerAttendance,
+  PrayerSession,
+  StockItemMini,
+  TR_MONTHS,
+  TaskAssignment,
+  Training,
+} from "@/types/club";
+import {
+  PlayerLogin,
+  getOrCreateWebDeviceId,
+} from "@/components/sporcu/PlayerLogin";
+import { PlayerHeader, SporcuTab } from "@/components/sporcu/PlayerHeader";
+import { PlayerQrTab } from "@/components/sporcu/PlayerQrTab";
+import { PlayerProgramTab } from "@/components/sporcu/PlayerProgramTab";
+import { PlayerEquipmentTab } from "@/components/sporcu/PlayerEquipmentTab";
+import {
+  DueDisplayItem,
+  PlayerDuesTab,
+} from "@/components/sporcu/PlayerDuesTab";
+import { PlayerProfileTab } from "@/components/sporcu/PlayerProfileTab";
 
 const supabase = createClient();
-
-type Player = {
-  id: string;
-  full_name: string;
-  age_group: string;
-  birth_date: string | null;
-  position: string | null;
-  jersey_number: number | null;
-  parent_phone: string | null;
-  player_code: string | null;
-  player_pin: string | null;
-  pin_changed?: boolean;
-  is_representative?: boolean;
-  license_no?: string | null;
-  bound_device_id?: string | null;
-  photo_url?: string | null;
-};
-
-type Due = {
-  id: string;
-  player_id: string;
-  month_label: string;
-  amount: number;
-  status: string;
-  paid_at?: string | null;
-};
-
-type Training = {
-  id: string;
-  title: string;
-  training_type: "duzenli" | "ekstra";
-  age_groups: string[];
-  day_of_week: string | null;
-  training_date: string | null;
-  start_time: string;
-  end_time: string | null;
-  location: string | null;
-  coach_name?: string | null;
-  extra_player_ids: string[];
-  notes: string | null;
-};
-
-type TaskAssignment = {
-  id: string;
-  title: string;
-  task_type: string;
-  age_group: string;
-  event_date: string;
-  match_time?: string | null;
-  has_shuttle?: boolean | null;
-  squad_player_ids?: string[] | null;
-  location: string;
-  notes: string | null;
-};
-
-type PrayerSession = {
-  id: string;
-  title: string;
-  qr_token: string;
-  session_date: string;
-  is_active: boolean;
-};
-
-type PrayerAttendance = {
-  id: string;
-  session_id: string;
-  player_id: string;
-  checked_in_at: string;
-};
-
-type EquipmentLog = {
-  id: string;
-  player_id: string;
-  jersey_set_id: string | null;
-  item_name: string;
-  item_size: string | null;
-  jersey_number_given: number | null;
-  category: string | null;
-  given_date: string;
-  status: "teslim_edildi" | "iade_edildi" | "kayip_eksik";
-};
-
-type JerseySetMini = {
-  id: string;
-  set_name: string;
-  kit_type: string;
-  photo_url: string | null;
-};
-
-type StockItemMini = {
-  id: string;
-  product_name: string;
-  category: string;
-  photo_url: string | null;
-};
-
-function makeAvatarSvg(bg: string, accent: string, emoji: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${bg}"/><stop offset="100%" stop-color="${accent}"/></linearGradient></defs><rect width="120" height="120" rx="60" fill="url(#g)"/><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="3"/><text x="60" y="75" font-size="54" text-anchor="middle">${emoji}</text></svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-const PRESET_AVATARS = [
-  { id: "futbolcu", label: "Futbolcu", url: makeAvatarSvg("#02274c", "#a60513", "⚽") },
-  { id: "kaleci", label: "Kaleci", url: makeAvatarSvg("#0f766e", "#02274c", "🧤") },
-  { id: "yildiz", label: "Yıldız", url: makeAvatarSvg("#b45309", "#02274c", "⭐") },
-  { id: "kupa", label: "Şampiyon", url: makeAvatarSvg("#a60513", "#7f1d1d", "🏆") },
-  { id: "aslan", label: "Aslan", url: makeAvatarSvg("#1e3a8a", "#3b82f6", "🦁") },
-  { id: "kartal", label: "Atik", url: makeAvatarSvg("#334155", "#02274c", "⚡") },
-];
-
-const TR_MONTHS = [
-  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
-];
 
 function parseMonthIndex(label: string): number {
   const parts = label.trim().split(/\s+/);
   if (parts.length < 2) return 0;
-  const mIdx = TR_MONTHS.findIndex((m) => m.toLowerCase() === parts[0].toLowerCase());
+  const mIdx = TR_MONTHS.findIndex(
+    (m) => m.toLowerCase() === parts[0].toLowerCase()
+  );
   const yr = parseInt(parts[1], 10);
   if (mIdx === -1 || isNaN(yr)) return 0;
   return yr * 12 + mIdx;
 }
 
-function getOrCreateWebDeviceId(): string {
-  if (typeof window === "undefined") return "web-ssr";
-  const key = "ikbal_web_device_id";
-  let id = localStorage.getItem(key);
-  if (!id) {
-    const rand =
-      typeof crypto !== "undefined" && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-    id = `web-${rand}`;
-    localStorage.setItem(key, id);
-  }
-  return id;
-}
-
 export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
-  const [tab, setTab] = useState<"qr" | "program" | "malzemeler" | "aidat" | "profil">("qr");
+  const [tab, setTab] = useState<SporcuTab>("qr");
   const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
-
-  const [code, setCode] = useState("");
-  const [pin, setPin] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   const [dues, setDues] = useState<Due[]>([]);
   const [defaultFee, setDefaultFee] = useState<number>(500);
@@ -162,21 +54,9 @@ export default function SporcuPortalPage() {
   const [allSessions, setAllSessions] = useState<PrayerSession[]>([]);
   const [attendances, setAttendances] = useState<PrayerAttendance[]>([]);
   const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
-
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
   const [jerseySets, setJerseySets] = useState<JerseySetMini[]>([]);
   const [stockItems, setStockItems] = useState<StockItemMini[]>([]);
-  const [previewPhoto, setPreviewPhoto] = useState<{ url: string; title: string } | null>(null);
-
-  const [scanning, setScanning] = useState(false);
-  const [manualToken, setManualToken] = useState("");
-  const [qrStatus, setQrStatus] = useState<{ ok: boolean; text: string } | null>(null);
-  const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(null);
-
-  const [newPin, setNewPin] = useState("");
-  const [pinMsg, setPinMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [photoUploading, setPhotoUploading] = useState(false);
-  const [photoMsg, setPhotoMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     const now = new Date();
@@ -186,13 +66,14 @@ export default function SporcuPortalPage() {
     if (savedId) {
       restoreSession(savedId);
     }
-    return () => {
-      stopScanner();
-    };
   }, []);
 
   async function restoreSession(playerId: string) {
-    const { data } = await supabase.from("players").select("*").eq("id", playerId).maybeSingle();
+    const { data } = await supabase
+      .from("players")
+      .select("*")
+      .eq("id", playerId)
+      .maybeSingle();
     if (!data) {
       localStorage.removeItem("ikbal_logged_player_id");
       window.dispatchEvent(new Event("ikbal-auth-changed"));
@@ -209,73 +90,42 @@ export default function SporcuPortalPage() {
     await loadPlayerData(p);
   }
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setAuthError(null);
-    const cleanCode = code.trim().toUpperCase();
-    const cleanPin = pin.trim();
-    if (!cleanCode || !cleanPin) {
-      setAuthError("Lütfen sporcu kodu ve PIN bilgisini girin.");
-      return;
-    }
-
-    setAuthLoading(true);
-    const { data, error } = await supabase
-      .from("players")
-      .select("*")
-      .ilike("player_code", cleanCode)
-      .maybeSingle();
-
-    if (error || !data) {
-      setAuthError("Sporcu kodu bulunamadı.");
-      setAuthLoading(false);
-      return;
-    }
-
-    const p = data as Player;
-    if ((p.player_pin || "") !== cleanPin) {
-      setAuthError("PIN kodu hatalı.");
-      setAuthLoading(false);
-      return;
-    }
-
-    const deviceId = getOrCreateWebDeviceId();
-    if (p.bound_device_id && p.bound_device_id !== deviceId) {
-      setAuthError(
-        "Bu hesap başka bir cihaza veya mobil uygulamaya tanımlı. Bu tarayıcıdan giriş için yöneticiden 'Cihaz Kilidini Sıfırla' işlemini isteyin."
-      );
-      setAuthLoading(false);
-      return;
-    }
-
-    if (!p.bound_device_id) {
-      await supabase.from("players").update({ bound_device_id: deviceId }).eq("id", p.id);
-      p.bound_device_id = deviceId;
-    }
-
-    localStorage.setItem("ikbal_logged_player_id", p.id);
-    window.dispatchEvent(new Event("ikbal-auth-changed"));
-    setPlayer(p);
-    await loadPlayerData(p);
-    setAuthLoading(false);
-  }
-
   async function loadPlayerData(p: Player) {
+    // Temsilci değilse yalnızca kendi yoklamasını çekerek bant genişliğinden tasarruf et
+    const attendanceQuery = p.is_representative
+      ? supabase.from("prayer_attendance").select("*")
+      : supabase.from("prayer_attendance").select("*").eq("player_id", p.id);
+
     const [duesRes, trRes, taskRes, sessRes, attRes, feeRes, eqRes, jSetRes, stRes] =
       await Promise.all([
         supabase.from("dues").select("*").eq("player_id", p.id),
-        supabase.from("trainings").select("*").order("start_time", { ascending: true }),
-        supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
-        supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
-        supabase.from("prayer_attendance").select("*"),
-        supabase.from("club_settings").select("*").eq("key", "monthly_fee").maybeSingle(),
+        supabase
+          .from("trainings")
+          .select("*")
+          .order("start_time", { ascending: true }),
+        supabase
+          .from("tasks_assignments")
+          .select("*")
+          .order("event_date", { ascending: true }),
+        supabase
+          .from("prayer_sessions")
+          .select("*")
+          .order("session_date", { ascending: false }),
+        attendanceQuery,
+        supabase
+          .from("club_settings")
+          .select("*")
+          .eq("key", "monthly_fee")
+          .maybeSingle(),
         supabase
           .from("equipment_logs")
           .select("*")
           .eq("player_id", p.id)
           .order("created_at", { ascending: false }),
         supabase.from("jersey_sets").select("id, set_name, kit_type, photo_url"),
-        supabase.from("equipment_stock").select("id, product_name, category, photo_url"),
+        supabase
+          .from("equipment_stock")
+          .select("id, product_name, category, photo_url"),
       ]);
 
     if (duesRes.data) setDues(duesRes.data as Due[]);
@@ -308,17 +158,13 @@ export default function SporcuPortalPage() {
       const { data: allP } = await supabase
         .from("players")
         .select("*")
+        .eq("age_group", p.age_group)
         .order("full_name", { ascending: true });
       if (allP) setTeamPlayers(allP as Player[]);
     }
   }
 
-  const activeSessions = useMemo(
-    () => allSessions.filter((s) => s.is_active),
-    [allSessions]
-  );
-
-  const dueItems = useMemo(() => {
+  const dueItems: DueDisplayItem[] = useMemo(() => {
     const kasim2026Idx = 2026 * 12 + 10;
     const effectiveStartIdx = Math.min(kasim2026Idx, currentIdx);
 
@@ -335,13 +181,16 @@ export default function SporcuPortalPage() {
       .map((monthLabel) => {
         const record = dues.find((d) => d.month_label === monthLabel);
         const paid = Boolean(
-          record && (record.status === "odendi" || record.status === "Ödendi" || record.status === "paid")
+          record &&
+            (record.status === "odendi" ||
+              record.status === "Ödendi" ||
+              record.status === "paid")
         );
         const mIdx = parseMonthIndex(monthLabel);
         const isPast = mIdx > 0 && mIdx < currentIdx;
         const isCurrent = mIdx === currentIdx;
 
-        let state: "paid" | "overdue" | "unpaid" | "upcoming" = "unpaid";
+        let state: DueDisplayItem["state"] = "unpaid";
         if (paid) state = "paid";
         else if (isPast) state = "overdue";
         else if (isCurrent) state = "unpaid";
@@ -357,246 +206,32 @@ export default function SporcuPortalPage() {
 
   const overdueCount = dueItems.filter((x) => x.state === "overdue").length;
   const currentUnpaid = dueItems.some((x) => x.state === "unpaid");
-  const currentMonthItem = dueItems.find((x) => x.state === "unpaid" || x.state === "paid") || dueItems[0];
+  const currentMonthItem =
+    dueItems.find((x) => x.state === "unpaid" || x.state === "paid") ||
+    dueItems[0];
 
-  const activeEquipmentCount = equipmentLogs.filter((e) => e.status === "teslim_edildi").length;
-  const missingEquipmentCount = equipmentLogs.filter((e) => e.status === "kayip_eksik").length;
+  const activeEquipmentCount = equipmentLogs.filter(
+    (e) => e.status === "teslim_edildi"
+  ).length;
 
-  function resolveEquipmentPhoto(log: EquipmentLog): string | null {
-    if (log.jersey_set_id) {
-      const foundSet = jerseySets.find((j) => j.id === log.jersey_set_id);
-      if (foundSet?.photo_url) return foundSet.photo_url;
-    }
-    const foundStock = stockItems.find(
-      (s) => s.product_name.toLowerCase() === log.item_name.toLowerCase()
-    );
-    if (foundStock?.photo_url) return foundStock.photo_url;
-    return null;
-  }
+  const playerAttendedCount = player
+    ? allSessions.filter((s) =>
+        attendances.some(
+          (a) => a.session_id === s.id && a.player_id === player.id
+        )
+      ).length
+    : 0;
+
+  const attendanceRate =
+    allSessions.length > 0
+      ? Math.round((playerAttendedCount / allSessions.length) * 100)
+      : 0;
 
   function handleLogout() {
-    stopScanner();
     localStorage.removeItem("ikbal_logged_player_id");
     window.dispatchEvent(new Event("ikbal-auth-changed"));
     setPlayer(null);
-    setCode("");
-    setPin("");
-    setQrStatus(null);
   }
-
-  async function savePlayerPhoto(url: string | null, successText: string) {
-    if (!player) return;
-    setPhotoMsg(null);
-    const { error } = await supabase
-      .from("players")
-      .update({ photo_url: url })
-      .eq("id", player.id);
-
-    if (error) {
-      setPhotoMsg({ ok: false, text: "Fotoğraf kaydedilemedi: " + error.message });
-      return;
-    }
-    setPlayer({ ...player, photo_url: url });
-    window.dispatchEvent(new Event("ikbal-auth-changed"));
-    setPhotoMsg({ ok: true, text: successText });
-  }
-
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !player) return;
-    if (file.size > 4 * 1024 * 1024) {
-      setPhotoMsg({ ok: false, text: "Fotoğraf boyutu en fazla 4 MB olabilir." });
-      return;
-    }
-
-    setPhotoUploading(true);
-    setPhotoMsg(null);
-    const ext = file.name.split(".").pop() || "jpg";
-    const filePath = `player-avatars/${player.id}-${Date.now()}.${ext}`;
-
-    const { error: uploadErr } = await supabase.storage
-      .from("jersey-photos")
-      .upload(filePath, file, { upsert: true });
-
-    if (uploadErr) {
-      setPhotoMsg({ ok: false, text: "Yükleme hatası: " + uploadErr.message });
-      setPhotoUploading(false);
-      return;
-    }
-
-    const { data: pub } = supabase.storage.from("jersey-photos").getPublicUrl(filePath);
-    await savePlayerPhoto(pub.publicUrl, "Profil fotoğrafınız güncellendi.");
-    setPhotoUploading(false);
-  }
-
-  async function startScanner() {
-    setQrStatus(null);
-    setScanning(true);
-    setTimeout(async () => {
-      try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        const qr = new Html5Qrcode("qr-reader");
-        scannerRef.current = qr;
-        await qr.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 240, height: 240 } },
-          async (decodedText) => {
-            await stopScanner();
-            await submitQrCheckIn(decodedText);
-          },
-          () => {}
-        );
-      } catch {
-        setScanning(false);
-        setQrStatus({
-          ok: false,
-          text: "Kamera açılamadı. Tarayıcı kamera iznini onaylayın veya aşağıdaki alana QR kod metnini yazın.",
-        });
-      }
-    }, 100);
-  }
-
-  async function stopScanner() {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch {
-        // yoksay
-      }
-      scannerRef.current = null;
-    }
-    setScanning(false);
-  }
-
-  async function submitQrCheckIn(rawToken: string) {
-    if (!player) return;
-    const token = rawToken.trim();
-    if (!token) {
-      setQrStatus({ ok: false, text: "Geçersiz QR kod." });
-      return;
-    }
-
-    const { data: sess } = await supabase
-      .from("prayer_sessions")
-      .select("*")
-      .eq("qr_token", token)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!sess) {
-      setQrStatus({ ok: false, text: "Bu QR oturumu aktif değil veya bulunamadı." });
-      return;
-    }
-
-    const already = attendances.some((a) => a.session_id === sess.id && a.player_id === player.id);
-    if (already) {
-      setQrStatus({ ok: true, text: `"${sess.title}" için yoklamanız zaten kayıtlı.` });
-      return;
-    }
-
-    const { data: inserted, error } = await supabase
-      .from("prayer_attendance")
-      .insert([{ session_id: sess.id, player_id: player.id }])
-      .select()
-      .single();
-
-    if (error) {
-      setQrStatus({ ok: false, text: "Yoklama kaydedilemedi: " + error.message });
-      return;
-    }
-
-    if (inserted) {
-      setAttendances((prev) => [...prev, inserted as PrayerAttendance]);
-    }
-    setManualToken("");
-    setQrStatus({ ok: true, text: `Harika! "${sess.title}" yoklamanız başarıyla alındı.` });
-  }
-
-  async function markTeammatePresent(sessionId: string, targetPlayerId: string) {
-    const exists = attendances.some((a) => a.session_id === sessionId && a.player_id === targetPlayerId);
-    if (exists) return;
-
-    const { data: inserted } = await supabase
-      .from("prayer_attendance")
-      .insert([{ session_id: sessionId, player_id: targetPlayerId }])
-      .select()
-      .single();
-
-    if (inserted) {
-      setAttendances((prev) => [...prev, inserted as PrayerAttendance]);
-    }
-  }
-
-  async function handlePinChange(e: React.FormEvent) {
-    e.preventDefault();
-    if (!player) return;
-    const cleaned = newPin.trim();
-    if (cleaned.length < 4) {
-      setPinMsg({ ok: false, text: "Yeni PIN en az 4 karakter olmalıdır." });
-      return;
-    }
-    const { error } = await supabase
-      .from("players")
-      .update({ player_pin: cleaned, pin_changed: true })
-      .eq("id", player.id);
-
-    if (error) {
-      setPinMsg({ ok: false, text: "PIN güncellenemedi: " + error.message });
-      return;
-    }
-    setPlayer({ ...player, player_pin: cleaned, pin_changed: true });
-    setNewPin("");
-    setPinMsg({ ok: true, text: "PIN kodunuz başarıyla güncellendi." });
-  }
-
-  const playerAttendedCount = player
-    ? allSessions.filter((s) => attendances.some((a) => a.session_id === s.id && a.player_id === player.id)).length
-    : 0;
-  const attendanceRate =
-    allSessions.length > 0 ? Math.round((playerAttendedCount / allSessions.length) * 100) : 0;
-
-  const attendanceBadge =
-    allSessions.length === 0
-      ? null
-      : attendanceRate >= 85
-      ? { label: `🏆 Altın Devamlılık (%${attendanceRate})`, cls: "bg-amber-400 text-slate-950" }
-      : attendanceRate >= 65
-      ? { label: `⭐ İstikrarlı Sporcu (%${attendanceRate})`, cls: "bg-emerald-500 text-white" }
-      : attendanceRate >= 40
-      ? { label: `💪 Gelişen Sporcu (%${attendanceRate})`, cls: "bg-sky-400 text-slate-950" }
-      : { label: `📅 Katılım: %${attendanceRate}`, cls: "bg-white/20 text-white" };
-
-  const tabs: Array<{
-    key: typeof tab;
-    icon: string;
-    label: string;
-    badge?: string;
-    badgeCls?: string;
-  }> = [
-    { key: "qr", icon: "📷", label: "QR Yoklama" },
-    { key: "program", icon: "📅", label: "Program & Maçlar" },
-    {
-      key: "malzemeler",
-      icon: "👕",
-      label: "Malzemelerim",
-      badge: activeEquipmentCount > 0 ? String(activeEquipmentCount) : undefined,
-      badgeCls: tab === "malzemeler" ? "bg-white text-[#02274c]" : "bg-[#02274c] text-white",
-    },
-    {
-      key: "aidat",
-      icon: "💳",
-      label: "Aidatlarım",
-      badge: overdueCount > 0 ? `⚠️ ${overdueCount}` : currentUnpaid ? "!" : undefined,
-      badgeCls:
-        overdueCount > 0
-          ? "bg-red-600 text-white"
-          : tab === "aidat"
-          ? "bg-white text-[#a60513]"
-          : "bg-amber-400 text-slate-950",
-    },
-    { key: "profil", icon: "👤", label: "Profil & PIN" },
-  ];
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
@@ -604,733 +239,67 @@ export default function SporcuPortalPage() {
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
         {!player ? (
-          <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
-            <div className="text-center mb-6">
-              <span className="inline-block px-3 py-1 rounded-full bg-[#02274c]/10 text-[#02274c] text-xs font-extrabold uppercase tracking-wider mb-2">
-                Sporcu Portalı
-              </span>
-              <h1 className="text-2xl font-black text-[#02274c]">Sporcu Girişi</h1>
-              <p className="text-sm text-slate-500 mt-1">
-                Uygulama indirmeden tarayıcıdan QR yoklama verin, malzemelerinizi, aidat ve programınızı görün.
-              </p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">Sporcu Kodu</label>
-                <input
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="Örn: IKB-101"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">PIN Kodu</label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
-                  placeholder="••••"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
-                />
-              </div>
-
-              {authError && (
-                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold">
-                  {authError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={authLoading}
-                className="w-full py-3.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white font-extrabold transition cursor-pointer disabled:opacity-60"
-              >
-                {authLoading ? "Giriş Yapılıyor..." : "Giriş Yap"}
-              </button>
-            </form>
-          </div>
+          <PlayerLogin
+            onLoginSuccess={async (loggedPlayer) => {
+              setPlayer(loggedPlayer);
+              await loadPlayerData(loggedPlayer);
+            }}
+          />
         ) : (
           <div className="space-y-6">
-            {/* Üst Bilgi Kartı */}
-            <div className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white rounded-3xl p-6 sm:p-7 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg">
-              <div className="flex items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => setTab("profil")}
-                  title="Fotoğraf veya Avatar Değiştir"
-                  className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/15 border-2 border-white/30 overflow-hidden flex items-center justify-center shadow-md hover:scale-105 transition cursor-pointer"
-                >
-                  {player.photo_url ? (
-                    <img
-                      src={player.photo_url}
-                      alt={player.full_name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="text-2xl sm:text-3xl font-black">
-                      {player.full_name.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </button>
+            <PlayerHeader
+              player={player}
+              tab={tab}
+              onTabChange={setTab}
+              onLogout={handleLogout}
+              totalSessionsCount={allSessions.length}
+              attendanceRate={attendanceRate}
+              activeEquipmentCount={activeEquipmentCount}
+              overdueCount={overdueCount}
+              currentUnpaid={currentUnpaid}
+            />
 
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs border border-white/20 text-xs font-extrabold">
-                      {player.age_group}
-                    </span>
-                    {player.is_representative && (
-                      <span className="px-3 py-1 rounded-full bg-[#a60513] border border-white/25 text-xs font-extrabold">
-                        Takım Temsilcisi
-                      </span>
-                    )}
-                    {attendanceBadge && (
-                      <span className={`px-3 py-1 rounded-full text-xs font-extrabold shadow-xs ${attendanceBadge.cls}`}>
-                        {attendanceBadge.label}
-                      </span>
-                    )}
-                  </div>
-                  <h1 className="text-2xl sm:text-3xl font-black tracking-tight">{player.full_name}</h1>
-                  <p className="text-xs sm:text-sm text-slate-200">
-                    Kod: <strong className="text-white">{player.player_code}</strong> • Mevki:{" "}
-                    <strong className="text-white">{player.position || "Belirlenmedi"}</strong> • Forma:{" "}
-                    <strong className="text-white">{player.jersey_number ? `#${player.jersey_number}` : "-"}</strong>
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-xs font-extrabold cursor-pointer transition backdrop-blur-xs"
-              >
-                Çıkış Yap
-              </button>
-            </div>
-
-            {/* Şık & Modern Sekme Çubuğu */}
-            <div className="bg-white/90 backdrop-blur-md p-2 rounded-3xl border border-slate-200/90 shadow-sm">
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {tabs.map((item) => {
-                  const active = tab === item.key;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => {
-                        if (item.key !== "qr") stopScanner();
-                        setTab(item.key);
-                      }}
-                      className={`group relative flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
-                        active
-                          ? "bg-gradient-to-r from-[#02274c] to-[#a60513] text-white shadow-md scale-[1.01]"
-                          : "bg-slate-50/80 text-slate-700 hover:bg-slate-100 hover:text-[#02274c]"
-                      }`}
-                    >
-                      <span className="text-base leading-none">{item.icon}</span>
-                      <span className="truncate">{item.label}</span>
-                      {item.badge && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black leading-none ${
-                            item.badgeCls || "bg-slate-200 text-slate-800"
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* QR YOKLAMA SEKMESİ */}
             {tab === "qr" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
-                  <h2 className="text-lg font-black text-[#02274c]">Tarayıcıdan QR Yoklama Okut</h2>
-                  <p className="text-sm text-slate-600">
-                    Kamerayı açıp hocanızın veya temsilcinin gösterdiği QR kodu okutun.
-                  </p>
-
-                  {!scanning ? (
-                    <button
-                      onClick={startScanner}
-                      className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white font-extrabold cursor-pointer transition shadow-sm"
-                    >
-                      📷 Kamerayı Aç ve QR Okut
-                    </button>
-                  ) : (
-                    <div className="space-y-3">
-                      <div
-                        id="qr-reader"
-                        className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-slate-300"
-                      />
-                      <button
-                        onClick={stopScanner}
-                        className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-bold cursor-pointer"
-                      >
-                        Kamerayı Kapat
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="pt-4 border-t border-slate-100">
-                    <label className="block text-xs font-bold text-slate-500 mb-1.5">
-                      Kamera açılmazsa QR kod metnini buraya yazabilirsiniz:
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={manualToken}
-                        onChange={(e) => setManualToken(e.target.value)}
-                        placeholder="QR kod metni..."
-                        className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400"
-                      />
-                      <button
-                        onClick={() => submitQrCheckIn(manualToken)}
-                        className="px-4 py-2.5 rounded-xl bg-[#a60513] text-white text-sm font-extrabold cursor-pointer"
-                      >
-                        Onayla
-                      </button>
-                    </div>
-                  </div>
-
-                  {qrStatus && (
-                    <div
-                      className={`p-3.5 rounded-xl text-sm font-bold border ${
-                        qrStatus.ok
-                          ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                          : "bg-red-50 border-red-200 text-red-700"
-                      }`}
-                    >
-                      {qrStatus.text}
-                    </div>
-                  )}
-                </div>
-
-                {/* Geçmiş Etkinlik Katılım Geçmişim */}
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-lg font-black text-[#02274c]">Geçmiş Etkinlik Katılım Durumum</h3>
-                    <span className="px-3 py-1 rounded-full bg-slate-100 text-xs font-extrabold text-[#02274c]">
-                      Katılım: {playerAttendedCount} / {allSessions.length} Etkinlik
-                    </span>
-                  </div>
-
-                  {allSessions.length === 0 ? (
-                    <p className="text-sm text-slate-500">Henüz kayıtlı etkinlik bulunmuyor.</p>
-                  ) : (
-                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                      {allSessions.map((sess) => {
-                        const attended = attendances.some(
-                          (a) => a.session_id === sess.id && a.player_id === player.id
-                        );
-                        return (
-                          <div
-                            key={sess.id}
-                            className={`flex items-center justify-between p-3.5 rounded-2xl border ${
-                              attended
-                                ? "bg-emerald-50 border-emerald-200"
-                                : "bg-red-50/50 border-red-200"
-                            }`}
-                          >
-                            <div>
-                              <div className="font-extrabold text-sm text-slate-900">{sess.title}</div>
-                              <div className="text-xs text-slate-500">
-                                Tarih: {sess.session_date} {sess.is_active ? "• (Aktif)" : ""}
-                              </div>
-                            </div>
-                            <span
-                              className={`px-3 py-1 rounded-full text-xs font-extrabold ${
-                                attended
-                                  ? "bg-emerald-600 text-white"
-                                  : "bg-red-100 text-red-700"
-                              }`}
-                            >
-                              {attended ? "✓ Katıldı" : "✗ Katılmadı"}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {player.is_representative && (
-                  <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
-                    <h3 className="text-lg font-black text-[#a60513]">Temsilci Yoklama Paneli</h3>
-                    {activeSessions.length === 0 ? (
-                      <p className="text-sm text-slate-500">Şu anda aktif bir QR oturumu bulunmuyor.</p>
-                    ) : (
-                      activeSessions.map((sess) => {
-                        const sessAtt = attendances.filter((a) => a.session_id === sess.id);
-                        return (
-                          <div
-                            key={sess.id}
-                            className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-4"
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                              <div>
-                                <div className="font-extrabold text-[#02274c]">{sess.title}</div>
-                                <div className="text-xs text-slate-500">
-                                  Tarih: {sess.session_date} • Gelen: {sessAtt.length} kişi
-                                </div>
-                              </div>
-                              <div className="bg-white p-3 rounded-2xl border border-slate-200 self-start">
-                                <QRCodeSVG value={sess.qr_token} size={140} />
-                              </div>
-                            </div>
-
-                            <div>
-                              <div className="text-xs font-extrabold text-slate-600 mb-2">
-                                Manuel Geldi İşaretle ({player.age_group}):
-                              </div>
-                              <div className="grid sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
-                                {teamPlayers
-                                  .filter((tp) => tp.age_group === player.age_group)
-                                  .map((tp) => {
-                                    const ok = sessAtt.some((a) => a.player_id === tp.id);
-                                    return (
-                                      <div
-                                        key={tp.id}
-                                        className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200 text-xs"
-                                      >
-                                        <span className="font-bold text-slate-800">{tp.full_name}</span>
-                                        {ok ? (
-                                          <span className="text-emerald-600 font-extrabold">Geldi ✓</span>
-                                        ) : (
-                                          <button
-                                            onClick={() => markTeammatePresent(sess.id, tp.id)}
-                                            className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white font-bold cursor-pointer"
-                                          >
-                                            Geldi İşaretle
-                                          </button>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
+              <PlayerQrTab
+                player={player}
+                allSessions={allSessions}
+                attendances={attendances}
+                setAttendances={setAttendances}
+                teamPlayers={teamPlayers}
+                playerAttendedCount={playerAttendedCount}
+              />
             )}
 
-            {/* PROGRAM & MAÇLAR SEKMESİ */}
             {tab === "program" && (
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3 shadow-xs">
-                  <h2 className="text-lg font-black text-[#02274c]">Antrenman Programım</h2>
-                  {trainings.length === 0 ? (
-                    <p className="text-sm text-slate-500">Kayıtlı antrenman bulunamadı.</p>
-                  ) : (
-                    trainings.map((t) => (
-                      <div key={t.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                        <div className="font-extrabold text-slate-900">{t.title}</div>
-                        <div className="text-xs text-slate-600">
-                          {t.training_type === "duzenli" ? t.day_of_week : t.training_date} • {t.start_time}
-                          {t.end_time ? ` - ${t.end_time}` : ""}
-                        </div>
-                        {t.coach_name && (
-                          <div className="text-xs font-bold text-[#02274c]">Antrenör: {t.coach_name}</div>
-                        )}
-                        {t.location && <div className="text-xs text-slate-500">Saha: {t.location}</div>}
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3 shadow-xs">
-                  <h2 className="text-lg font-black text-[#a60513]">Maç & Görev Takvimi</h2>
-                  {tasks.length === 0 ? (
-                    <p className="text-sm text-slate-500">Yaklaşan maç veya görev yok.</p>
-                  ) : (
-                    tasks.map((task) => (
-                      <div key={task.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
-                        <div className="font-extrabold text-slate-900">{task.title}</div>
-                        <div className="text-xs text-slate-600">
-                          {task.event_date} {task.match_time ? `• ${task.match_time}` : ""}
-                        </div>
-                        <div className="text-xs text-slate-500">Yer: {task.location}</div>
-                        {task.has_shuttle && (
-                          <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
-                            Servis Var
-                          </span>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+              <PlayerProgramTab trainings={trainings} tasks={tasks} />
             )}
 
-            {/* MALZEMELERİM SEKMESİ */}
             {tab === "malzemeler" && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="text-lg font-black text-[#02274c]">Malzemelerim & Zimmet Kayıtları</h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Kulüp tarafından size teslim edilen forma ve ekipmanları görselleriyle takip edebilirsiniz.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 rounded-full bg-[#02274c]/10 text-[#02274c] text-xs font-extrabold">
-                        Üzerimde: {activeEquipmentCount}
-                      </span>
-                      {missingEquipmentCount > 0 && (
-                        <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-extrabold">
-                          Eksik/Kayıp: {missingEquipmentCount}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {equipmentLogs.length === 0 ? (
-                    <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-300 p-8 text-center space-y-1">
-                      <div className="text-3xl">👕</div>
-                      <p className="font-extrabold text-sm text-[#02274c]">
-                        Henüz adınıza kayıtlı forma veya malzeme yok.
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Yönetici tarafından size malzeme teslim edildiğinde burada görseliyle birlikte görünecektir.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {equipmentLogs.map((eq) => {
-                        const photoUrl = resolveEquipmentPhoto(eq);
-                        const isDelivered = eq.status === "teslim_edildi";
-                        const isMissing = eq.status === "kayip_eksik";
-                        return (
-                          <div
-                            key={eq.id}
-                            className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col transition hover:shadow-md ${
-                              isMissing
-                                ? "bg-red-50/40 border-red-200"
-                                : isDelivered
-                                ? "bg-white border-slate-200"
-                                : "bg-slate-50 border-slate-200 opacity-85"
-                            }`}
-                          >
-                            {photoUrl ? (
-                              <button
-                                type="button"
-                                onClick={() => setPreviewPhoto({ url: photoUrl, title: eq.item_name })}
-                                className="relative group w-full h-44 bg-slate-100 overflow-hidden cursor-pointer"
-                                title="Büyütmek için tıklayın"
-                              >
-                                <img
-                                  src={photoUrl}
-                                  alt={eq.item_name}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                />
-                                <span className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/60 text-white text-[10px] font-bold backdrop-blur-xs">
-                                  🔍 Büyüt
-                                </span>
-                              </button>
-                            ) : (
-                              <div className="w-full h-32 bg-gradient-to-br from-[#02274c] to-[#04376b] flex flex-col items-center justify-center text-white/90">
-                                <span className="text-3xl mb-1">
-                                  {eq.category === "Forma" ? "👕" : "🎒"}
-                                </span>
-                                <span className="text-[11px] font-bold uppercase tracking-wider">
-                                  {eq.category || "Kulüp Malzemesi"}
-                                </span>
-                              </div>
-                            )}
-
-                            <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
-                              <div className="space-y-1">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[#02274c] text-[10px] font-extrabold uppercase">
-                                    {eq.category || "Ekipman"}
-                                  </span>
-                                  {isDelivered && (
-                                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold">
-                                      ✓ Üzerimde
-                                    </span>
-                                  )}
-                                  {eq.status === "iade_edildi" && (
-                                    <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-extrabold">
-                                      İade Edildi
-                                    </span>
-                                  )}
-                                  {isMissing && (
-                                    <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-extrabold">
-                                      ⚠️ Kayıp / Eksik
-                                    </span>
-                                  )}
-                                </div>
-
-                                <h3 className="font-extrabold text-sm text-[#02274c] leading-snug pt-0.5">
-                                  {eq.item_name}
-                                </h3>
-                              </div>
-
-                              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
-                                <div className="flex items-center gap-2">
-                                  {eq.item_size && (
-                                    <span className="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-800">
-                                      Beden: {eq.item_size}
-                                    </span>
-                                  )}
-                                  {eq.jersey_number_given !== null && (
-                                    <span className="px-2 py-0.5 rounded bg-[#a60513]/10 font-extrabold text-[#a60513]">
-                                      #{eq.jersey_number_given}
-                                    </span>
-                                  )}
-                                </div>
-                                <span className="text-[11px] text-slate-400">{eq.given_date}</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
+              <PlayerEquipmentTab
+                equipmentLogs={equipmentLogs}
+                jerseySets={jerseySets}
+                stockItems={stockItems}
+              />
             )}
 
-            {/* AİDATLARIM SEKMESİ */}
             {tab === "aidat" && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
-                <h2 className="text-lg font-black text-[#02274c]">Aidat Durumum</h2>
-
-                {overdueCount > 0 && (
-                  <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-extrabold">
-                    ⚠️ Geçmiş dönemden gecikmiş {overdueCount} adet aidat ödemeniz bulunmaktadır. Lütfen yöneticinizle iletişime geçin.
-                  </div>
-                )}
-
-                <div className="space-y-2.5">
-                  {dueItems.map((item) => (
-                    <div
-                      key={item.monthLabel}
-                      className={`flex items-center justify-between p-4 rounded-2xl border ${
-                        item.state === "overdue"
-                          ? "bg-red-50 border-red-200"
-                          : item.state === "unpaid"
-                          ? "bg-amber-50 border-amber-200"
-                          : "bg-slate-50 border-slate-200"
-                      }`}
-                    >
-                      <div>
-                        <div className="font-extrabold text-slate-900">{item.monthLabel}</div>
-                        <div className="text-xs text-slate-600">
-                          {item.amount} TL
-                          {item.state === "overdue" && " • Ödeme süresi geçti"}
-                          {item.state === "unpaid" && " • Güncel dönem ödemesi"}
-                        </div>
-                      </div>
-
-                      {item.state === "paid" && (
-                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800">
-                          ✓ Ödendi
-                        </span>
-                      )}
-                      {item.state === "unpaid" && (
-                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-200 text-amber-950">
-                          Ödenmedi
-                        </span>
-                      )}
-                      {item.state === "overdue" && (
-                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-red-600 text-white">
-                          ⚠️ Gecikti
-                        </span>
-                      )}
-                      {item.state === "upcoming" && (
-                        <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-200 text-slate-700">
-                          Bekleniyor
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <PlayerDuesTab
+                dueItems={dueItems}
+                overdueCount={overdueCount}
+              />
             )}
 
-            {/* PROFİL & PIN SEKMESİ */}
             {tab === "profil" && (
-              <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-6 shadow-xs">
-                <h2 className="text-lg font-black text-[#02274c]">Bilgilerim, Profil Fotoğrafı & PIN</h2>
-
-                {/* Profil Fotoğrafı & Hazır Avatar Seçimi */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-20 h-20 rounded-2xl bg-[#02274c] text-white overflow-hidden flex items-center justify-center border-2 border-white shadow-md shrink-0">
-                        {player.photo_url ? (
-                          <img
-                            src={player.photo_url}
-                            alt={player.full_name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-3xl font-black">
-                            {player.full_name.charAt(0).toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="font-extrabold text-sm text-[#02274c]">Profil Fotoğrafı veya Avatar</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          Kendi fotoğrafınızı yükleyebilir veya aşağıdaki hazır avatarlardan birini seçebilirsiniz.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label className="px-4 py-2.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold cursor-pointer transition">
-                        {photoUploading ? "Yükleniyor..." : "📷 Fotoğraf Yükle"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handlePhotoUpload}
-                          disabled={photoUploading}
-                          className="hidden"
-                        />
-                      </label>
-                      {player.photo_url && (
-                        <button
-                          type="button"
-                          onClick={() => savePlayerPhoto(null, "Profil fotoğrafı kaldırıldı.")}
-                          className="px-3.5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
-                        >
-                          Kaldır
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs font-bold text-slate-600 mb-2">
-                      Hazır Avatarlar (Tek tıkla seçin):
-                    </p>
-                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
-                      {PRESET_AVATARS.map((av) => {
-                        const selected = player.photo_url === av.url;
-                        return (
-                          <button
-                            key={av.id}
-                            type="button"
-                            onClick={() => savePlayerPhoto(av.url, `${av.label} avatarı seçildi.`)}
-                            className={`flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition cursor-pointer ${
-                              selected
-                                ? "bg-white border-[#a60513] ring-2 ring-[#a60513]/30 shadow-xs"
-                                : "bg-white border-slate-200 hover:border-[#02274c]"
-                            }`}
-                          >
-                            <img src={av.url} alt={av.label} className="w-12 h-12 rounded-full" />
-                            <span className="text-[11px] font-extrabold text-slate-700">{av.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {photoMsg && (
-                    <div
-                      className={`text-xs font-bold ${
-                        photoMsg.ok ? "text-emerald-700" : "text-red-600"
-                      }`}
-                    >
-                      {photoMsg.text}
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid sm:grid-cols-3 gap-3 text-sm">
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                    <span className="text-xs text-slate-500 block">Ad Soyad</span>
-                    <span className="font-bold">{player.full_name}</span>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                    <span className="text-xs text-slate-500 block">Lisans No</span>
-                    <span className="font-bold">{player.license_no || "Belirtilmemiş"}</span>
-                  </div>
-                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-                    <span className="text-xs text-slate-500 block">Aidat Özeti</span>
-                    {overdueCount > 0 ? (
-                      <span className="font-extrabold text-red-600">⚠️ Gecikti ({overdueCount} ay)</span>
-                    ) : currentMonthItem?.state === "paid" ? (
-                      <span className="font-extrabold text-emerald-700">✓ {currentMonthItem.monthLabel}: Ödendi</span>
-                    ) : (
-                      <span className="font-extrabold text-amber-700">{currentMonthItem?.monthLabel}: Ödenmedi</span>
-                    )}
-                  </div>
-                </div>
-
-                <form onSubmit={handlePinChange} className="space-y-3 max-w-sm">
-                  <label className="block text-xs font-bold text-slate-600">
-                    Yeni PIN Belirle (En az 4 hane)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      inputMode="numeric"
-                      value={newPin}
-                      onChange={(e) => setNewPin(e.target.value)}
-                      placeholder="Yeni PIN..."
-                      className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400"
-                    />
-                    <button
-                      type="submit"
-                      className="px-4 py-2.5 rounded-xl bg-[#02274c] text-white text-sm font-extrabold cursor-pointer"
-                    >
-                      Güncelle
-                    </button>
-                  </div>
-                  {pinMsg && (
-                    <div className={`text-xs font-bold ${pinMsg.ok ? "text-emerald-700" : "text-red-600"}`}>
-                      {pinMsg.text}
-                    </div>
-                  )}
-                </form>
-              </div>
+              <PlayerProfileTab
+                player={player}
+                setPlayer={setPlayer}
+                overdueCount={overdueCount}
+                currentMonthItem={currentMonthItem}
+              />
             )}
           </div>
         )}
       </main>
-
-      {/* Malzeme Görseli Tam Boy Önizleme Modalı */}
-      {previewPhoto && (
-        <div
-          onClick={() => setPreviewPhoto(null)}
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200"
-          >
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-              <h3 className="font-extrabold text-sm text-[#02274c]">{previewPhoto.title}</h3>
-              <button
-                type="button"
-                onClick={() => setPreviewPhoto(null)}
-                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
-              >
-                Kapat ✕
-              </button>
-            </div>
-            <div className="bg-slate-100 p-2 flex items-center justify-center">
-              <img
-                src={previewPhoto.url}
-                alt={previewPhoto.title}
-                className="max-h-[75vh] w-auto object-contain rounded-2xl"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

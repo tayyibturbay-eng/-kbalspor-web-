@@ -4,39 +4,18 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
+import {
+  AGE_GROUPS,
+  DAYS_OF_WEEK,
+  TaskAssignment,
+  Training,
+} from "@/types/club";
 
 const supabase = createClient();
 
-type Training = {
-  id: string;
-  title: string;
-  training_type: "duzenli" | "ekstra";
-  age_groups: string[];
-  day_of_week: string | null;
-  training_date: string | null;
-  start_time: string;
-  end_time: string | null;
-  location: string | null;
-  coach_name?: string | null;
-  notes: string | null;
-};
-
-type TaskItem = {
-  id: string;
-  title: string;
-  task_type: string;
-  age_group: string;
-  event_date: string;
-  match_time?: string | null;
-  location: string | null;
-};
-
-const AGE_GROUPS = ["Tümü", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "Çorum Süper Amatör Ligi"];
-const DAY_ORDER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
-
 export default function GorevlerPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("Tümü");
   const [loading, setLoading] = useState(true);
 
@@ -44,11 +23,17 @@ export default function GorevlerPage() {
     (async () => {
       setLoading(true);
       const [trRes, taskRes] = await Promise.all([
-        supabase.from("trainings").select("*").order("start_time", { ascending: true }),
-        supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
+        supabase
+          .from("trainings")
+          .select("*")
+          .order("start_time", { ascending: true }),
+        supabase
+          .from("tasks_assignments")
+          .select("*")
+          .order("event_date", { ascending: true }),
       ]);
       if (trRes.data) setTrainings(trRes.data as Training[]);
-      if (taskRes.data) setTasks(taskRes.data as TaskItem[]);
+      if (taskRes.data) setTasks(taskRes.data as TaskAssignment[]);
       setLoading(false);
     })();
   }, []);
@@ -57,19 +42,41 @@ export default function GorevlerPage() {
     const list =
       selectedGroup === "Tümü"
         ? trainings
-        : trainings.filter((t) => (t.age_groups || []).includes(selectedGroup));
+        : trainings.filter((t) =>
+            (t.age_groups || []).includes(selectedGroup)
+          );
 
     return [...list].sort((a, b) => {
-      const da = a.day_of_week ? DAY_ORDER.indexOf(a.day_of_week) : 99;
-      const db = b.day_of_week ? DAY_ORDER.indexOf(b.day_of_week) : 99;
+      const da = a.day_of_week
+        ? DAYS_OF_WEEK.indexOf(
+            a.day_of_week as (typeof DAYS_OF_WEEK)[number]
+          )
+        : 99;
+      const db = b.day_of_week
+        ? DAYS_OF_WEEK.indexOf(
+            b.day_of_week as (typeof DAYS_OF_WEEK)[number]
+          )
+        : 99;
       if (da !== db) return da - db;
       return (a.start_time || "").localeCompare(b.start_time || "");
     });
   }, [trainings, selectedGroup]);
 
-  const filteredTasks = useMemo(() => {
-    if (selectedGroup === "Tümü") return tasks;
-    return tasks.filter((t) => t.age_group === selectedGroup || t.age_group === "Tümü");
+  const { upcomingTasks, pastTasks } = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const byGroup =
+      selectedGroup === "Tümü"
+        ? tasks
+        : tasks.filter(
+            (t) => t.age_group === selectedGroup || t.age_group === "Tümü"
+          );
+
+    return {
+      upcomingTasks: byGroup.filter((t) => t.event_date >= todayStr),
+      pastTasks: byGroup
+        .filter((t) => t.event_date < todayStr)
+        .sort((a, b) => b.event_date.localeCompare(a.event_date)),
+    };
   }, [tasks, selectedGroup]);
 
   return (
@@ -77,7 +84,6 @@ export default function GorevlerPage() {
       <Navbar />
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
-        {/* Üst Bilgi */}
         <div className="bg-gradient-to-r from-[#02274c] to-[#04376b] text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
           <div className="space-y-1.5">
             <span className="inline-block px-3 py-1 rounded-full bg-white/15 text-xs font-extrabold uppercase tracking-wider">
@@ -87,8 +93,9 @@ export default function GorevlerPage() {
               Antrenman Saatleri & Maç Takvimi
             </h1>
             <p className="text-sm text-slate-200 max-w-2xl">
-              Kulübümüze yeni katılmak isteyen sporcular ve veliler, yaş gruplarına göre haftalık
-              antrenman gün ve saatlerini buradan inceleyebilir.
+              Kulübümüze yeni katılmak isteyen sporcular ve veliler, yaş
+              gruplarına göre haftalık antrenman gün ve saatlerini buradan
+              inceleyebilir.
             </p>
           </div>
           <Link
@@ -99,9 +106,8 @@ export default function GorevlerPage() {
           </Link>
         </div>
 
-        {/* Yaş Grubu Filtresi */}
         <div className="flex flex-wrap gap-2">
-          {AGE_GROUPS.map((g) => (
+          {["Tümü", ...AGE_GROUPS].map((g) => (
             <button
               key={g}
               onClick={() => setSelectedGroup(g)}
@@ -111,12 +117,11 @@ export default function GorevlerPage() {
                   : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
               }`}
             >
-              {g}
+              {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
             </button>
           ))}
         </div>
 
-        {/* Antrenman Saatleri */}
         <section className="space-y-4">
           <h2 className="text-xl font-black text-[#02274c]">
             Haftalık Antrenman Saatleri ({filteredTrainings.length})
@@ -156,10 +161,14 @@ export default function GorevlerPage() {
                     ))}
                   </div>
                   {tr.coach_name && (
-                    <p className="text-xs font-bold text-[#02274c]">👨‍🏫 Antrenör: {tr.coach_name}</p>
+                    <p className="text-xs font-bold text-[#02274c]">
+                      👨‍🏫 Antrenör: {tr.coach_name}
+                    </p>
                   )}
                   {tr.location && (
-                    <p className="text-xs text-slate-500 pt-1">📍 {tr.location}</p>
+                    <p className="text-xs text-slate-500 pt-1">
+                      📍 {tr.location}
+                    </p>
                   )}
                 </div>
               ))}
@@ -167,19 +176,18 @@ export default function GorevlerPage() {
           )}
         </section>
 
-        {/* Maç & Etkinlik Takvimi */}
         <section className="space-y-4">
           <h2 className="text-xl font-black text-[#a60513]">
-            Maçlar & Etkinlikler ({filteredTasks.length})
+            Yaklaşan Maçlar & Etkinlikler ({upcomingTasks.length})
           </h2>
 
-          {filteredTasks.length === 0 ? (
+          {upcomingTasks.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
-              Planlanmış maç veya etkinlik bulunmuyor.
+              Yaklaşan planlanmış maç veya etkinlik bulunmuyor.
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
-              {filteredTasks.map((task) => (
+              {upcomingTasks.map((task) => (
                 <div
                   key={task.id}
                   className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4 shadow-sm"
@@ -188,15 +196,21 @@ export default function GorevlerPage() {
                     <span className="inline-block px-2.5 py-0.5 rounded-full bg-red-50 text-[#a60513] text-xs font-extrabold">
                       {task.age_group}
                     </span>
-                    <h3 className="font-extrabold text-slate-900">{task.title}</h3>
+                    <h3 className="font-extrabold text-slate-900">
+                      {task.title}
+                    </h3>
                     <p className="text-xs text-slate-500">
                       📍 {task.location || "Belirtilmedi"}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="text-sm font-black text-[#02274c]">{task.event_date}</div>
+                    <div className="text-sm font-black text-[#02274c]">
+                      {task.event_date}
+                    </div>
                     {task.match_time && (
-                      <div className="text-xs font-bold text-slate-500">{task.match_time}</div>
+                      <div className="text-xs font-bold text-slate-500">
+                        {task.match_time}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -204,6 +218,34 @@ export default function GorevlerPage() {
             </div>
           )}
         </section>
+
+        {pastTasks.length > 0 && (
+          <section className="space-y-3 opacity-80">
+            <h3 className="text-base font-extrabold text-slate-600">
+              Tamamlanan Maçlar & Etkinlikler ({pastTasks.length})
+            </h3>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {pastTasks.slice(0, 10).map((task) => (
+                <div
+                  key={task.id}
+                  className="bg-slate-100/80 rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4"
+                >
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {task.age_group}
+                    </span>
+                    <div className="font-bold text-sm text-slate-800">
+                      {task.title}
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500">
+                    {task.event_date}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

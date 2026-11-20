@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
+import { PrayerSession } from "@/types/club";
 
-interface Player {
+const supabase = createClient();
+
+interface RepPlayer {
   id: string;
   player_code: string;
   player_pin: string | null;
@@ -14,51 +17,81 @@ interface Player {
   is_representative: boolean;
 }
 
-interface PrayerSession {
-  id: string;
-  session_date: string;
-  qr_token: string;
-  mosque_name: string;
-}
-
 export default function RepresentativePage() {
   const [repCode, setRepCode] = useState("");
   const [repPin, setRepPin] = useState("");
-  const [repPlayer, setRepPlayer] = useState<Player | null>(null);
+  const [repPlayer, setRepPlayer] = useState<RepPlayer | null>(null);
   const [err, setErr] = useState("");
   const [session, setSession] = useState<PrayerSession | null>(null);
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<RepPlayer[]>([]);
   const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
-  const loadAttendance = async () => {
-    const supabase = createClient();
+  useEffect(() => {
+    const savedId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("ikbal_logged_player_id")
+        : null;
+    if (!savedId) return;
+
+    (async () => {
+      const { data } = await supabase
+        .from("players")
+        .select(
+          "id, player_code, player_pin, full_name, age_group, is_representative"
+        )
+        .eq("id", savedId)
+        .maybeSingle();
+
+      if (data && data.is_representative) {
+        setRepPlayer(data as RepPlayer);
+        await loadAttendance();
+      }
+    })();
+  }, []);
+
+  async function loadAttendance() {
     const [sRes, pRes] = await Promise.all([
-      supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }).limit(1),
-      supabase.from("players").select("id, player_code, player_pin, full_name, age_group, is_representative").order("age_group", { ascending: true }),
+      supabase
+        .from("prayer_sessions")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      supabase
+        .from("players")
+        .select(
+          "id, player_code, player_pin, full_name, age_group, is_representative"
+        )
+        .order("age_group", { ascending: true }),
     ]);
 
-    const latest = sRes.data?.[0] as PrayerSession | undefined;
-    setSession(latest || null);
-    setPlayers((pRes.data as Player[]) || []);
+    const activeSess = sRes.data?.[0] as PrayerSession | undefined;
+    setSession(activeSess || null);
+    setPlayers((pRes.data as RepPlayer[]) || []);
 
-    if (latest) {
+    if (activeSess) {
       const { data: aData } = await supabase
         .from("prayer_attendance")
         .select("player_id")
-        .eq("session_id", latest.id);
-      setAttendedIds(new Set((aData || []).map((x: { player_id: string }) => x.player_id)));
+        .eq("session_id", activeSess.id);
+      setAttendedIds(
+        new Set((aData || []).map((x: { player_id: string }) => x.player_id))
+      );
+    } else {
+      setAttendedIds(new Set());
     }
-  };
+  }
 
-  const handleLogin = async (e: React.FormEvent) => {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
-    const supabase = createClient();
     const { data } = await supabase
       .from("players")
-      .select("id, player_code, player_pin, full_name, age_group, is_representative")
+      .select(
+        "id, player_code, player_pin, full_name, age_group, is_representative"
+      )
       .eq("player_code", repCode.trim().toUpperCase())
       .maybeSingle();
 
@@ -71,17 +104,18 @@ export default function RepresentativePage() {
       return;
     }
     if (!data.is_representative) {
-      setErr("Bu panel sadece yönetici tarafından seçilen Temsilci oyunculara açıktır.");
+      setErr(
+        "Bu panel sadece yönetici tarafından seçilen Temsilci oyunculara açıktır."
+      );
       return;
     }
-    setRepPlayer(data as Player);
-    loadAttendance();
-  };
+    setRepPlayer(data as RepPlayer);
+    await loadAttendance();
+  }
 
-  const togglePlayerAttendance = async (playerId: string) => {
+  async function togglePlayerAttendance(playerId: string) {
     if (!session) return;
     setTogglingId(playerId);
-    const supabase = createClient();
     const isPresent = attendedIds.has(playerId);
 
     if (isPresent) {
@@ -106,7 +140,7 @@ export default function RepresentativePage() {
       }
     }
     setTogglingId(null);
-  };
+  }
 
   const filteredPlayers = players.filter((p) => {
     const q = searchQuery.trim().toLowerCase();
@@ -124,40 +158,89 @@ export default function RepresentativePage() {
       <main className="max-w-5xl mx-auto px-4 pt-8 space-y-6">
         {!repPlayer ? (
           <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 p-7 shadow-sm space-y-4">
-            <h1 className="text-2xl font-black text-[#02274c]">Temsilci Yoklama Paneli</h1>
+            <h1 className="text-2xl font-black text-[#02274c]">
+              Temsilci Yoklama Paneli
+            </h1>
             <p className="text-sm text-slate-600">
               Temsilci Oyuncu ID&apos;nizi ve şifrenizi girin.
             </p>
             <form onSubmit={handleLogin} className="space-y-3">
-              <input type="text" required value={repCode} onChange={(e) => setRepCode(e.target.value)} placeholder="Oyuncu ID (Örn: IKB-1234)" className="w-full min-h-[48px] px-4 rounded-xl border-2 border-slate-300 uppercase font-bold" />
-              <input type="password" required value={repPin} onChange={(e) => setRepPin(e.target.value)} placeholder="Şifre (Varsayılan: Tel son 4 hane)" className="w-full min-h-[48px] px-4 rounded-xl border-2 border-slate-300 font-bold" />
+              <input
+                type="text"
+                required
+                value={repCode}
+                onChange={(e) => setRepCode(e.target.value)}
+                placeholder="Oyuncu ID (Örn: IKB-1234)"
+                className="w-full min-h-[48px] px-4 rounded-xl border-2 border-slate-300 uppercase font-bold"
+              />
+              <input
+                type="password"
+                required
+                value={repPin}
+                onChange={(e) => setRepPin(e.target.value)}
+                placeholder="Şifre (Varsayılan: Tel son 4 hane)"
+                className="w-full min-h-[48px] px-4 rounded-xl border-2 border-slate-300 font-bold"
+              />
               {err && <p className="text-[#a60513] text-sm font-bold">{err}</p>}
-              <button type="submit" className="w-full min-h-[48px] rounded-xl bg-[#02274c] text-white font-extrabold">Giriş Yap</button>
+              <button
+                type="submit"
+                className="w-full min-h-[48px] rounded-xl bg-[#02274c] text-white font-extrabold cursor-pointer"
+              >
+                Giriş Yap
+              </button>
             </form>
           </div>
         ) : (
           <div className="space-y-6">
             <div className="bg-[#02274c] text-white rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-bold text-red-300">Temsilci Yetkili</span>
-                <h1 className="text-2xl font-black">{repPlayer.full_name} ({repPlayer.age_group})</h1>
+                <span className="text-xs font-bold text-red-300">
+                  Temsilci Yetkili
+                </span>
+                <h1 className="text-2xl font-black">
+                  {repPlayer.full_name} ({repPlayer.age_group})
+                </h1>
               </div>
-              <button type="button" onClick={loadAttendance} className="px-5 py-2.5 rounded-xl bg-[#a60513] font-extrabold text-sm">Yoklamayı Yenile</button>
+              <button
+                type="button"
+                onClick={loadAttendance}
+                className="px-5 py-2.5 rounded-xl bg-[#a60513] font-extrabold text-sm cursor-pointer"
+              >
+                Yoklamayı Yenile
+              </button>
             </div>
 
-            {session && (
+            {!session ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-600 text-sm font-bold">
+                Şu anda yönetici tarafından başlatılmış aktif bir QR yoklama
+                oturumu bulunmuyor.
+              </div>
+            ) : (
               <div className="bg-white rounded-2xl border border-slate-200 p-6 grid md:grid-cols-12 gap-6 items-start">
                 <div className="md:col-span-4 flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   <QRCodeSVG value={session.qr_token} size={200} />
-                  <p className="text-xs font-bold text-slate-600 mt-3 text-center">{session.session_date} • {session.mosque_name}</p>
+                  <p className="text-xs font-bold text-slate-700 mt-3 text-center">
+                    {session.title} • {session.session_date}
+                  </p>
                 </div>
 
                 <div className="md:col-span-8 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="text-lg font-extrabold text-[#02274c]">Canlı Katılım Listesi ({attendedIds.size} / {players.length})</h2>
-                    <span className="text-xs text-slate-500 font-semibold">Telefonu olmayanlar için isme dokunun</span>
+                    <h2 className="text-lg font-extrabold text-[#02274c]">
+                      Canlı Katılım Listesi ({attendedIds.size} /{" "}
+                      {players.length})
+                    </h2>
+                    <span className="text-xs text-slate-500 font-semibold">
+                      Telefonu olmayanlar için isme dokunun
+                    </span>
                   </div>
-                  <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="İsim, yaş grubu veya ID ile ara..." className="w-full min-h-[44px] px-4 rounded-xl border-2 border-slate-300 text-sm font-bold" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="İsim, yaş grubu veya ID ile ara..."
+                    className="w-full min-h-[44px] px-4 rounded-xl border-2 border-slate-300 text-sm font-bold"
+                  />
                   <div className="flex flex-wrap gap-2">
                     {filteredPlayers.map((p) => {
                       const ok = attendedIds.has(p.id);
@@ -167,11 +250,14 @@ export default function RepresentativePage() {
                           type="button"
                           disabled={togglingId === p.id}
                           onClick={() => togglePlayerAttendance(p.id)}
-                          className={`px-3.5 py-2 rounded-xl text-sm font-bold border transition ${
-                            ok ? "bg-emerald-500 border-emerald-600 text-white shadow-sm" : "bg-slate-100 border-slate-200 text-slate-700 hover:border-[#02274c]"
+                          className={`px-3.5 py-2 rounded-xl text-sm font-bold border transition cursor-pointer ${
+                            ok
+                              ? "bg-emerald-500 border-emerald-600 text-white shadow-sm"
+                              : "bg-slate-100 border-slate-200 text-slate-700 hover:border-[#02274c]"
                           }`}
                         >
-                          {ok ? "☑ " : "☐ "}{p.age_group} - {p.full_name}
+                          {ok ? "☑ " : "☐ "}
+                          {p.age_group} - {p.full_name}
                         </button>
                       );
                     })}

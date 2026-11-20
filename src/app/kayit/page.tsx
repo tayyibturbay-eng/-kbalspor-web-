@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
+import { POSITIONS } from "@/types/club";
 
 function checkIsMinor(birthDate: string): boolean {
   if (!birthDate) return true;
@@ -36,12 +37,18 @@ export default function KayitPage() {
     setResultMsg(null);
 
     if (!kvkkAccepted || !consentAccepted) {
-      setResultMsg({ ok: false, text: "Lütfen KVKK Aydınlatma Metni ve Açık Rıza onay kutularını işaretleyin." });
+      setResultMsg({
+        ok: false,
+        text: "Lütfen KVKK Aydınlatma Metni ve Açık Rıza onay kutularını işaretleyin.",
+      });
       return;
     }
 
     if (isMinor && !form.guardian_name.trim()) {
-      setResultMsg({ ok: false, text: "18 yaşından küçük sporcular için Veli Ad Soyad alanı zorunludur." });
+      setResultMsg({
+        ok: false,
+        text: "18 yaşından küçük sporcular için Veli Ad Soyad alanı zorunludur.",
+      });
       return;
     }
 
@@ -64,7 +71,14 @@ export default function KayitPage() {
           ok: true,
           text: "Üyelik talebiniz ve veli/KVKK onayınız başarıyla iletildi. Yönetici onayladığında giriş bilgileriniz paylaşılacaktır.",
         });
-        setForm({ full_name: "", birth_date: "", parent_phone: "", position: "Orta Saha", guardian_name: "", notes: "" });
+        setForm({
+          full_name: "",
+          birth_date: "",
+          parent_phone: "",
+          position: "Orta Saha",
+          guardian_name: "",
+          notes: "",
+        });
         setKvkkAccepted(false);
         setConsentAccepted(false);
       }
@@ -121,10 +135,11 @@ export default function KayitPage() {
                   onChange={(e) => setForm({ ...form, position: e.target.value })}
                   className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
                 >
-                  <option value="Kaleci">Kaleci</option>
-                  <option value="Defans">Defans</option>
-                  <option value="Orta Saha">Orta Saha</option>
-                  <option value="Forvet">Forvet</option>
+                  {POSITIONS.map((pos) => (
+                    <option key={pos} value={pos}>
+                      {pos}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -171,7 +186,6 @@ export default function KayitPage() {
               />
             </div>
 
-            {/* KVKK ve Açık Rıza Alanı */}
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-[#02274c] uppercase">
@@ -180,7 +194,7 @@ export default function KayitPage() {
                 <button
                   type="button"
                   onClick={() => setShowKvkkText(!showKvkkText)}
-                  className="text-xs font-bold text-[#a60513] underline"
+                  className="text-xs font-bold text-[#a60513] underline cursor-pointer"
                 >
                   {showKvkkText ? "Metni Gizle" : "Aydınlatma Metnini Oku"}
                 </button>
@@ -205,8 +219,7 @@ export default function KayitPage() {
                   className="mt-0.5 h-4 w-4 accent-[#02274c]"
                 />
                 <span>
-                  6698 sayılı KVKK kapsamında{" "}
-                  <strong>Aydınlatma Metnini</strong> okudum ve anladım. *
+                  6698 sayılı KVKK kapsamında <strong>Aydınlatma Metnini</strong> okudum ve anladım. *
                 </span>
               </label>
 
@@ -229,7 +242,9 @@ export default function KayitPage() {
             {resultMsg && (
               <div
                 className={`p-3 rounded-xl text-sm font-semibold ${
-                  resultMsg.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"
+                  resultMsg.ok
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-red-50 text-red-700 border border-red-200"
                 }`}
               >
                 {resultMsg.text}
@@ -239,7 +254,7 @@ export default function KayitPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-bold py-3 text-sm transition disabled:opacity-50"
+              className="w-full rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-bold py-3 text-sm transition disabled:opacity-50 cursor-pointer"
             >
               {loading ? "Gönderiliyor..." : "Üyelik Talebini Gönder"}
             </button>

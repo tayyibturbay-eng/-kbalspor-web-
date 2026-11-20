@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -12,6 +12,12 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  themeColor: "#02274c",
+  width: "device-width",
+  initialScale: 1,
+};
 
 export const metadata: Metadata = {
   title: "Çorum İkbalspor • Resmi Kulüp ve Sporcu Portalı",
@@ -36,7 +42,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="tr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col pb-16 lg:pb-0">{children}</body>
     </html>
   );
 }

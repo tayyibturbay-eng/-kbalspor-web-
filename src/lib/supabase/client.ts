@@ -1,4 +1,4 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, SupabaseClient } from "@supabase/supabase-js";
 
 const envUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const envKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
@@ -13,6 +13,14 @@ const SUPABASE_KEY =
     ? envKey
     : "sb_publishable_rV2Gq89vqhvDLCEpyUXwEg_3JaZteJU";
 
-export function createClient() {
-  return createSupabaseClient(SUPABASE_URL, SUPABASE_KEY);
+let browserClient: SupabaseClient | null = null;
+
+export function createClient(): SupabaseClient {
+  if (typeof window === "undefined") {
+    return createSupabaseClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+  if (!browserClient) {
+    browserClient = createSupabaseClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+  return browserClient;
 }
