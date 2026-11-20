@@ -21,9 +21,11 @@ export function Navbar() {
     <header className="sticky top-0 z-40 bg-[#02274c] text-white border-b-4 border-[#a60513] shadow-md">
       <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-3 shrink-0">
-          <span className="h-11 w-11 rounded-xl bg-[#a60513] text-white font-black flex items-center justify-center text-lg border-2 border-white/25 shadow">
-            İK
-          </span>
+          <img
+  src="/logo.png"
+  alt="Çorum İkbalspor Logosu"
+  className="h-11 w-11 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25 shadow"
+/>
           <div className="leading-tight">
             <span className="block text-xl font-black tracking-wide">İKBALSPOR</span>
             <span className="block text-[11px] font-bold text-slate-300">
