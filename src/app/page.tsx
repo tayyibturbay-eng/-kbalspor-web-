@@ -207,7 +207,7 @@ export default function IkbalHomePage() {
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
                 <a
-                  href="https://expo.dev/artifacts/eas/Kt_SlZ1A77tyn2jT6QugMbFWt3Y_Fw_V6LGgqadQIxM.apk"
+                  href="https://expo.dev/artifacts/eas/zb2tDrBvDceGghTYX4KT2FOBFoxyKgLFVRA2wKGv79o.apk"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-3 rounded-xl shadow-md transition text-sm"
@@ -217,9 +217,9 @@ export default function IkbalHomePage() {
                 </a>
 
                 <div className="inline-flex items-center gap-2 bg-white/15 border border-white/25 text-slate-100 font-semibold px-4 py-3 rounded-xl text-xs sm:text-sm">
-  <span>🍎</span>
-  <span>iPhone: Safari → Paylaş → Ana Ekrana Ekle</span>
-</div>
+                  <span>🍎</span>
+                  <span>iPhone: Safari → Paylaş → Ana Ekrana Ekle</span>
+                </div>
               </div>
             </div>
 

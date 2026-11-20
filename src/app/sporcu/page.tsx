@@ -430,7 +430,19 @@ export default function SporcuPortalPage() {
   const playerAttendedCount = player
     ? allSessions.filter((s) => attendances.some((a) => a.session_id === s.id && a.player_id === player.id)).length
     : 0;
+const attendanceRate =
+    allSessions.length > 0 ? Math.round((playerAttendedCount / allSessions.length) * 100) : 0;
 
+  const attendanceBadge =
+    allSessions.length === 0
+      ? null
+      : attendanceRate >= 85
+      ? { label: `🏆 Altın Devamlılık (%${attendanceRate})`, cls: "bg-amber-400 text-slate-950" }
+      : attendanceRate >= 65
+      ? { label: `⭐ İstikrarlı Sporcu (%${attendanceRate})`, cls: "bg-emerald-500 text-white" }
+      : attendanceRate >= 40
+      ? { label: `💪 Gelişen Sporcu (%${attendanceRate})`, cls: "bg-sky-400 text-slate-950" }
+      : { label: `📅 Katılım: %${attendanceRate}`, cls: "bg-white/20 text-white" };
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
       <Navbar />
@@ -515,7 +527,11 @@ export default function SporcuPortalPage() {
                 Çıkış Yap
               </button>
             </div>
-
+{attendanceBadge && (
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold ${attendanceBadge.cls}`}>
+                      {attendanceBadge.label}
+                    </span>
+                  )}
             {/* Sekmeler */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {[

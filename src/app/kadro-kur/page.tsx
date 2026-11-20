@@ -121,6 +121,26 @@ const FORMATIONS: Record<string, { label: string; group: "11" | "altyapi"; rows:
       { role: "Kaleci", count: 1 },
     ],
   },
+  "2-3-1": {
+    label: "2-3-1 (7'li)",
+    group: "altyapi",
+    rows: [
+      { role: "Forvet", count: 1 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 2 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "3-2-1": {
+    label: "3-2-1 (7'li)",
+    group: "altyapi",
+    rows: [
+      { role: "Forvet", count: 1 },
+      { role: "Orta Saha", count: 2 },
+      { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
   "3-3-1": {
     label: "3-3-1 (8'li U11/U12)",
     group: "altyapi",
@@ -148,6 +168,36 @@ const FORMATIONS: Record<string, { label: string; group: "11" | "altyapi"; rows:
       { role: "Forvet", count: 3 },
       { role: "Orta Saha", count: 2 },
       { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "3-3-2": {
+    label: "3-3-2 (9'lu)",
+    group: "altyapi",
+    rows: [
+      { role: "Forvet", count: 2 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "3-3-3": {
+    label: "3-3-3 (10'lu)",
+    group: "altyapi",
+    rows: [
+      { role: "Forvet", count: 3 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "4-3-2": {
+    label: "4-3-2 (10'lu)",
+    group: "altyapi",
+    rows: [
+      { role: "Forvet", count: 2 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 4 },
       { role: "Kaleci", count: 1 },
     ],
   },
@@ -409,7 +459,6 @@ export default function SquadBuilderPage() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
       <Navbar />
 
-      {/* Sade Başlık & Kategori Seçimi */}
       <section className="bg-gradient-to-r from-[#02274c] to-[#a60513] text-white py-6 px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -439,7 +488,6 @@ export default function SquadBuilderPage() {
       </section>
 
       <main className="max-w-7xl mx-auto px-4 pt-6 space-y-5">
-        {/* Tek Düzenli Taktik & İşlem Çubuğu */}
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -464,7 +512,7 @@ export default function SquadBuilderPage() {
                       </option>
                     ))}
                 </optgroup>
-                <optgroup label="Altyapı Küçük Saha (U11 / U12)">
+                <optgroup label="7 / 8 / 9 / 10 Kişilik Dizilişler">
                   {Object.entries(FORMATIONS)
                     .filter(([, v]) => v.group === "altyapi")
                     .map(([k, v]) => (
@@ -555,7 +603,6 @@ export default function SquadBuilderPage() {
         )}
 
         <div className="grid lg:grid-cols-12 gap-6 items-start">
-          {/* Sol: Uygun Oyuncu Havuzu */}
           <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-extrabold text-[#02274c]">
@@ -621,10 +668,8 @@ export default function SquadBuilderPage() {
             )}
           </div>
 
-          {/* Sağ: Gerçekçi Taktik Tahtası */}
           <div className="lg:col-span-8">
             <div className="relative rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-700 border-4 border-white shadow-xl p-4 sm:p-6 min-h-[580px] flex flex-col justify-between gap-3 overflow-hidden">
-              {/* Saha Çizgileri */}
               <div className="pointer-events-none absolute inset-4 border-2 border-white/25 rounded-2xl">
                 <div className="absolute top-1/2 left-0 right-0 border-t-2 border-white/25" />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border-2 border-white/25" />
