@@ -17,13 +17,13 @@ interface Player {
 const CATEGORIES = [
   { key: "U11", label: "U11" },
   { key: "U12", label: "U12" },
-  { key: "PGL-U13", label: "U13" },
-  { key: "PGL-U14", label: "U14" },
-  { key: "PGL-U15", label: "U15" },
-  { key: "PGL-U16", label: "U16" },
-  { key: "PGL-U17", label: "U17" },
-  { key: "PGL-U19", label: "U19" },
-  { key: "PGL-GENEL", label: "PGL Kadro" },
+  { key: "Çorum Süper Amatör Ligi-U13", label: "U13" },
+  { key: "Çorum Süper Amatör Ligi-U14", label: "U14" },
+  { key: "Çorum Süper Amatör Ligi-U15", label: "U15" },
+  { key: "Çorum Süper Amatör Ligi-U16", label: "U16" },
+  { key: "Çorum Süper Amatör Ligi-U17", label: "U17" },
+  { key: "Çorum Süper Amatör Ligi-U19", label: "U19" },
+  { key: "Çorum Süper Amatör Ligi-GENEL", label: "Çorum Süper Amatör Ligi" },
 ];
 
 const FORMATIONS: Record<string, { label: string; group: "11" | "altyapi"; rows: { role: string; count: number }[] }> = {
@@ -220,7 +220,7 @@ type EligibilityResult = {
 
 function checkPlayerEligibility(player: Player, categoryKey: string): EligibilityResult {
   const d = player.birth_date;
-  if (categoryKey === "PGL-GENEL") {
+  if (categoryKey === "Çorum Süper Amatör Ligi-GENEL") {
     return { eligible: true, isQuota: false };
   }
   if (!d) {
@@ -228,34 +228,34 @@ function checkPlayerEligibility(player: Player, categoryKey: string): Eligibilit
   }
 
   switch (categoryKey) {
-    case "PGL-U13":
+    case "Çorum Süper Amatör Ligi-U13":
       if (d >= "2013-01-01") return { eligible: true, isQuota: false };
       if (d >= "2012-10-01" && d <= "2012-12-31") {
         return { eligible: true, isQuota: true, reason: "2012 Son Çeyrek Kontenjan" };
       }
       return { eligible: false, isQuota: false };
 
-    case "PGL-U14":
+    case "Çorum Süper Amatör Ligi-U14":
       if (d >= "2012-01-01") return { eligible: true, isQuota: false };
       if (d >= "2011-10-01" && d <= "2011-12-31") {
         return { eligible: true, isQuota: true, reason: "2011 Son Çeyrek Kontenjan" };
       }
       return { eligible: false, isQuota: false };
 
-    case "PGL-U15":
+    case "Çorum Süper Amatör Ligi-U15":
       if (d >= "2011-01-01") return { eligible: true, isQuota: false };
       if (d >= "2010-10-01" && d <= "2010-12-31") {
         return { eligible: true, isQuota: true, reason: "2010 Son Çeyrek Kontenjan" };
       }
       return { eligible: false, isQuota: false };
 
-    case "PGL-U16":
+    case "Çorum Süper Amatör Ligi-U16":
       return { eligible: d >= "2010-01-01", isQuota: false };
 
-    case "PGL-U17":
+    case "Çorum Süper Amatör Ligi-U17":
       return { eligible: d >= "2009-01-01", isQuota: false };
 
-    case "PGL-U19":
+    case "Çorum Süper Amatör Ligi-U19":
       if (d >= "2007-01-01" && d <= "2010-12-31") return { eligible: true, isQuota: false };
       if (d >= "2006-01-01" && d <= "2006-12-31") {
         return { eligible: true, isQuota: true, reason: "2006 Kontenjan" };
@@ -274,7 +274,7 @@ function checkPlayerEligibility(player: Player, categoryKey: string): Eligibilit
 }
 
 export default function SquadBuilderPage() {
-  const [selectedCategory, setSelectedCategory] = useState("PGL-U19");
+  const [selectedCategory, setSelectedCategory] = useState("Çorum Süper Amatör Ligi-U19");
   const [formation, setFormation] = useState("4-3-3");
   const [tacticPlan, setTacticPlan] = useState(TACTIC_PLANS[0]);
   const [tacticNote, setTacticNote] = useState("");
@@ -377,7 +377,7 @@ export default function SquadBuilderPage() {
     const alreadyOnPitch = currentLineup.some((p) => p.id === player.id);
 
     if (info.isQuota && !alreadyOnPitch) {
-      if (["PGL-U13", "PGL-U14", "PGL-U15"].includes(selectedCategory)) {
+      if (["Çorum Süper Amatör Ligi-U13", "Çorum Süper Amatör Ligi-U14", "Çorum Süper Amatör Ligi-U15"].includes(selectedCategory)) {
         if (quotaPlayersInLineup.length >= 2) {
           setQuotaWarning(
             `${selectedCategory} kategorisinde en fazla 2 kontenjan futbolcu sahada yer alabilir!`
@@ -385,17 +385,17 @@ export default function SquadBuilderPage() {
           return;
         }
       }
-      if (selectedCategory === "PGL-U19") {
+      if (selectedCategory === "Çorum Süper Amatör Ligi-U19") {
         if (quotaPlayersInLineup.length >= 3) {
-          setQuotaWarning("U19 PGL'de toplam en fazla 3 (2 saha + 1 kaleci) 2006 kontenjanı yer alabilir!");
+          setQuotaWarning("U19 Çorum Süper Amatör Ligi'de toplam en fazla 3 (2 saha + 1 kaleci) 2006 kontenjanı yer alabilir!");
           return;
         }
         if (player.position === "Kaleci" && quotaGkCount >= 1) {
-          setQuotaWarning("U19 PGL'de 2006 doğumlu en fazla 1 kaleci kontenjanı yazılabilir!");
+          setQuotaWarning("U19 Çorum Süper Amatör Ligi'de 2006 doğumlu en fazla 1 kaleci kontenjanı yazılabilir!");
           return;
         }
         if (player.position !== "Kaleci" && quotaOutfieldCount >= 2) {
-          setQuotaWarning("U19 PGL'de 2006 doğumlu en fazla 2 saha oyuncusu kontenjanı yazılabilir!");
+          setQuotaWarning("U19 Çorum Süper Amatör Ligi'de 2006 doğumlu en fazla 2 saha oyuncusu kontenjanı yazılabilir!");
           return;
         }
       }
@@ -557,12 +557,12 @@ export default function SquadBuilderPage() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100">
             <div className="text-xs sm:text-sm font-bold text-[#02274c]">
-              {selectedCategory === "PGL-U19" ? (
+              {selectedCategory === "Çorum Süper Amatör Ligi-U19" ? (
                 <span>
                   2006 Kontenjanı: Saha <strong>{quotaOutfieldCount}/2</strong> • Kaleci{" "}
                   <strong>{quotaGkCount}/1</strong> (Toplam {quotaPlayersInLineup.length}/3)
                 </span>
-              ) : ["PGL-U13", "PGL-U14", "PGL-U15"].includes(selectedCategory) ? (
+              ) : ["Çorum Süper Amatör Ligi-U13", "Çorum Süper Amatör Ligi-U14", "Çorum Süper Amatör Ligi-U15"].includes(selectedCategory) ? (
                 <span>
                   Son Çeyrek Kontenjanı: <strong>{quotaPlayersInLineup.length} / 2</strong>
                 </span>

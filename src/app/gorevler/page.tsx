@@ -31,7 +31,7 @@ type TaskItem = {
   location: string | null;
 };
 
-const AGE_GROUPS = ["Tümü", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
+const AGE_GROUPS = ["Tümü", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "Çorum Süper Amatör Ligi"];
 const DAY_ORDER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 
 export default function GorevlerPage() {

@@ -114,7 +114,7 @@ export default function IkbalHomePage() {
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-7 space-y-5">
               <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/25 text-xs font-extrabold uppercase tracking-wider">
-                Çorum İkbalspor • Profesyonelliğe Geçiş Ligi
+                Çorum İkbalspor • Çorum Süper Amatör Ligi
               </span>
 
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight">
@@ -134,7 +134,7 @@ export default function IkbalHomePage() {
                   href="/kadro-kur"
                   className="px-6 py-3.5 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-sm flex items-center justify-center shadow-lg transition"
                 >
-                  Kendi Kadronu Kur (U11–U19 & PGL)
+                  Kendi Kadronu Kur (U11–U19 & Çorum Süper Amatör Ligi)
                 </Link>
                 <Link
                   href="/gorevler"
@@ -255,7 +255,7 @@ export default function IkbalHomePage() {
               Kendi Kadronu Kur
             </h3>
             <p className="text-sm text-slate-600">
-              U11–U19 ve PGL gerçek oyuncu kadrolarından kendi ilk 11&apos;ini oluştur.
+              U11–U19 ve Çorum Süper Amatör Ligi gerçek oyuncu kadrolarından kendi ilk 11&apos;ini oluştur.
             </p>
           </Link>
 

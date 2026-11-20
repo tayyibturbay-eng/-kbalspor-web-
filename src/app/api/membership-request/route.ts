@@ -29,7 +29,7 @@ function calcAgeGroup(birthDate: string | null): string {
   if (!birthDate) return "U15";
   const year = parseInt(birthDate.slice(0, 4), 10);
   if (isNaN(year)) return "U15";
-  if (year < 2007) return "PGL Kadro";
+  if (year < 2007) return "Çorum Süper Amatör Ligi";
   if (year <= 2008) return "U19";
   if (year === 2009) return "U17";
   if (year === 2010) return "U16";

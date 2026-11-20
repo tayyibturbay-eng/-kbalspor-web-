@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -108,7 +108,7 @@ type ActivityLog = {
 };
 
 const POSITIONS = ["Kaleci", "Defans", "Orta Saha", "Forvet"];
-const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
+const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "Çorum Süper Amatör Ligi"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 const MATCH_FIELDS = [
   "Nazmi Avluca Spor Tesisi",
@@ -143,7 +143,7 @@ function calcAgeGroupFromBirthDate(birthDate: string): string {
   if (!birthDate) return "U15";
   const year = parseInt(birthDate.split("-")[0], 10);
   if (isNaN(year)) return "U15";
-  if (year < 2007) return "PGL Kadro";
+  if (year < 2007) return "Çorum Süper Amatör Ligi";
   if (year >= 2015) return "U11";
   if (year === 2014) return "U12";
   if (year === 2013) return "U13";
@@ -1238,7 +1238,7 @@ export default function AdminPage() {
             <p className="text-xs text-slate-300">
               {role === "coach"
                 ? "Oyuncuları yaş grubuna göre görüntüleyebilir, mevkilerini düzenleyebilir, antrenman ve maç ekleyebilirsiniz."
-                : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece PGL Kadro)"}
+                : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece Çorum Süper Amatör Ligi)"}
             </p>
           </div>
           <button
