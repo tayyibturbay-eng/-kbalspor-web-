@@ -231,7 +231,7 @@ export default function AdminPage() {
 
   // QR Yoklama
   const [newSessionTitle, setNewSessionTitle] = useState("Kulüp Yoklaması");
-  const [newSessionDate, setNewSessionDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newSessionDate, setNewSessionDate] = useState("");
   const [qrSearch, setQrSearch] = useState("");
 
   const [newCoach, setNewCoach] = useState({
