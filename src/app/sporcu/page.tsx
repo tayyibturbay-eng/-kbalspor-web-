@@ -107,6 +107,7 @@ function getOrCreateWebDeviceId(): string {
 export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [tab, setTab] = useState<"qr" | "program" | "aidat" | "profil">("qr");
+  const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
 
   const [code, setCode] = useState("");
   const [pin, setPin] = useState("");
@@ -130,6 +131,9 @@ export default function SporcuPortalPage() {
   const [pinMsg, setPinMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
+    const now = new Date();
+    setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
+
     const savedId = localStorage.getItem("ikbal_logged_player_id");
     if (savedId) {
       restoreSession(savedId);
@@ -253,8 +257,6 @@ export default function SporcuPortalPage() {
   );
 
   const dueItems = useMemo(() => {
-    const now = new Date();
-    const currentIdx = now.getFullYear() * 12 + now.getMonth();
     const kasim2026Idx = 2026 * 12 + 10;
     const effectiveStartIdx = Math.min(kasim2026Idx, currentIdx);
 
@@ -289,7 +291,7 @@ export default function SporcuPortalPage() {
           state,
         };
       });
-  }, [dues, defaultFee]);
+  }, [dues, defaultFee, currentIdx]);
 
   const overdueCount = dueItems.filter((x) => x.state === "overdue").length;
   const currentUnpaid = dueItems.some((x) => x.state === "unpaid");
