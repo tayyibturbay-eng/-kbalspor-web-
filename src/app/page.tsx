@@ -18,7 +18,6 @@ export default function IkbalHomePage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
   const [currentYear, setCurrentYear] = useState(2026);
 
-  // Üyelik Başvuru Formu State
   const [regForm, setRegForm] = useState({
     full_name: "",
     birth_date: "",
@@ -113,40 +112,40 @@ export default function IkbalHomePage() {
       <main className="flex-1">
         {/* Hero */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white">
-          <div className="max-w-6xl mx-auto px-4 py-14 md:py-20 grid lg:grid-cols-12 gap-10 items-center">
-            <div className="lg:col-span-7 space-y-6">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/15 border border-white/25 text-xs font-extrabold uppercase tracking-wider">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">
+            <div className="lg:col-span-7 space-y-5">
+              <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/25 text-xs font-extrabold uppercase tracking-wider">
                 Çorum İkbalspor • Profesyonelliğe Geçiş Ligi
               </span>
 
-              <h1 className="text-3xl sm:text-5xl font-black leading-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight">
                 Geleceğin Yıldızları{" "}
                 <span className="text-red-300">İkbalspor</span> Çatısı Altında
                 Yetişiyor
               </h1>
 
-              <p className="text-lg text-slate-100 leading-relaxed max-w-2xl">
+              <p className="text-base sm:text-lg text-slate-100 leading-relaxed max-w-2xl">
                 U11&apos;den U19&apos;a tüm yaş kategorilerinde antrenman ve maç
                 görevleri, aidat ve malzeme takibi, Cumartesi sabah namazı QR
                 yoklaması ve kendi kadronu kurma heyecanı tek platformda.
               </p>
 
-              <div className="flex flex-wrap gap-4 pt-2">
+              <div className="flex flex-wrap gap-3 pt-1">
                 <a
                   href="#uyelik-basvurusu"
-                  className="min-h-[52px] px-7 rounded-2xl bg-[#a60513] hover:bg-red-700 border-2 border-white/20 text-white font-extrabold text-base flex items-center justify-center shadow-lg transition"
+                  className="px-5 py-3 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-sm flex items-center justify-center shadow-lg transition"
                 >
                   Sporcu Üyelik Başvurusu
                 </a>
                 <Link
                   href="/kadro-kur"
-                  className="min-h-[52px] px-7 rounded-2xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-base flex items-center justify-center shadow-lg transition"
+                  className="px-5 py-3 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-sm flex items-center justify-center shadow-lg transition"
                 >
                   Kendi Kadronu Kur
                 </Link>
                 <Link
                   href="/gorevler"
-                  className="min-h-[52px] px-7 rounded-2xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-extrabold text-base flex items-center justify-center shadow-lg transition"
+                  className="px-5 py-3 rounded-xl bg-white/15 hover:bg-white/25 border border-white/30 text-white font-extrabold text-sm flex items-center justify-center shadow-lg transition"
                 >
                   Görevler & Maç Takvimi
                 </Link>
@@ -154,16 +153,16 @@ export default function IkbalHomePage() {
             </div>
 
             <div className="lg:col-span-5">
-              <div className="rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 p-6 space-y-4 shadow-2xl">
+              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-5 sm:p-6 space-y-4 shadow-2xl">
                 <div className="flex items-center justify-between border-b border-white/15 pb-3">
-                  <h2 className="text-lg font-extrabold">Yaklaşan Etkinlikler</h2>
+                  <h2 className="text-base sm:text-lg font-extrabold">Yaklaşan Etkinlikler</h2>
                   <Link href="/gorevler" className="text-xs font-bold text-red-200 hover:underline">
                     Tümünü Gör →
                   </Link>
                 </div>
 
                 {upcoming.length === 0 ? (
-                  <p className="text-sm text-slate-200">
+                  <p className="text-sm text-slate-200 leading-relaxed">
                     Henüz planlanmış antrenman veya maç yok. Yönetim panelinden
                     ekleyebilirsiniz.
                   </p>
@@ -197,16 +196,16 @@ export default function IkbalHomePage() {
         </section>
 
         {/* Mobil Uygulama Tanıtım Kartı */}
-        <section className="max-w-5xl mx-auto px-4 py-10">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-10 pb-6">
           <div className="bg-gradient-to-br from-[#02274c] via-[#043666] to-[#a60513] rounded-3xl p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="space-y-4 max-w-lg text-center md:text-left">
+            <div className="space-y-4 max-w-xl text-center md:text-left">
               <span className="inline-block bg-white/15 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full">
                 Resmi Mobil Uygulama
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">
                 Çorum İkbalspor Cebinizde!
               </h2>
-              <p className="text-slate-200 text-sm sm:text-base">
+              <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
                 Antrenman programları, maç takvimi, taktik kadro kurma ve QR yoklama
                 işlemleri tek uygulamada.
               </p>
@@ -230,13 +229,13 @@ export default function IkbalHomePage() {
             </div>
 
             <div className="shrink-0">
-              <div className="w-52 h-96 bg-slate-950 rounded-[2.5rem] p-3 shadow-2xl border-4 border-slate-700 relative flex flex-col items-center justify-center">
-                <div className="w-20 h-4 bg-slate-900 rounded-full absolute top-3" />
+              <div className="w-48 h-80 sm:w-52 sm:h-88 bg-slate-950 rounded-[2.4rem] p-3 shadow-2xl border-4 border-slate-700 relative flex flex-col items-center justify-center">
+                <div className="w-20 h-3.5 bg-slate-900 rounded-full absolute top-3" />
                 <div className="w-full h-full bg-gradient-to-b from-[#02274c] to-[#0a192f] rounded-[1.8rem] flex flex-col items-center justify-center p-4 text-center border border-white/10">
                   <img
                     src="/logo.png"
                     alt="Çorum İkbalspor Logo"
-                    className="w-24 h-24 object-contain rounded-2xl bg-white p-2 shadow-lg mb-4"
+                    className="w-20 h-20 object-contain rounded-2xl bg-white p-2 shadow-lg mb-3"
                   />
                   <p className="font-extrabold text-sm text-white tracking-wide">
                     ÇORUM İKBALSPOR
@@ -244,7 +243,7 @@ export default function IkbalHomePage() {
                   <p className="text-[11px] text-slate-300 mt-1">
                     Sporcu & Yönetim Portalı
                   </p>
-                  <span className="mt-4 bg-[#a60513] text-white text-[10px] font-bold px-3 py-1 rounded-full">
+                  <span className="mt-3 bg-[#a60513] text-white text-[10px] font-bold px-3 py-1 rounded-full">
                     Android Yayında
                   </span>
                 </div>
@@ -254,7 +253,7 @@ export default function IkbalHomePage() {
         </section>
 
         {/* Hızlı Modüller */}
-        <section className="max-w-6xl mx-auto px-4 py-8 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-6 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
           <Link
             href="/kadro-kur"
             className="rounded-2xl bg-white border border-slate-200 border-t-4 border-t-[#a60513] p-6 shadow-sm hover:shadow-lg transition space-y-2"
@@ -305,21 +304,45 @@ export default function IkbalHomePage() {
         </section>
 
         {/* Ana Sayfa Üyelik Başvuru Formu */}
-        <section id="uyelik-basvurusu" className="max-w-3xl mx-auto px-4 py-10">
-          <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-6 sm:p-8 space-y-6">
-            <div className="border-b border-slate-100 pb-4">
-              <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-2">
-                Kulübe Katıl
-              </span>
-              <h2 className="text-2xl font-extrabold text-[#02274c]">
-                Sporcu Üyelik Başvuru Formu
-              </h2>
-              <p className="text-sm text-slate-600 mt-1">
-                18 yaşından küçük sporcular için başvuru ve KVKK / Açık Rıza onayları velisi/vasisi tarafından doldurulmalıdır.
-              </p>
+        <section id="uyelik-basvurusu" className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+          <div className="bg-white rounded-3xl shadow-md border border-slate-200 p-6 sm:p-10 grid lg:grid-cols-12 gap-8 items-start">
+            {/* Sol Bilgi Alanı */}
+            <div className="lg:col-span-5 space-y-5">
+              <div>
+                <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-3">
+                  Kulübe Katıl
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#02274c] leading-tight">
+                  Sporcu Üyelik Başvuru Formu
+                </h2>
+                <p className="text-sm text-slate-600 mt-2 leading-relaxed">
+                  18 yaşından küçük sporcular için başvuru ve KVKK / Açık Rıza
+                  onayları velisi veya vasisi tarafından doldurulmalıdır.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <p className="text-xs font-extrabold uppercase text-[#02274c]">
+                  Başvuru Süreci Nasıl İşler?
+                </p>
+                <ul className="text-xs sm:text-sm text-slate-600 space-y-1.5">
+                  <li>• Formu doldurduğunuzda yöneticinin telefonuna anlık bildirim gider.</li>
+                  <li>• Onaylandığında sporcuya özel Giriş ID (IKB-XXXX) ve şifre tanımlanır.</li>
+                  <li>• Mobil uygulama üzerinden antrenman, maç ve QR yoklama takibi başlar.</li>
+                </ul>
+              </div>
+
+              <div className="bg-[#02274c] text-white rounded-2xl p-4 space-y-1">
+                <p className="text-xs font-bold text-red-300 uppercase">Antrenman Tesisimiz</p>
+                <p className="font-bold text-sm">Nazmi Avluca Spor Tesisi</p>
+                <p className="text-xs text-slate-200">
+                  Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum
+                </p>
+              </div>
             </div>
 
-            <form onSubmit={handleMembershipSubmit} className="space-y-4">
+            {/* Sağ Başvuru Formu */}
+            <form onSubmit={handleMembershipSubmit} className="lg:col-span-7 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
                   Sporcu Adı Soyadı *
@@ -411,7 +434,6 @@ export default function IkbalHomePage() {
                 />
               </div>
 
-              {/* KVKK ve Açık Rıza Alanı */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-extrabold text-[#02274c] uppercase">
