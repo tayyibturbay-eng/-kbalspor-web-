@@ -301,7 +301,6 @@ export default function IkbalHomePage() {
         {/* Üyelik Başvuru Açılır Pencere Tetikleyici Alanı */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
           <div
-            onMouseEnter={() => setShowRegModal(true)}
             onClick={() => setShowRegModal(true)}
             className="cursor-pointer rounded-3xl bg-white border-2 border-dashed border-[#02274c]/30 hover:border-[#a60513] hover:shadow-lg transition p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4"
           >
