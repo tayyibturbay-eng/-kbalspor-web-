@@ -1,123 +1,205 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 
-interface TaskRow {
+const supabase = createClient();
+
+type Training = {
   id: string;
   title: string;
-  task_type: "antrenman" | "mac" | "etkinlik";
-  age_group: string;
-  event_date: string;
+  training_type: "duzenli" | "ekstra";
+  age_groups: string[];
+  day_of_week: string | null;
+  training_date: string | null;
+  start_time: string;
+  end_time: string | null;
   location: string | null;
-  description: string | null;
-}
-
-const AGE_FILTERS = ["Tümü", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18", "U19"];
-
-const TYPE_BADGE: Record<string, { label: string; style: string }> = {
-  antrenman: { label: "Antrenman", style: "bg-sky-100 text-sky-800" },
-  mac: { label: "Maç", style: "bg-red-100 text-[#a60513]" },
-  etkinlik: { label: "Etkinlik", style: "bg-emerald-100 text-emerald-800" },
+  notes: string | null;
 };
 
-export default function TasksPage() {
-  const [tasks, setTasks] = useState<TaskRow[]>([]);
-  const [ageFilter, setAgeFilter] = useState("Tümü");
+type TaskItem = {
+  id: string;
+  title: string;
+  task_type: string;
+  age_group: string;
+  event_date: string;
+  match_time?: string | null;
+  location: string | null;
+};
+
+const AGE_GROUPS = ["Tümü", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
+const DAY_ORDER = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
+
+export default function GorevlerPage() {
+  const [trainings, setTrainings] = useState<Training[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState("Tümü");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
+    (async () => {
       setLoading(true);
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("tasks_assignments")
-        .select("id, title, task_type, age_group, event_date, location, description")
-        .order("event_date", { ascending: true });
-      setTasks((data as TaskRow[]) || []);
+      const [trRes, taskRes] = await Promise.all([
+        supabase.from("trainings").select("*").order("start_time", { ascending: true }),
+        supabase.from("tasks_assignments").select("*").order("event_date", { ascending: true }),
+      ]);
+      if (trRes.data) setTrainings(trRes.data as Training[]);
+      if (taskRes.data) setTasks(taskRes.data as TaskItem[]);
       setLoading(false);
-    };
-    load();
+    })();
   }, []);
 
-  const filtered =
-    ageFilter === "Tümü"
-      ? tasks
-      : tasks.filter((t) => t.age_group === ageFilter || t.age_group === "Tümü");
+  const filteredTrainings = useMemo(() => {
+    const list =
+      selectedGroup === "Tümü"
+        ? trainings
+        : trainings.filter((t) => (t.age_groups || []).includes(selectedGroup));
+
+    return [...list].sort((a, b) => {
+      const da = a.day_of_week ? DAY_ORDER.indexOf(a.day_of_week) : 99;
+      const db = b.day_of_week ? DAY_ORDER.indexOf(b.day_of_week) : 99;
+      if (da !== db) return da - db;
+      return (a.start_time || "").localeCompare(b.start_time || "");
+    });
+  }, [trainings, selectedGroup]);
+
+  const filteredTasks = useMemo(() => {
+    if (selectedGroup === "Tümü") return tasks;
+    return tasks.filter((t) => t.age_group === selectedGroup || t.age_group === "Tümü");
+  }, [tasks, selectedGroup]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[#02274c] to-[#a60513] text-white py-10 px-4">
-        <div className="max-w-5xl mx-auto space-y-3">
-          <h1 className="text-3xl font-black">Görev Atamaları, Antrenmanlar ve Maçlar</h1>
-          <p className="text-slate-100">
-            Yaş grubunu seçerek sana uygun düzenli antrenmanları ve maç
-            görevlerini gör.
-          </p>
-          <div className="flex flex-wrap gap-2 pt-2">
-            {AGE_FILTERS.map((age) => (
-              <button
-                key={age}
-                type="button"
-                onClick={() => setAgeFilter(age)}
-                className={`px-3.5 py-1.5 rounded-xl text-sm font-extrabold transition ${
-                  ageFilter === age
-                    ? "bg-white text-[#02274c]"
-                    : "bg-white/15 text-white hover:bg-white/25"
-                }`}
-              >
-                {age}
-              </button>
-            ))}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
+        {/* Üst Bilgi */}
+        <div className="bg-gradient-to-r from-[#02274c] to-[#04376b] text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+          <div className="space-y-1.5">
+            <span className="inline-block px-3 py-1 rounded-full bg-white/15 text-xs font-extrabold uppercase tracking-wider">
+              Kulüp Programı
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-black">
+              Antrenman Saatleri & Maç Takvimi
+            </h1>
+            <p className="text-sm text-slate-200 max-w-2xl">
+              Kulübümüze yeni katılmak isteyen sporcular ve veliler, yaş gruplarına göre haftalık
+              antrenman gün ve saatlerini buradan inceleyebilir.
+            </p>
           </div>
+          <Link
+            href="/kayit"
+            className="shrink-0 px-5 py-3 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-sm font-extrabold text-center transition shadow"
+          >
+            Deneme / Üyelik Başvurusu
+          </Link>
         </div>
-      </section>
 
-      <main className="max-w-5xl mx-auto px-4 pt-8 space-y-4">
-        {loading ? (
-          <p className="text-slate-500">Görevler yükleniyor...</p>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-500">
-            Bu yaş grubu için henüz görev veya maç kaydı bulunmuyor.
-          </div>
-        ) : (
-          filtered.map((t) => {
-            const badge = TYPE_BADGE[t.task_type] || TYPE_BADGE.antrenman;
-            return (
-              <div
-                key={t.id}
-                className="bg-white rounded-2xl border border-slate-200 border-l-4 border-l-[#02274c] p-6 shadow-sm space-y-2"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-3 py-1 rounded-lg bg-[#02274c] text-white text-xs font-extrabold">
-                      {t.age_group}
+        {/* Yaş Grubu Filtresi */}
+        <div className="flex flex-wrap gap-2">
+          {AGE_GROUPS.map((g) => (
+            <button
+              key={g}
+              onClick={() => setSelectedGroup(g)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
+                selectedGroup === g
+                  ? "bg-[#02274c] text-white border-[#02274c]"
+                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+
+        {/* Antrenman Saatleri */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-black text-[#02274c]">
+            Haftalık Antrenman Saatleri ({filteredTrainings.length})
+          </h2>
+
+          {loading ? (
+            <p className="text-sm text-slate-500">Program yükleniyor...</p>
+          ) : filteredTrainings.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
+              Bu yaş grubu için henüz yayınlanmış antrenman saati bulunmuyor.
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredTrainings.map((tr) => (
+                <div
+                  key={tr.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2.5 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-extrabold">
+                      {tr.day_of_week || tr.training_date || "Program"}
                     </span>
-                    <span className={`px-3 py-1 rounded-lg text-xs font-extrabold ${badge.style}`}>
-                      {badge.label}
+                    <span className="text-sm font-black text-[#a60513]">
+                      {tr.start_time}
+                      {tr.end_time ? ` - ${tr.end_time}` : ""}
                     </span>
                   </div>
-                  <span className="text-sm font-bold text-slate-600">
-                    {new Date(t.event_date).toLocaleString("tr-TR", {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </span>
+                  <h3 className="font-extrabold text-slate-900">{tr.title}</h3>
+                  <div className="flex flex-wrap gap-1">
+                    {(tr.age_groups || []).map((ag) => (
+                      <span
+                        key={ag}
+                        className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold"
+                      >
+                        {ag}
+                      </span>
+                    ))}
+                  </div>
+                  {tr.location && (
+                    <p className="text-xs text-slate-500 pt-1">📍 {tr.location}</p>
+                  )}
                 </div>
-                <h2 className="text-xl font-extrabold text-[#02274c]">{t.title}</h2>
-                {t.location && (
-                  <p className="text-sm font-semibold text-[#a60513]">
-                    Yer: {t.location}
-                  </p>
-                )}
-                {t.description && <p className="text-slate-600 text-sm">{t.description}</p>}
-              </div>
-            );
-          })
-        )}
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Maç & Etkinlik Takvimi */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-black text-[#a60513]">
+            Maçlar & Etkinlikler ({filteredTasks.length})
+          </h2>
+
+          {filteredTasks.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
+              Planlanmış maç veya etkinlik bulunmuyor.
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {filteredTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4 shadow-sm"
+                >
+                  <div className="space-y-1">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-red-50 text-[#a60513] text-xs font-extrabold">
+                      {task.age_group}
+                    </span>
+                    <h3 className="font-extrabold text-slate-900">{task.title}</h3>
+                    <p className="text-xs text-slate-500">
+                      📍 {task.location || "Belirtilmedi"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-black text-[#02274c]">{task.event_date}</div>
+                    {task.match_time && (
+                      <div className="text-xs font-bold text-slate-500">{task.match_time}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

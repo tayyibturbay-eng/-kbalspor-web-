@@ -107,8 +107,32 @@ type ActivityLog = {
 
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "PGL Kadro"];
 const DAYS_OF_WEEK = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
-const MATCH_FIELDS = ["İtfaiye Sahası", "Devane Sahası", "Mimarsinan Sahası", "Diğer"];
-const DUE_MONTHS = ["Ekim 2026", "Kasım 2026", "Aralık 2026", "Ocak 2027", "Şubat 2027"];
+const MATCH_FIELDS = [
+  "Nazmi Avluca Spor Tesisi",
+  "İtfaiye Sahası",
+  "Devane Sahası",
+  "Mimarsinan Sahası",
+  "Diğer",
+];
+const TR_MONTHS = [
+  "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+];
+
+function buildDueMonths(): string[] {
+  const startDate = new Date(2026, 10, 1); // Kasım 2026 (0 tabanlı ay: 10)
+  const now = new Date();
+  const endDate = new Date(now.getFullYear(), now.getMonth() + 3, 1);
+  const list: string[] = [];
+  const cur = new Date(startDate);
+  while (cur <= endDate) {
+    list.push(`${TR_MONTHS[cur.getMonth()]} ${cur.getFullYear()}`);
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return list;
+}
+
+const DUE_MONTHS = buildDueMonths();
 const NAZMI_AVLUCA =
   "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad. (Çiftlik Çayırı - Küçük Evler Yolu civarı), Merkez / Çorum";
 
@@ -210,7 +234,7 @@ export default function AdminPage() {
   const [manualPayPlayerId, setManualPayPlayerId] = useState("");
   const [manualPayMonth, setManualPayMonth] = useState("Kasım 2026");
   const [manualPayAmount, setManualPayAmount] = useState("500");
-  const [pastDueMonth, setPastDueMonth] = useState("Ekim 2026");
+  const [pastDueMonth, setPastDueMonth] = useState("Kasım 2026");
   const [pastDueCustomNote, setPastDueCustomNote] = useState("");
 
   // Son işlemler filtre
@@ -224,7 +248,7 @@ export default function AdminPage() {
     age_group: "U15",
     event_date: "",
     match_time: "14:00",
-    field_choice: "İtfaiye Sahası",
+    field_choice: "Nazmi Avluca Spor Tesisi",
     custom_location: "",
     has_shuttle: true,
     squad_player_ids: [] as string[],
@@ -878,7 +902,7 @@ export default function AdminPage() {
       age_group: "U15",
       event_date: "",
       match_time: "14:00",
-      field_choice: "İtfaiye Sahası",
+      field_choice: "Nazmi Avluca Spor Tesisi",
       custom_location: "",
       has_shuttle: true,
       squad_player_ids: [],
@@ -919,6 +943,23 @@ export default function AdminPage() {
 
   async function createQrSession(e: React.FormEvent) {
     e.preventDefault();
+
+    if (role !== "admin") {
+      const lastTs = Number(localStorage.getItem("ikbal_last_qr_created_at") || "0");
+      const diffMs = Date.now() - lastTs;
+      const oneHourMs = 60 * 60 * 1000;
+      if (lastTs > 0 && diffMs < oneHourMs) {
+        const kalanDakika = Math.ceil((oneHourMs - diffMs) / 60000);
+        setFeedback(`⏳ Güvenlik nedeniyle yeni QR kod oluşturmak için ${kalanDakika} dakika beklemelisiniz.`);
+        return;
+      }
+    }
+
+    const onay = confirm(
+      "Yeni bir QR yoklama oturumu oluşturmak istediğinize emin misiniz? Mevcut aktif QR kodu kapatılacaktır."
+    );
+    if (!onay) return;
+
     const token = `IKB-QR-${Date.now().toString(36).toUpperCase()}`;
     const chosenDate = newSessionDate || new Date().toISOString().slice(0, 10);
 
@@ -942,6 +983,10 @@ export default function AdminPage() {
     if (insErr) {
       setFeedback("QR oluşturma hatası: " + insErr.message);
       return;
+    }
+
+    if (role !== "admin") {
+      localStorage.setItem("ikbal_last_qr_created_at", String(Date.now()));
     }
 
     await logActivity("QR Yoklama Başlatma", `${newSessionTitle} (${chosenDate})`);
@@ -1031,7 +1076,7 @@ export default function AdminPage() {
                 placeholder="Admin E-posta"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 bg-white placeholder:text-slate-500"
               />
               <input
                 type="password"
@@ -1039,7 +1084,7 @@ export default function AdminPage() {
                 placeholder="Şifre"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 bg-white placeholder:text-slate-500"
               />
               <button type="submit" className="w-full bg-[#02274c] text-white font-bold py-2.5 rounded-lg">
                 Admin Olarak Giriş Yap
@@ -1053,7 +1098,7 @@ export default function AdminPage() {
                 placeholder="Antrenör Kodu (örn: ANT-1001)"
                 value={coachCode}
                 onChange={(e) => setCoachCode(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase text-slate-900 placeholder:text-slate-500"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase text-slate-900 bg-white placeholder:text-slate-500"
               />
               <input
                 type="password"
@@ -1061,7 +1106,7 @@ export default function AdminPage() {
                 placeholder="Antrenör Şifresi"
                 value={coachPin}
                 onChange={(e) => setCoachPin(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-500"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 bg-white placeholder:text-slate-500"
               />
               <button type="submit" className="w-full bg-[#a60513] text-white font-bold py-2.5 rounded-lg">
                 Antrenör Olarak Giriş Yap
@@ -1086,7 +1131,6 @@ export default function AdminPage() {
     items: filteredPlayers.filter((p) => p.age_group === g),
   })).filter((x) => x.items.length > 0);
 
-  // Seçili aya göre tüm oyuncuları grupla (Ödemeyenler en üstte!)
   const monthDuesMap = new Map<string, Due>();
   dues.filter((d) => d.month_label === selectedDueMonth).forEach((d) => monthDuesMap.set(d.player_id, d));
 
@@ -1106,7 +1150,6 @@ export default function AdminPage() {
     })
     .filter((x) => x.rows.length > 0);
 
-  // Geçmiş aydan borcu kalan oyuncular
   const pastDuePaidIds = new Set(
     dues
       .filter((d) => d.month_label === pastDueMonth && (d.status === "Ödendi" || d.status === "paid"))
@@ -1761,12 +1804,11 @@ export default function AdminPage() {
         {/* AİDATLAR */}
         {tab === "aidat" && role === "admin" && (
           <div className="space-y-6">
-            {/* Güncel Ücret Belirleme */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="font-extrabold text-[#02274c]">Aylık Aidat Ücreti & Dönem Seçimi</h2>
                 <p className="text-xs text-slate-500">
-                  Tüm oyuncular seçtiğiniz ay için otomatik listelenir; ödemeyenler her zaman en üstte gösterilir.
+                  Kasım 2026 itibarıyla her yeni ayda 3 ay sonrası otomatik açılır; ödemeyenler her zaman en üstte gösterilir.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1801,7 +1843,6 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Kişi & Tutar Seçerek Ödeme Ekleme */}
             <form onSubmit={handleManualDuePayment} className="bg-white p-5 rounded-2xl shadow-sm border space-y-3">
               <h3 className="font-extrabold text-[#02274c] text-sm">
                 Ödeme Ekle (Kişi, Ay ve Verilen Tutarı Seç)
@@ -1845,7 +1886,6 @@ export default function AdminPage() {
               </div>
             </form>
 
-            {/* Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim & Mesaj Kutucuğu */}
             <div className="bg-amber-50 border border-amber-300 p-5 rounded-2xl space-y-3">
               <div className="flex flex-wrap justify-between items-center gap-3">
                 <div>
@@ -1900,7 +1940,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Aylık Liste */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
