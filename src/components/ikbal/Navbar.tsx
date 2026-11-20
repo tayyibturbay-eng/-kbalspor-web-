@@ -6,9 +6,10 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/", label: "Ana Sayfa" },
-  { href: "/kadro-kur", label: "Kadro Kur (U11–U19)" },
+  { href: "/kadro-kur", label: "Kadro Kur" },
   { href: "/gorevler", label: "Görevler & Maçlar" },
   { href: "/mesajlar", label: "Mesajlaşma" },
+  { href: "/temsilci", label: "Temsilci Paneli" },
   { href: "/iletisim", label: "İletişim" },
 ];
 
@@ -24,9 +25,7 @@ export function Navbar() {
             İK
           </span>
           <div className="leading-tight">
-            <span className="block text-xl font-black tracking-wide">
-              İKBALSPOR
-            </span>
+            <span className="block text-xl font-black tracking-wide">İKBALSPOR</span>
             <span className="block text-[11px] font-bold text-slate-300">
               Çorum İkbalspor • Profesyonelliğe Geçiş
             </span>
@@ -40,10 +39,8 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-3.5 py-2 rounded-xl font-bold text-sm transition ${
-                  active
-                    ? "bg-[#a60513] text-white"
-                    : "text-slate-100 hover:bg-white/10"
+                className={`px-3 py-2 rounded-xl font-bold text-sm transition ${
+                  active ? "bg-[#a60513] text-white" : "text-slate-100 hover:bg-white/10"
                 }`}
               >
                 {item.label}

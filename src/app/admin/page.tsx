@@ -9,10 +9,12 @@ interface Player {
   id: string;
   player_code: string;
   full_name: string;
+  birth_date: string | null;
   age_group: string;
   position: string;
   jersey_number: number | null;
   parent_phone: string | null;
+  is_representative: boolean;
 }
 
 interface DueRow {
@@ -59,6 +61,14 @@ interface AttendanceRow {
 const AGE_GROUPS = ["U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18", "U19"];
 const POSITIONS = ["Kaleci", "Defans", "Orta Saha", "Forvet"];
 
+function calcAgeGroupFromBirthDate(birthDate: string): string {
+  const year = new Date(birthDate).getFullYear();
+  const age = 2026 - year;
+  if (age <= 11) return "U11";
+  if (age >= 19) return "U19";
+  return `U${age}`;
+}
+
 function waLink(phone: string | null | undefined, text: string) {
   if (!phone) return null;
   let d = phone.replace(/\D/g, "");
@@ -84,12 +94,13 @@ export default function IkbalAdminPage() {
   const [sessions, setSessions] = useState<PrayerSession[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
 
-  // Formlar
+  // Oyuncu Formu (Doğum Tarihi ile)
   const [pName, setPName] = useState("");
-  const [pAge, setPAge] = useState("U11");
+  const [pBirthDate, setPBirthDate] = useState("2015-01-01");
   const [pPos, setPPos] = useState("Orta Saha");
   const [pNum, setPNum] = useState("");
   const [pPhone, setPPhone] = useState("");
+  const [pRep, setPRep] = useState(false);
 
   const [duePlayerId, setDuePlayerId] = useState("");
   const [dueMonth, setDueMonth] = useState("Kasım 2026");
@@ -139,13 +150,16 @@ export default function IkbalAdminPage() {
   useEffect(() => {
     setPrayerDate(new Date().toISOString().split("T")[0]);
     const init = async () => {
-      const supabase = createClient();
-      const { data } = await supabase.auth.getUser();
-      if (data.user) {
-        setUserEmail(data.user.email ?? "Yönetici");
-        loadAll();
+      try {
+        const supabase = createClient();
+        const { data } = await supabase.auth.getUser();
+        if (data.user) {
+          setUserEmail(data.user.email ?? "Yönetici");
+          loadAll();
+        }
+      } finally {
+        setChecked(true);
       }
-      setChecked(true);
     };
     init();
   }, []);
@@ -166,23 +180,33 @@ export default function IkbalAdminPage() {
   const handleAddPlayer = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
+    const autoAgeGroup = calcAgeGroupFromBirthDate(pBirthDate);
     const supabase = createClient();
     const { data, error } = await supabase
       .from("players")
       .insert({
         player_code: code,
         full_name: pName.trim(),
-        age_group: pAge,
+        birth_date: pBirthDate,
+        age_group: autoAgeGroup,
         position: pPos,
         jersey_number: pNum ? Number(pNum) : null,
         parent_phone: pPhone.trim() || null,
+        is_representative: pRep,
       })
       .select()
       .single();
     if (!error && data) {
       setPlayers((prev) => [...prev, data as Player]);
-      setPName(""); setPNum(""); setPPhone("");
+      setPName(""); setPNum(""); setPPhone(""); setPRep(false);
     }
+  };
+
+  const toggleRep = async (p: Player) => {
+    const next = !p.is_representative;
+    const supabase = createClient();
+    const { error } = await supabase.from("players").update({ is_representative: next }).eq("id", p.id);
+    if (!error) setPlayers((prev) => prev.map((x) => (x.id === p.id ? { ...x, is_representative: next } : x)));
   };
 
   const handleDeletePlayer = async (id: string) => {
@@ -198,12 +222,7 @@ export default function IkbalAdminPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("dues")
-      .insert({
-        player_id: duePlayerId,
-        month_label: dueMonth.trim(),
-        amount: Number(dueAmount) || 0,
-        status: "pending",
-      })
+      .insert({ player_id: duePlayerId, month_label: dueMonth.trim(), amount: Number(dueAmount) || 0, status: "pending" })
       .select()
       .single();
     if (!error && data) setDues((prev) => [data as DueRow, ...prev]);
@@ -222,12 +241,7 @@ export default function IkbalAdminPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("equipment_logs")
-      .insert({
-        player_id: eqPlayerId,
-        item_name: eqName.trim(),
-        item_size: eqSize.trim() || null,
-        status: "teslim_edildi",
-      })
+      .insert({ player_id: eqPlayerId, item_name: eqName.trim(), item_size: eqSize.trim() || null, status: "teslim_edildi" })
       .select()
       .single();
     if (!error && data) setEquipment((prev) => [data as EquipmentRow, ...prev]);
@@ -267,11 +281,7 @@ export default function IkbalAdminPage() {
     const supabase = createClient();
     const { data, error } = await supabase
       .from("prayer_sessions")
-      .insert({
-        session_date: prayerDate,
-        qr_token: token,
-        mosque_name: mosqueName.trim() || "Kulüp Sabah Namazı Buluşması",
-      })
+      .insert({ session_date: prayerDate, qr_token: token, mosque_name: mosqueName.trim() || "Kulüp Sabah Namazı Buluşması" })
       .select()
       .single();
     if (!error && data) {
@@ -300,7 +310,9 @@ export default function IkbalAdminPage() {
   }
 
   const activeSession = sessions.find((s) => s.id === activeSessionId);
-  const activeAttendance = attendance.filter((a) => a.session_id === activeSessionId);
+  const attendedIds = new Set(
+    attendance.filter((a) => a.session_id === activeSessionId).map((a) => a.player_id)
+  );
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
@@ -339,32 +351,48 @@ export default function IkbalAdminPage() {
           ))}
         </div>
 
-        {/* 1. OYUNCULAR */}
+        {/* 1. OYUNCULAR (DOĞUM TARİHİ İLE OTOMATİK KATEGORİ + ÇOCUK ID) */}
         {tab === "players" && (
           <div className="space-y-6">
-            <form onSubmit={handleAddPlayer} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-5 gap-3">
+            <form onSubmit={handleAddPlayer} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-6 gap-3">
               <input type="text" required placeholder="Oyuncu Adı Soyadı" value={pName} onChange={(e) => setPName(e.target.value)} className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <select value={pAge} onChange={(e) => setPAge(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold">
-                {AGE_GROUPS.map((a) => <option key={a} value={a}>{a}</option>)}
-              </select>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500">Doğum Tarihi ({calcAgeGroupFromBirthDate(pBirthDate)})</label>
+                <input type="date" required value={pBirthDate} onChange={(e) => setPBirthDate(e.target.value)} className="w-full min-h-[40px] px-2 rounded-xl border-2 border-slate-300 text-sm font-bold" />
+              </div>
               <select value={pPos} onChange={(e) => setPPos(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold">
                 {POSITIONS.map((pos) => <option key={pos} value={pos}>{pos}</option>)}
               </select>
               <input type="number" placeholder="Forma No" value={pNum} onChange={(e) => setPNum(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <input type="tel" placeholder="Veli Telefon (05XX...)" value={pPhone} onChange={(e) => setPPhone(e.target.value)} className="sm:col-span-3 min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
-              <button type="submit" className="sm:col-span-2 min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Oyuncu Ekle</button>
+              <input type="tel" placeholder="Veli Tel (05XX...)" value={pPhone} onChange={(e) => setPPhone(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
+              <label className="sm:col-span-3 flex items-center gap-2 text-sm font-bold text-[#02274c]">
+                <input type="checkbox" checked={pRep} onChange={(e) => setPRep(e.target.checked)} className="h-4 w-4" />
+                Bu oyuncuyu Yoklama Temsilcisi olarak yetkilendir
+              </label>
+              <button type="submit" className="sm:col-span-3 min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Oyuncu Ekle & ID Üret</button>
             </form>
 
             <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
               {players.map((p) => (
                 <div key={p.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <span className="px-2.5 py-1 rounded bg-[#02274c] text-white text-xs font-extrabold mr-2">{p.age_group}</span>
-                    <span className="px-2.5 py-1 rounded bg-red-50 text-[#a60513] text-xs font-extrabold mr-2">{p.player_code}</span>
+                    <span className="px-2.5 py-1 rounded bg-[#02274c] text-white text-xs font-extrabold mr-2">{p.age_group}–U19</span>
+                    <span className="px-2.5 py-1 rounded bg-red-50 text-[#a60513] text-xs font-extrabold mr-2">ID: {p.player_code}</span>
                     <strong className="text-[#02274c]">#{p.jersey_number ?? "-"} {p.full_name}</strong>
-                    <span className="text-sm text-slate-500 ml-2">({p.position})</span>
+                    <span className="text-sm text-slate-500 ml-2">({p.position}{p.birth_date ? ` • ${p.birth_date}` : ""})</span>
                   </div>
-                  <button type="button" onClick={() => handleDeletePlayer(p.id)} className="text-red-600 font-bold text-sm">Sil</button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleRep(p)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-extrabold ${
+                        p.is_representative ? "bg-emerald-600 text-white" : "border border-slate-300 text-slate-600"
+                      }`}
+                    >
+                      {p.is_representative ? "Temsilci ✓" : "Temsilci Yap"}
+                    </button>
+                    <button type="button" onClick={() => handleDeletePlayer(p.id)} className="text-red-600 font-bold text-sm">Sil</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -378,7 +406,7 @@ export default function IkbalAdminPage() {
               <select value={duePlayerId} onChange={(e) => setDuePlayerId(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold">
                 {players.map((p) => <option key={p.id} value={p.id}>{p.age_group} - {p.full_name}</option>)}
               </select>
-              <input type="text" required placeholder="Dönem (Örn: Kasım 2026)" value={dueMonth} onChange={(e) => setDueMonth(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
+              <input type="text" required placeholder="Dönem" value={dueMonth} onChange={(e) => setDueMonth(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
               <input type="number" required placeholder="Tutar (TL)" value={dueAmount} onChange={(e) => setDueAmount(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
               <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Aidat Ekle</button>
             </form>
@@ -386,10 +414,7 @@ export default function IkbalAdminPage() {
             <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
               {dues.map((d) => {
                 const pl = players.find((p) => p.id === d.player_id);
-                const wa = waLink(
-                  pl?.parent_phone,
-                  `Sayın Veli, İkbalspor ${pl?.full_name || ""} (${d.month_label}) dönemi ${d.amount} TL aidat ödemesi beklenmektedir.`
-                );
+                const wa = waLink(pl?.parent_phone, `Sayın Veli, İkbalspor ${pl?.full_name || ""} (${d.month_label}) dönemi ${d.amount} TL aidat ödemesi beklenmektedir.`);
                 return (
                   <div key={d.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -417,7 +442,7 @@ export default function IkbalAdminPage() {
               <select value={eqPlayerId} onChange={(e) => setEqPlayerId(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold">
                 {players.map((p) => <option key={p.id} value={p.id}>{p.age_group} - {p.full_name}</option>)}
               </select>
-              <input type="text" required placeholder="Malzeme (Forma, Krampon...)" value={eqName} onChange={(e) => setEqName(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
+              <input type="text" required placeholder="Malzeme" value={eqName} onChange={(e) => setEqName(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
               <input type="text" placeholder="Beden / Numara" value={eqSize} onChange={(e) => setEqSize(e.target.value)} className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300" />
               <button type="submit" className="min-h-[46px] rounded-xl bg-[#02274c] text-white font-extrabold">Malzeme Teslim Et</button>
             </form>
@@ -461,7 +486,7 @@ export default function IkbalAdminPage() {
           </div>
         )}
 
-        {/* 5. CUMARTESİ SABAH NAMAZI QR YOKLAMA */}
+        {/* 5. SABAH NAMAZI QR YOKLAMA (YEŞİL KATILIM LİSTESİ) */}
         {tab === "prayer" && (
           <div className="space-y-6">
             <form onSubmit={handleCreatePrayerSession} className="bg-white rounded-2xl border border-slate-200 p-6 grid sm:grid-cols-3 gap-3">
@@ -474,26 +499,29 @@ export default function IkbalAdminPage() {
               <div className="bg-white rounded-2xl border border-slate-200 p-6 grid md:grid-cols-12 gap-6 items-center">
                 <div className="md:col-span-4 flex flex-col items-center p-4 bg-slate-50 rounded-2xl border border-slate-200">
                   <QRCodeSVG value={activeSession.qr_token} size={200} />
-                  <p className="text-xs font-bold text-slate-600 mt-3">{activeSession.session_date} • {activeSession.mosque_name}</p>
+                  <p className="text-xs font-bold text-slate-600 mt-3 text-center">{activeSession.session_date} • {activeSession.mosque_name}</p>
                 </div>
                 <div className="md:col-span-8 space-y-3">
                   <h3 className="text-xl font-extrabold text-[#02274c]">
-                    Katılan Oyuncular ({activeAttendance.length} / {players.length})
+                    Katılım Durumu ({attendedIds.size} / {players.length})
                   </h3>
-                  {activeAttendance.length === 0 ? (
-                    <p className="text-slate-500 text-sm">Henüz mobil uygulamadan QR okutan oyuncu yok.</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {activeAttendance.map((a) => {
-                        const pl = players.find((p) => p.id === a.player_id);
-                        return (
-                          <span key={a.id} className="px-3 py-1.5 rounded-xl bg-emerald-100 text-emerald-900 text-sm font-bold">
-                            ✓ {pl?.age_group} - {pl?.full_name || "Oyuncu"}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {players.map((p) => {
+                      const ok = attendedIds.has(p.id);
+                      return (
+                        <span
+                          key={p.id}
+                          className={`px-3 py-1.5 rounded-xl text-sm font-bold border ${
+                            ok
+                              ? "bg-emerald-500 border-emerald-600 text-white"
+                              : "bg-slate-100 border-slate-200 text-slate-500"
+                          }`}
+                        >
+                          {ok ? "✓ " : ""}{p.age_group} - {p.full_name}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
