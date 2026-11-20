@@ -36,6 +36,16 @@ const FORMATIONS: Record<string, { label: string; rows: { role: string; count: n
       { role: "Kaleci", count: 1 },
     ],
   },
+  "4-2-3-1": {
+    label: "4-2-3-1 (Modern)",
+    rows: [
+      { role: "Santrafor", count: 1 },
+      { role: "Ofansif Orta Saha", count: 3 },
+      { role: "Ön Libero", count: 2 },
+      { role: "Defans", count: 4 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
   "4-4-2": {
     label: "4-4-2 (Dengeli)",
     rows: [
@@ -45,11 +55,23 @@ const FORMATIONS: Record<string, { label: string; rows: { role: string; count: n
       { role: "Kaleci", count: 1 },
     ],
   },
-  "4-2-3-1": {
-    label: "4-2-3-1 (Modern)",
+  "4-4-2-elmas": {
+    label: "4-4-2 (Elmas)",
     rows: [
-      { role: "Forvet", count: 1 },
-      { role: "Orta Saha", count: 5 },
+      { role: "Forvet", count: 2 },
+      { role: "On Numara", count: 1 },
+      { role: "Merkez Orta", count: 2 },
+      { role: "Ön Libero", count: 1 },
+      { role: "Defans", count: 4 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "4-1-4-1": {
+    label: "4-1-4-1 (Kontrollü)",
+    rows: [
+      { role: "Santrafor", count: 1 },
+      { role: "Orta Saha", count: 4 },
+      { role: "Ön Libero", count: 1 },
       { role: "Defans", count: 4 },
       { role: "Kaleci", count: 1 },
     ],
@@ -63,7 +85,70 @@ const FORMATIONS: Record<string, { label: string; rows: { role: string; count: n
       { role: "Kaleci", count: 1 },
     ],
   },
+  "3-4-3": {
+    label: "3-4-3 (Baskılı)",
+    rows: [
+      { role: "Forvet", count: 3 },
+      { role: "Orta Saha", count: 4 },
+      { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "5-3-2": {
+    label: "5-3-2 (Savunma)",
+    rows: [
+      { role: "Forvet", count: 2 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 5 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "5-4-1": {
+    label: "5-4-1 (Kontra)",
+    rows: [
+      { role: "Santrafor", count: 1 },
+      { role: "Orta Saha", count: 4 },
+      { role: "Defans", count: 5 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "3-3-1": {
+    label: "3-3-1 (8'li U11/U12)",
+    rows: [
+      { role: "Forvet", count: 1 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "2-3-2": {
+    label: "2-3-2 (8'li U11/U12)",
+    rows: [
+      { role: "Forvet", count: 2 },
+      { role: "Orta Saha", count: 3 },
+      { role: "Defans", count: 2 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
+  "3-2-3": {
+    label: "3-2-3 (9'lu U12)",
+    rows: [
+      { role: "Forvet", count: 3 },
+      { role: "Orta Saha", count: 2 },
+      { role: "Defans", count: 3 },
+      { role: "Kaleci", count: 1 },
+    ],
+  },
 };
+
+const TACTIC_PLANS = [
+  "Dengeli Oyun",
+  "Ön Alan Baskısı (Yüksek Pres)",
+  "Topa Sahip Olma & Pas Oyunu",
+  "Hızlı Kontra Atak",
+  "Kanat Organizasyonu",
+  "Merkezden Kilit Açma",
+];
 
 type EligibilityResult = {
   eligible: boolean;
@@ -129,6 +214,8 @@ function checkPlayerEligibility(player: Player, categoryKey: string): Eligibilit
 export default function SquadBuilderPage() {
   const [selectedCategory, setSelectedCategory] = useState("PGL-U19");
   const [formation, setFormation] = useState("4-3-3");
+  const [tacticPlan, setTacticPlan] = useState(TACTIC_PLANS[0]);
+  const [tacticNote, setTacticNote] = useState("");
   const [allPlayers, setAllPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<Record<string, Player | null>>({});
@@ -201,7 +288,6 @@ export default function SquadBuilderPage() {
   const assignToSlot = (targetSlotKey: string, player: Player, fromSlotKey: string | null) => {
     setQuotaWarning("");
 
-    // Saha içi sürükle-bırak (taşıma veya yer değiştirme)
     if (fromSlotKey) {
       if (fromSlotKey === targetSlotKey) return;
       setSlots((prev) => {
@@ -248,7 +334,6 @@ export default function SquadBuilderPage() {
       }
     }
 
-    // Kadroda aynı forma numarası çakışması varsa yeni oyuncunun kadro numarasını boş başlat
     if (!alreadyOnPitch && player.jersey_number !== null) {
       const numConflict = currentLineup.find(
         (p) => p.id !== player.id && getEffectiveNumber(p) === player.jersey_number
@@ -290,9 +375,14 @@ export default function SquadBuilderPage() {
       const num = getEffectiveNumber(p);
       return `#${num === "" ? "-" : num} ${p.full_name} (${p.position})`;
     });
-    const text = `İkbalspor ${selectedCategory} (${formation}) Kadrosu:\n` + lines.join("\n");
+    const text =
+      `İkbalspor ${selectedCategory} (${FORMATIONS[formation].label}) Kadrosu\n` +
+      `Oyun Planı: ${tacticPlan}` +
+      (tacticNote.trim() ? `\nNot: ${tacticNote.trim()}` : "") +
+      `\n\n` +
+      lines.join("\n");
     navigator.clipboard.writeText(text);
-    alert("Maç kadrosu kopyalandı!");
+    alert("Maç kadrosu ve taktik plan kopyalandı!");
   };
 
   const assignedIds = new Set(currentLineup.map((p) => p.id));
@@ -306,7 +396,7 @@ export default function SquadBuilderPage() {
         <div className="max-w-6xl mx-auto space-y-4">
           <h1 className="text-3xl font-black">PGL Ligi & Taktik Kadro Oluşturma</h1>
           <p className="text-slate-100">
-            Resmi yaş uygunluğu ve kontenjan kurallarına göre PGL maç kadronu sürükle-bırak ile kur;
+            Resmi yaş uygunluğu ve kontenjan kurallarına göre PGL veya altyapı maç kadronu kur;
             sahadaki oyuncuları sürükleyerek yer değiştirebilir ve kadroya özel forma numarası verebilirsin.
           </p>
 
@@ -337,10 +427,10 @@ export default function SquadBuilderPage() {
                   setSlots({});
                   setSquadNumbers({});
                 }}
-                className={`px-4 py-2 rounded-xl font-extrabold text-sm border-2 transition cursor-pointer ${
+                className={`px-3.5 py-2 rounded-xl font-extrabold text-xs sm:text-sm border-2 transition cursor-pointer ${
                   formation === key
                     ? "bg-[#a60513] border-white text-white"
-                    : "bg-white/10 border-white/25 text-white"
+                    : "bg-white/10 border-white/25 text-white hover:bg-white/20"
                 }`}
               >
                 {val.label}
@@ -351,42 +441,77 @@ export default function SquadBuilderPage() {
       </section>
 
       <main className="max-w-6xl mx-auto px-4 pt-8 space-y-6">
-        {/* Kontenjan Durum Çubuğu */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
-          <div className="text-sm font-bold text-[#02274c]">
-            {selectedCategory === "PGL-U19" ? (
-              <span>
-                2006 Kontenjanı: Saha <strong>{quotaOutfieldCount}/2</strong> • Kaleci{" "}
-                <strong>{quotaGkCount}/1</strong> (Toplam {quotaPlayersInLineup.length}/3)
-              </span>
-            ) : ["PGL-U13", "PGL-U14", "PGL-U15"].includes(selectedCategory) ? (
-              <span>
-                Son Çeyrek Kontenjan Kullanımı: <strong>{quotaPlayersInLineup.length} / 2</strong>
-              </span>
-            ) : (
-              <span>Seçili Kategori: {selectedCategory}</span>
-            )}
+        {/* Oyun Planı & Kontenjan Durum Çubuğu */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="text-sm font-bold text-[#02274c]">
+              {selectedCategory === "PGL-U19" ? (
+                <span>
+                  2006 Kontenjanı: Saha <strong>{quotaOutfieldCount}/2</strong> • Kaleci{" "}
+                  <strong>{quotaGkCount}/1</strong> (Toplam {quotaPlayersInLineup.length}/3)
+                </span>
+              ) : ["PGL-U13", "PGL-U14", "PGL-U15"].includes(selectedCategory) ? (
+                <span>
+                  Son Çeyrek Kontenjan Kullanımı: <strong>{quotaPlayersInLineup.length} / 2</strong>
+                </span>
+              ) : (
+                <span>
+                  Seçili Kategori: {selectedCategory} • Diziliş: {currentFormation.label}
+                </span>
+              )}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={copySquadText}
+                className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
+              >
+                Kadroyu Kopyala
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSlots({});
+                  setSquadNumbers({});
+                  setQuotaWarning("");
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-extrabold cursor-pointer"
+              >
+                Sahayı Temizle
+              </button>
+            </div>
           </div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={copySquadText}
-              className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
-            >
-              Kadroyu Kopyala
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSlots({});
-                setSquadNumbers({});
-                setQuotaWarning("");
-              }}
-              className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-extrabold cursor-pointer"
-            >
-              Sahayı Temizle
-            </button>
+          <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+            <div>
+              <label className="block text-[11px] font-extrabold text-slate-500 uppercase mb-1">
+                Oyun Planı / Taktik Anlayışı
+              </label>
+              <select
+                value={tacticPlan}
+                onChange={(e) => setTacticPlan(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold text-[#02274c] bg-white"
+              >
+                {TACTIC_PLANS.map((plan) => (
+                  <option key={plan} value={plan}>
+                    {plan}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-extrabold text-slate-500 uppercase mb-1">
+                Maç Taktik Notu (İsteğe Bağlı)
+              </label>
+              <input
+                type="text"
+                value={tacticNote}
+                onChange={(e) => setTacticNote(e.target.value)}
+                placeholder="Örn: Duran toplarda 1. direğe koşu, kanatlardan hızlı çıkış..."
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs text-slate-900 bg-white placeholder:text-slate-400"
+              />
+            </div>
           </div>
         </div>
 
@@ -454,7 +579,7 @@ export default function SquadBuilderPage() {
 
           {/* Sağ: Taktik Tahtası */}
           <div className="lg:col-span-8">
-            <div className="rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-700 border-4 border-white shadow-xl p-6 min-h-[540px] flex flex-col justify-between gap-5">
+            <div className="rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-700 border-4 border-white shadow-xl p-6 min-h-[540px] flex flex-col justify-between gap-4">
               {currentFormation.rows.map((row, rowIdx) => (
                 <div key={`${row.role}-${rowIdx}`} className="flex justify-center flex-wrap gap-3">
                   {Array.from({ length: row.count }).map((_, colIdx) => {
@@ -482,7 +607,7 @@ export default function SquadBuilderPage() {
                             setDraggingFromSlot(null);
                           }
                         }}
-                        className={`w-32 min-h-[96px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-between p-2 text-center transition ${
+                        className={`w-32 min-h-[92px] rounded-2xl border-2 border-dashed flex flex-col items-center justify-between p-2 text-center transition ${
                           occupant
                             ? occIsQuota
                               ? "bg-amber-600 border-white border-solid text-white shadow-lg cursor-grab active:cursor-grabbing"
