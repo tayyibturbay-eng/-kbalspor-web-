@@ -9,6 +9,13 @@ function chunkArray<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
+type ExpoPushTicket = {
+  status?: "ok" | "error";
+  id?: string;
+  message?: string;
+  details?: { error?: string };
+};
+
 export async function POST(req: Request) {
   try {
     const { ageGroups, title, body } = (await req.json()) as {
@@ -26,7 +33,9 @@ export async function POST(req: Request) {
 
     const supabase = createServerSupabaseClient();
 
-    let query = supabase.from("player_push_tokens").select("expo_push_token, age_group");
+    let query = supabase
+      .from("player_push_tokens")
+      .select("expo_push_token, age_group");
     if (ageGroups && ageGroups.length > 0 && !ageGroups.includes("Tümü")) {
       query = query.in("age_group", ageGroups);
     }
@@ -43,7 +52,10 @@ export async function POST(req: Request) {
       new Set(
         (tokens || [])
           .map((t) => t.expo_push_token)
-          .filter((tk): tk is string => Boolean(tk) && tk.startsWith("ExponentPushToken"))
+          .filter(
+            (tk): tk is string =>
+              Boolean(tk) && tk.startsWith("ExponentPushToken")
+          )
       )
     );
 
@@ -51,9 +63,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, sentCount: 0 });
     }
 
-    // Expo Push API tek seferde en fazla 100 mesaj kabul eder
     const tokenChunks = chunkArray(uniqueTokens, 100);
     let totalSent = 0;
+    const errors: string[] = [];
 
     for (const chunk of tokenChunks) {
       const messages = chunk.map((token) => ({
@@ -72,6 +84,10 @@ export async function POST(req: Request) {
         body: JSON.stringify(messages),
       });
 
+      const expoJson = (await expoRes.json().catch(() => null)) as {
+        data?: ExpoPushTicket[];
+      } | null;
+
       if (!expoRes.ok) {
         return NextResponse.json(
           {
@@ -83,10 +99,37 @@ export async function POST(req: Request) {
         );
       }
 
-      totalSent += chunk.length;
+      const tickets = Array.isArray(expoJson?.data) ? expoJson.data : [];
+      if (tickets.length === 0) {
+        totalSent += chunk.length;
+      } else {
+        tickets.forEach((ticket, idx) => {
+          if (ticket.status === "ok") {
+            totalSent += 1;
+          } else {
+            const detailErr = ticket.details?.error || ticket.message || "Bilinmeyen hata";
+            errors.push(`${chunk[idx]?.slice(0, 28)}...: ${detailErr}`);
+          }
+        });
+      }
     }
 
-    return NextResponse.json({ ok: true, sentCount: totalSent });
+    if (totalSent === 0 && errors.length > 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: errors.join(" | "),
+          sentCount: 0,
+        },
+        { status: 200 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      sentCount: totalSent,
+      warning: errors.length > 0 ? errors.join(" | ") : undefined,
+    });
   } catch (err) {
     return NextResponse.json(
       {

@@ -19,6 +19,20 @@ interface MatchResultsTabProps {
   onLogActivity: (action: string, details: string) => Promise<void> | void;
 }
 
+function getPlayerMultiplier(p: Player, allPlayers: Player[]): 1 | 2 | 3 {
+  const playerWithGoals = p as Player & { goals_scored?: number | null };
+  const goals = Math.max(0, Number(playerWithGoals.goals_scored ?? 0));
+  const maxGoals = Math.max(
+    0,
+    ...allPlayers.map((item) =>
+      Math.max(0, Number((item as Player & { goals_scored?: number | null }).goals_scored ?? 0))
+    )
+  );
+  if (goals <= 0) return 3;
+  if (maxGoals > 0 && goals >= maxGoals) return 1;
+  return 2;
+}
+
 export function MatchResultsTab({
   players,
   tasks,
@@ -41,14 +55,12 @@ export function MatchResultsTab({
   const [goalEvents, setGoalEvents] = useState<GoalEntry[]>([]);
   const [saving, setSaving] = useState(false);
 
-  // Listede olmayan oyuncuyu arayıp ekleme alanı durumu
   const [showExtraSearch, setShowExtraSearch] = useState(false);
   const [extraSearchQuery, setExtraSearchQuery] = useState("");
 
   const activeMatch =
     matchList.find((m) => m.id === selectedMatchId) || matchList[0] || null;
 
-  // Maçta oynayan / görevli oyuncular
   const matchPlayers = useMemo(() => {
     if (!activeMatch) return players;
 
@@ -178,6 +190,8 @@ export function MatchResultsTab({
     setSaving(true);
     try {
       const scorerIds = goalEvents.map((g) => g.player_id);
+      const scorerNames = goalEvents.map((g) => g.player_name);
+      const actualScorerText = scorerNames.join(", ");
 
       const { error: resError } = await supabase.from("match_results").upsert(
         {
@@ -200,38 +214,81 @@ export function MatchResultsTab({
       const { data: preds } = await supabase
         .from("match_predictions")
         .select("*")
-        .eq("match_id", activeMatch.id);
+        .eq("match_title", activeMatch.title);
+
+      const addedPointsByPlayer = new Map<string, number>();
 
       if (preds && preds.length > 0) {
         for (const pred of preds) {
           let earned = 0;
-          const scorerHit =
-            pred.predicted_scorer_id &&
-            scorerIds.includes(pred.predicted_scorer_id);
-          const scoreHit =
-            Number(pred.predicted_home_goals) === Number(homeGoals) &&
-            Number(pred.predicted_away_goals) === Number(awayGoals);
 
-          if (scorerHit) earned += 2;
-          if (scoreHit) earned += 3;
+          const predHome = Number(pred.home_score ?? pred.predicted_home_goals ?? -1);
+          const predAway = Number(pred.away_score ?? pred.predicted_away_goals ?? -1);
+
+          if (predHome === Number(homeGoals)) earned += 1;
+          if (predAway === Number(awayGoals)) earned += 1;
+
+          const predScorerName = String(pred.first_scorer_name || "").trim();
+          const matchedScorerPlayer = predScorerName
+            ? players.find(
+                (p) => p.full_name.trim().toLowerCase() === predScorerName.toLowerCase()
+              )
+            : null;
+
+          const scorerHit = Boolean(
+            (pred.predicted_scorer_id && scorerIds.includes(pred.predicted_scorer_id)) ||
+              (predScorerName &&
+                scorerNames.some(
+                  (sn) => sn.trim().toLowerCase() === predScorerName.toLowerCase()
+                ))
+          );
+
+          const mult: 1 | 2 | 3 =
+            pred.scorer_multiplier === 1 ||
+            pred.scorer_multiplier === 2 ||
+            pred.scorer_multiplier === 3
+              ? pred.scorer_multiplier
+              : matchedScorerPlayer
+              ? getPlayerMultiplier(matchedScorerPlayer, players)
+              : 1;
+
+          if (scorerHit) earned += mult;
+
+          const prevAwarded = Number(pred.awarded_points ?? 0);
+          const deltaPoints = Math.max(0, earned - prevAwarded);
 
           await supabase
             .from("match_predictions")
-            .update({ points_earned: earned })
+            .update({
+              actual_home_score: homeGoals,
+              actual_away_score: awayGoals,
+              actual_scorer_name: actualScorerText || null,
+              awarded_points: earned,
+              points_earned: earned,
+            })
             .eq("id", pred.id);
 
-          if (earned > 0 && pred.player_id) {
-            const targetPlayer = players.find((p) => p.id === pred.player_id);
-            const currentPts = Number(
-              (targetPlayer as Player & { skill_points?: number | null })
-                ?.skill_points ?? 20
+          if (deltaPoints > 0 && pred.player_id) {
+            addedPointsByPlayer.set(
+              pred.player_id,
+              (addedPointsByPlayer.get(pred.player_id) || 0) + deltaPoints
             );
-            await supabase
-              .from("players")
-              .update({ skill_points: currentPts + earned })
-              .eq("id", pred.player_id);
           }
         }
+      }
+
+      for (const [playerId, delta] of addedPointsByPlayer.entries()) {
+        const { data: freshPlayer } = await supabase
+          .from("players")
+          .select("skill_points")
+          .eq("id", playerId)
+          .maybeSingle();
+
+        const currentPts = Number(freshPlayer?.skill_points ?? 20);
+        await supabase
+          .from("players")
+          .update({ skill_points: currentPts + delta })
+          .eq("id", playerId);
       }
 
       await onLogActivity(
@@ -242,7 +299,7 @@ export function MatchResultsTab({
         }`
       );
 
-      onFeedback("Maç skoru ve gol atan oyuncular kaydedildi.");
+      onFeedback("Maç skoru, gol atanlar ve tahmin puanları kaydedildi.");
     } finally {
       setSaving(false);
     }
@@ -356,7 +413,6 @@ export function MatchResultsTab({
           </button>
         </div>
 
-        {/* + Butonu: Listede olmayan oyuncuyu aratıp ekleme */}
         <div className="pt-1">
           <button
             type="button"
