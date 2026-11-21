@@ -9,7 +9,6 @@ const LINKS = [
   { href: "/", label: "Ana Sayfa", shortLabel: "Ana Sayfa", icon: "🏠" },
   { href: "/kadro-kur", label: "Kadro Kur", shortLabel: "Kadro", icon: "⚽" },
   { href: "/gorevler", label: "Görevler & Maçlar", shortLabel: "Maçlar", icon: "📅" },
-  { href: "/siralama", label: "Genel Sıralama", shortLabel: "Sıralama", icon: "🏆" },
   { href: "/iletisim", label: "İletişim", shortLabel: "İletişim", icon: "📞" },
 ];
 
@@ -32,6 +31,8 @@ type AuthSession =
     }
   | null;
 
+const SESSION_CACHE_KEY = "ikbal_navbar_session_v1";
+
 function isNotificationForGroup(
   targetGroup: string | null | undefined,
   playerAgeGroup: string | null | undefined,
@@ -52,11 +53,24 @@ export function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    let active = true;
+    setOpen(false);
+  }, [pathname]);
 
-    async function checkPlayer(
-      supabase: ReturnType<typeof createClient>
-    ): Promise<AuthSession> {
+  useEffect(() => {
+    let active = true;
+    const supabase = createClient();
+
+    // İlk anda önbellekten anında okuyarak sayfa geçişinde bekleme oluşturma
+    try {
+      const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
+      if (cached) {
+        setSession(JSON.parse(cached) as AuthSession);
+      }
+    } catch {
+      // yoksay
+    }
+
+    async function checkPlayer(): Promise<AuthSession> {
       const playerId = localStorage.getItem("ikbal_logged_player_id");
       if (!playerId) return null;
       const { data: p } = await supabase
@@ -75,9 +89,7 @@ export function Navbar() {
       };
     }
 
-    async function checkStaff(
-      supabase: ReturnType<typeof createClient>
-    ): Promise<AuthSession> {
+    async function checkStaff(): Promise<AuthSession> {
       const savedCoach = localStorage.getItem("ikbal_coach");
       if (savedCoach) {
         try {
@@ -111,15 +123,12 @@ export function Navbar() {
       return null;
     }
 
-    async function loadUnreadCount(
-      supabase: ReturnType<typeof createClient>,
-      currentSession: AuthSession
-    ) {
+    async function loadUnreadCount(currentSession: AuthSession) {
       const { data } = await supabase
         .from("club_messages")
         .select("created_at, target_group, age_group")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(25);
 
       if (!active || !data) return;
       const lastSeen = localStorage.getItem("ikbal_last_seen_notif_at");
@@ -150,26 +159,31 @@ export function Navbar() {
       setUnreadCount(unseen);
     }
 
-    async function checkAuth() {
+    async function syncSession() {
       if (typeof window === "undefined") return;
-      const supabase = createClient();
-
-      let resolvedSession: AuthSession = null;
-      if (pathname.startsWith("/admin")) {
-        resolvedSession =
-          (await checkStaff(supabase)) || (await checkPlayer(supabase));
-      } else {
-        resolvedSession =
-          (await checkPlayer(supabase)) || (await checkStaff(supabase));
-      }
+      const resolvedSession: AuthSession = pathname.startsWith("/admin")
+        ? (await checkStaff()) || (await checkPlayer())
+        : (await checkPlayer()) || (await checkStaff());
 
       if (!active) return;
       setSession(resolvedSession);
-      await loadUnreadCount(supabase, resolvedSession);
+      try {
+        sessionStorage.setItem(
+          SESSION_CACHE_KEY,
+          JSON.stringify(resolvedSession)
+        );
+      } catch {
+        // yoksay
+      }
+      await loadUnreadCount(resolvedSession);
     }
 
-    checkAuth();
-    const onAuthChange = () => checkAuth();
+    syncSession();
+
+    const onAuthChange = () => {
+      sessionStorage.removeItem(SESSION_CACHE_KEY);
+      syncSession();
+    };
     const onNotifSeen = () => {
       if (active) setUnreadCount(0);
     };
@@ -196,7 +210,7 @@ export function Navbar() {
           ? `${unreadCount} görülmemiş bildirim`
           : "Bildirimler"
       }
-      className={`relative shrink-0 inline-flex items-center justify-center rounded-full font-black transition shadow-sm ${
+      className={`relative shrink-0 inline-flex items-center justify-center rounded-full font-black ${
         unreadCount > 0
           ? "bg-[#a60513] hover:bg-red-700 text-white ring-2 ring-amber-300/80"
           : "bg-white/15 hover:bg-white/25 text-amber-300 border border-white/25"
@@ -213,13 +227,16 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 w-full max-w-full bg-[#02274c] text-white border-b-4 border-[#a60513] shadow-md">
+      <header className="sticky top-0 z-40 w-full max-w-full bg-[#02274c] text-white border-b-4 border-[#a60513] shadow-sm">
         <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4 min-w-0">
-          <Link href="/" className="flex items-center gap-2.5 min-w-0 flex-1 lg:flex-initial shrink">
+          <Link
+            href="/"
+            className="flex items-center gap-2.5 min-w-0 flex-1 lg:flex-initial shrink"
+          >
             <img
               src="/logo.png"
               alt="Çorum İkbalspor Logosu"
-              className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25 shadow"
+              className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25"
             />
             <div className="leading-tight min-w-0">
               <span className="block text-base sm:text-xl font-black tracking-wide truncate">
@@ -238,7 +255,7 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`px-3 py-2 rounded-xl font-bold text-sm transition ${
+                  className={`px-3 py-2 rounded-xl font-bold text-sm ${
                     active
                       ? "bg-[#a60513] text-white"
                       : "text-slate-100 hover:bg-white/10"
@@ -260,7 +277,7 @@ export function Navbar() {
                       ? "Sporcu Profiline Git"
                       : "Yönetim Paneline Git"
                   }
-                  className="flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white font-extrabold text-sm transition shadow-sm"
+                  className="flex items-center gap-2.5 pl-1.5 pr-4 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/25 text-white font-extrabold text-sm"
                 >
                   {session.photoUrl ? (
                     <img
@@ -286,13 +303,13 @@ export function Navbar() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/sporcu"
-                  className="px-4 py-2.5 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white font-extrabold text-sm transition"
+                  className="px-4 py-2.5 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white font-extrabold text-sm"
                 >
                   Sporcu Girişi
                 </Link>
                 <Link
                   href="/admin"
-                  className="px-4 py-2.5 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-sm transition"
+                  className="px-4 py-2.5 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-sm"
                 >
                   Yönetim Paneli
                 </Link>
@@ -378,16 +395,16 @@ export function Navbar() {
 
       <nav
         aria-label="Mobil Alt Menü"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 w-full max-w-full bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(2,39,76,0.08)]"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 w-full max-w-full bg-white border-t border-slate-200 shadow-sm"
       >
-        <div className="grid grid-cols-6 h-16">
+        <div className="grid grid-cols-5 h-16">
           {LINKS.map((item) => {
             const active = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold transition min-w-0 px-0.5 ${
+                className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold min-w-0 px-0.5 ${
                   active ? "text-[#a60513]" : "text-slate-600"
                 }`}
               >
@@ -398,7 +415,7 @@ export function Navbar() {
           })}
           <Link
             href={session ? session.href : "/sporcu"}
-            className={`relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold transition min-w-0 px-0.5 ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold min-w-0 px-0.5 ${
               pathname === "/sporcu" || pathname === "/admin"
                 ? "text-[#a60513]"
                 : "text-[#02274c]"
