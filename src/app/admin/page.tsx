@@ -22,6 +22,7 @@ import { TrainingsTab } from "@/components/admin/TrainingsTab";
 import { DuesTab } from "@/components/admin/DuesTab";
 import { InventoryManager } from "@/components/admin/InventoryManager";
 import { TasksTab } from "@/components/admin/TasksTab";
+import { MatchResultsTab } from "@/components/admin/MatchResultsTab";
 import { NotificationsTab } from "@/components/admin/NotificationsTab";
 import { QrAttendanceTab } from "@/components/admin/QrAttendanceTab";
 import { CoachesTab } from "@/components/admin/CoachesTab";
@@ -36,6 +37,7 @@ type AdminTab =
   | "aidat"
   | "envanter"
   | "gorevler"
+  | "mac_sonucu"
   | "bildirim"
   | "namaz"
   | "antrenorler"
@@ -243,6 +245,7 @@ export default function AdminPage() {
           { id: "aidat", label: "Aidatlar" },
           { id: "envanter", label: "Forma & Ekipman" },
           { id: "gorevler", label: "Maç & Görevler" },
+          { id: "mac_sonucu", label: "⚽ Skor & Golcüler" },
           { id: "bildirim", label: "🔔 Bildirim Gönder" },
           { id: "namaz", label: "QR Yoklama" },
           { id: "antrenorler", label: `Antrenörler (${coaches.length})` },
@@ -252,6 +255,7 @@ export default function AdminPage() {
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
           { id: "gorevler", label: "Maç & Görevler" },
+          { id: "mac_sonucu", label: "⚽ Skor & Golcüler" },
           { id: "bildirim", label: "🔔 Bildirim Gönder" },
           { id: "namaz", label: "QR Yoklama" },
         ];
@@ -312,7 +316,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {availableTabs.map((item) => (
             <button
               key={item.id}
@@ -389,6 +393,15 @@ export default function AdminPage() {
             onFeedback={setFeedback}
             onLogActivity={logActivity}
             onRefreshTasks={refreshTasks}
+          />
+        )}
+
+        {tab === "mac_sonucu" && (
+          <MatchResultsTab
+            players={players}
+            tasks={tasks}
+            onFeedback={setFeedback}
+            onLogActivity={logActivity}
           />
         )}
 
