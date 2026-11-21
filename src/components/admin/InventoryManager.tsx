@@ -70,7 +70,7 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
         {[
           {
             k: "inventory_all",
-            l: `Forma Takımları & Ürün Stoğu (${jerseySets.length + stockItems.length})`,
+            l: `Teslim, Stok & Takımlar (${jerseySets.length + stockItems.length})`,
           },
           { k: "unreturned", l: `Geri Verilmeyenler (${unreturnedLogs.length})` },
           { k: "missing", l: `Eksik / Kayıp (${missingLogs.length})` },
@@ -92,19 +92,22 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
 
       {subTab === "inventory_all" && (
         <div className="space-y-8">
-          <JerseySetsSection
+          <StockAndGiveSection
+            players={players}
             jerseySets={jerseySets}
-            setJerseySets={setJerseySets}
+            stockItems={stockItems}
+            setStockItems={setStockItems}
+            logs={logs}
+            setLogs={setLogs}
             onStatus={setStatusMsg}
           />
           <div className="border-t border-slate-200 pt-6">
-            <StockAndGiveSection
-              players={players}
+            <JerseySetsSection
               jerseySets={jerseySets}
-              stockItems={stockItems}
-              setStockItems={setStockItems}
+              setJerseySets={setJerseySets}
               logs={logs}
               setLogs={setLogs}
+              players={players}
               onStatus={setStatusMsg}
             />
           </div>

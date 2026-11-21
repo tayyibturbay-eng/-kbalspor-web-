@@ -47,6 +47,7 @@ interface JerseySetsSectionProps {
   jerseySets: JerseySet[];
   setJerseySets: React.Dispatch<React.SetStateAction<JerseySet[]>>;
   logs?: EquipmentLog[];
+  setLogs?: React.Dispatch<React.SetStateAction<EquipmentLog[]>>;
   players?: MiniPlayer[];
   onStatus: (msg: string) => void;
 }
@@ -55,17 +56,10 @@ export function JerseySetsSection({
   jerseySets,
   setJerseySets,
   logs = [],
+  setLogs,
   players = [],
   onStatus,
 }: JerseySetsSectionProps) {
-  const [setName, setSetName] = useState("");
-  const [kitType, setKitType] = useState<JerseySet["kit_type"]>("Ev");
-  const [setQty, setSetQty] = useState("20");
-  const [defaultJerseySize, setDefaultJerseySize] = useState("M");
-  const [gkDefault1And12, setGkDefault1And12] = useState(true);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [savingSet, setSavingSet] = useState(false);
-
   const [editingSet, setEditingSet] = useState<JerseySet | null>(null);
   const [editingPieces, setEditingPieces] = useState<JerseyPiece[]>([]);
   const [savingSetEdit, setSavingSetEdit] = useState(false);
@@ -82,6 +76,94 @@ export function JerseySetsSection({
     return holder?.full_name || "Zimmetli Sporcu";
   }
 
+  function isPieceMissing(setId: string, num: number): boolean {
+    return logs.some(
+      (l) =>
+        l.status === "kayip_eksik" &&
+        l.jersey_set_id === setId &&
+        l.jersey_number_given === num
+    );
+  }
+
+  async function handleTogglePieceMissing(setItem: JerseySet, piece: JerseyPiece) {
+    const existingMissing = logs.find(
+      (l) =>
+        l.status === "kayip_eksik" &&
+        l.jersey_set_id === setItem.id &&
+        l.jersey_number_given === piece.number
+    );
+
+    if (existingMissing) {
+      const { error } = await supabase
+        .from("equipment_logs")
+        .update({ status: "iade_edildi" })
+        .eq("id", existingMissing.id);
+      if (!error) {
+        setLogs?.((prev) =>
+          prev.map((l) =>
+            l.id === existingMissing.id ? { ...l, status: "iade_edildi" } : l
+          )
+        );
+        onStatus(
+          `✅ ${setItem.set_name} #${piece.number} numaralı forma kayıp/eksik listesinden çıkarıldı.`
+        );
+      }
+      return;
+    }
+
+    const activeLog = logs.find(
+      (l) =>
+        l.status === "teslim_edildi" &&
+        l.jersey_set_id === setItem.id &&
+        l.jersey_number_given === piece.number
+    );
+
+    if (activeLog) {
+      const { error } = await supabase
+        .from("equipment_logs")
+        .update({ status: "kayip_eksik" })
+        .eq("id", activeLog.id);
+      if (!error) {
+        setLogs?.((prev) =>
+          prev.map((l) =>
+            l.id === activeLog.id ? { ...l, status: "kayip_eksik" } : l
+          )
+        );
+        onStatus(
+          `⚠️ ${setItem.set_name} #${piece.number} numaralı forma Kayıp / Eksik işaretlendi.`
+        );
+      }
+      return;
+    }
+
+    const fallbackPlayerId = players[0]?.id;
+    if (!fallbackPlayerId) {
+      onStatus("Kayıp/eksik kaydı oluşturmak için önce en az 1 sporcu kaydı olmalıdır.");
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("equipment_logs")
+      .insert({
+        player_id: fallbackPlayerId,
+        jersey_set_id: setItem.id,
+        item_name: `${setItem.set_name} (${setItem.kit_type}) #${piece.number}`,
+        item_size: piece.size || "M",
+        jersey_number_given: piece.number,
+        category: "Forma",
+        status: "kayip_eksik",
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      setLogs?.((prev) => [data as EquipmentLog, ...prev]);
+      onStatus(
+        `⚠️ ${setItem.set_name} #${piece.number} numaralı forma tekil olarak Kayıp / Eksik işaretlendi.`
+      );
+    }
+  }
+
   function openEditSet(setItem: JerseySet) {
     setEditingSet({ ...setItem });
     const existingPieces =
@@ -89,52 +171,6 @@ export function JerseySetsSection({
         ? setItem.items.map((x) => ({ ...x, size: x.size || "M" }))
         : buildDefaultPieces(setItem.total_quantity || 20, "M", true);
     setEditingPieces(existingPieces);
-  }
-
-  async function handleCreateJerseySet(e: React.FormEvent) {
-    e.preventDefault();
-    if (!setName.trim()) return;
-    setSavingSet(true);
-
-    let photoUrl: string | null = null;
-    if (photoFile) {
-      photoUrl = await uploadJerseyPhoto(photoFile);
-    }
-
-    const qty = Number(setQty) || 20;
-    const generatedItems = buildDefaultPieces(
-      qty,
-      defaultJerseySize,
-      gkDefault1And12
-    );
-
-    const { data, error } = await supabase
-      .from("jersey_sets")
-      .insert({
-        set_name: setName.trim(),
-        kit_type: kitType,
-        total_quantity: generatedItems.length,
-        photo_url: photoUrl,
-        items: generatedItems,
-      })
-      .select()
-      .single();
-
-    setSavingSet(false);
-    if (error) {
-      onStatus("Forma takımı eklenemedi: " + error.message);
-      return;
-    }
-    if (data) {
-      const created = data as JerseySet;
-      setJerseySets((prev) => [created, ...prev]);
-      setSetName("");
-      setPhotoFile(null);
-      onStatus(
-        `✅ ${created.set_name} eklendi (1-${created.total_quantity} numaralandırıldı, beden: ${defaultJerseySize}).`
-      );
-      openEditSet(created);
-    }
   }
 
   async function handleSaveSetEdit(e: React.FormEvent) {
@@ -203,95 +239,11 @@ export function JerseySetsSection({
 
   return (
     <div className="space-y-6 text-slate-900">
-      <form
-        onSubmit={handleCreateJerseySet}
-        className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
-      >
+      <div className="flex items-center justify-between">
         <h3 className="text-base font-extrabold text-[#02274c]">
-          Yeni Forma Takımı Oluştur
+          Forma Takımları (Numara Bazlı Kayıp / Eksik İşaretleme)
         </h3>
-        <div className="grid sm:grid-cols-4 gap-3">
-          <input
-            type="text"
-            required
-            placeholder="Forma Takımı Adı (Örn: 2026 Çubuklu)"
-            value={setName}
-            onChange={(e) => setSetName(e.target.value)}
-            className="sm:col-span-2 min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-          />
-          <select
-            value={kitType}
-            onChange={(e) =>
-              setKitType(e.target.value as JerseySet["kit_type"])
-            }
-            className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-          >
-            <option value="Ev">Ev Forması</option>
-            <option value="Deplasman">Deplasman Forması</option>
-            <option value="Alternatif">Alternatif Forma</option>
-            <option value="Özel">Özel Seri</option>
-          </select>
-          <input
-            type="number"
-            min={1}
-            max={100}
-            placeholder="Adet (1..N)"
-            value={setQty}
-            onChange={(e) => setSetQty(e.target.value)}
-            className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-          />
-        </div>
-
-        <div className="grid sm:grid-cols-3 gap-3 items-center">
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Varsayılan Beden
-            </label>
-            <select
-              value={defaultJerseySize}
-              onChange={(e) => setDefaultJerseySize(e.target.value)}
-              className="w-full min-h-[42px] px-3 rounded-xl border-2 border-slate-300 text-sm font-bold"
-            >
-              {SIZE_OPTIONS.map((sz) => (
-                <option key={sz} value={sz}>
-                  {sz}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <label className="flex items-center gap-2 text-xs font-bold text-[#02274c] bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={gkDefault1And12}
-              onChange={(e) => setGkDefault1And12(e.target.checked)}
-            />
-            🧤 1 ve 12 numaralar ön tanımlı Kaleci Forması olsun
-          </label>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Forma Görseli (İsteğe Bağlı)
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-              className="w-full text-xs text-slate-700"
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={savingSet}
-          className="w-full sm:w-auto px-6 min-h-[44px] rounded-xl bg-[#a60513] text-white font-extrabold text-sm cursor-pointer"
-        >
-          {savingSet
-            ? "Oluşturuluyor..."
-            : "Forma Takımı Ekle (1'den Adede Numaralandır)"}
-        </button>
-      </form>
+      </div>
 
       {editingSet && (
         <form
@@ -340,7 +292,7 @@ export function JerseySetsSection({
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <p className="text-xs text-slate-700">
-              Her kutucukta numaranın kimde olduğu veya boşta olduğu yazar. Beden ve Kaleci bilgisini değiştirdikten sonra mutlaka kaydedin.
+              İstediğiniz forma numarasında (örneğin #5) &quot;Kayıp / Eksik&quot; butonuna basarak tek tek işaretleyebilirsiniz.
             </p>
             <button
               type="button"
@@ -367,11 +319,15 @@ export function JerseySetsSection({
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
             {editingPieces.map((piece, idx) => {
               const holderName = getPieceHolderName(editingSet.id, piece.number);
+              const missing = isPieceMissing(editingSet.id, piece.number);
+
               return (
                 <div
                   key={piece.id}
                   className={`p-3 rounded-xl border space-y-2 ${
-                    holderName
+                    missing
+                      ? "bg-red-50 border-red-400"
+                      : holderName
                       ? "bg-amber-50 border-amber-300"
                       : piece.is_goalkeeper
                       ? "bg-sky-50 border-sky-200"
@@ -381,12 +337,18 @@ export function JerseySetsSection({
                   <div className="flex items-center justify-between gap-2">
                     <span
                       className={`text-[11px] font-extrabold px-2 py-0.5 rounded ${
-                        holderName
+                        missing
+                          ? "bg-red-600 text-white"
+                          : holderName
                           ? "bg-amber-600 text-white"
                           : "bg-emerald-100 text-emerald-900"
                       }`}
                     >
-                      {holderName ? `👤 ${holderName}` : "✓ Boşta"}
+                      {missing
+                        ? "⚠️ Kayıp / Eksik"
+                        : holderName
+                        ? `👤 ${holderName}`
+                        : "✓ Boşta"}
                     </span>
                     <button
                       type="button"
@@ -462,6 +424,20 @@ export function JerseySetsSection({
                       🧤 Kaleci
                     </label>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTogglePieceMissing(editingSet, piece)}
+                    className={`w-full py-1.5 rounded-lg text-[11px] font-extrabold cursor-pointer ${
+                      missing
+                        ? "bg-emerald-600 text-white"
+                        : "bg-red-100 hover:bg-red-200 text-red-900"
+                    }`}
+                  >
+                    {missing
+                      ? `✓ #${piece.number} Kayıp/Eksik Kaldır`
+                      : `⚠️ #${piece.number} Kayıp / Eksik İşaretle`}
+                  </button>
                 </div>
               );
             })}
@@ -505,8 +481,8 @@ export function JerseySetsSection({
                   {j.kit_type} Forması
                 </div>
               )}
-              <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                <div className="space-y-1">
+              <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
+                <div className="space-y-1.5">
                   <span className="px-2.5 py-0.5 rounded bg-[#02274c] text-white text-xs font-extrabold">
                     {j.kit_type}
                   </span>
@@ -517,25 +493,44 @@ export function JerseySetsSection({
                     Toplam: {j.total_quantity} • Zimmetli: {assignedCount} • Boşta:{" "}
                     {Math.max(0, j.total_quantity - assignedCount)}
                   </p>
+
                   {pieces.length > 0 && (
-                    <div className="text-[11px] text-slate-700 space-y-0.5 pt-1">
-                      <div>
-                        <strong>Numaralar:</strong>{" "}
-                        {pieces
-                          .slice(0, 10)
-                          .map((x) => {
-                            const h = getPieceHolderName(j.id, x.number);
-                            return `#${x.number}(${x.size || "M"}${
-                              h ? `-${h.split(" ")[0]}` : "-Boş"
-                            })`;
-                          })
-                          .join(", ")}
-                        {pieces.length > 10
-                          ? ` ... (+${pieces.length - 10})`
-                          : ""}
+                    <div className="pt-1 space-y-1">
+                      <span className="block text-[11px] font-bold text-slate-600">
+                        Numaralar (Tek tıkla Kayıp/Eksik işaretle):
+                      </span>
+                      <div className="flex flex-wrap gap-1">
+                        {pieces.map((x) => {
+                          const h = getPieceHolderName(j.id, x.number);
+                          const miss = isPieceMissing(j.id, x.number);
+                          return (
+                            <button
+                              key={x.id}
+                              type="button"
+                              onClick={() => handleTogglePieceMissing(j, x)}
+                              title={
+                                miss
+                                  ? `#${x.number} Kayıp/Eksik (kaldırmak için tıkla)`
+                                  : h
+                                  ? `#${x.number} (${h}) - Kayıp/Eksik işaretle`
+                                  : `#${x.number} (Boşta) - Kayıp/Eksik işaretle`
+                              }
+                              className={`px-2 py-0.5 rounded text-[11px] font-extrabold border cursor-pointer ${
+                                miss
+                                  ? "bg-red-600 text-white border-red-700"
+                                  : h
+                                  ? "bg-amber-100 text-amber-950 border-amber-300"
+                                  : "bg-slate-50 text-slate-800 border-slate-200 hover:border-red-400"
+                              }`}
+                            >
+                              #{x.number}
+                              {miss ? " ⚠️" : ""}
+                            </button>
+                          );
+                        })}
                       </div>
                       {gkList.length > 0 && (
-                        <div className="text-amber-900 font-bold">
+                        <div className="text-[11px] text-amber-900 font-bold pt-0.5">
                           🧤 Kaleci Formaları: {gkList.join(", ")}
                         </div>
                       )}

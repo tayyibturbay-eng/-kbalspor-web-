@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { AGE_GROUPS, EquipmentLog, JerseySet, SIZE_OPTIONS, StockItem } from "@/types/club";
+import {
+  AGE_GROUPS,
+  EquipmentLog,
+  JerseyPiece,
+  JerseySet,
+  SIZE_OPTIONS,
+  StockItem,
+} from "@/types/club";
 
 const supabase = createClient();
 
@@ -13,9 +20,26 @@ type MiniPlayer = {
   parent_phone: string | null;
 };
 
-async function uploadStockPhoto(file: File): Promise<string | null> {
+function buildDefaultPieces(
+  qty: number,
+  defaultSize: string,
+  defaultGk1And12: boolean
+): JerseyPiece[] {
+  const count = Math.max(1, Math.min(100, qty || 1));
+  return Array.from({ length: count }, (_, idx) => {
+    const num = idx + 1;
+    return {
+      id: `piece-${Date.now()}-${num}-${Math.random().toString(36).slice(2, 6)}`,
+      number: num,
+      size: defaultSize || "M",
+      is_goalkeeper: defaultGk1And12 ? num === 1 || num === 12 : false,
+    };
+  });
+}
+
+async function uploadPhoto(folder: "jerseys" | "stock", file: File): Promise<string | null> {
   const ext = file.name.split(".").pop() || "jpg";
-  const filePath = `stock/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("jersey-photos")
     .upload(filePath, file);
@@ -29,6 +53,7 @@ async function uploadStockPhoto(file: File): Promise<string | null> {
 interface StockAndGiveSectionProps {
   players: MiniPlayer[];
   jerseySets: JerseySet[];
+  setJerseySets?: React.Dispatch<React.SetStateAction<JerseySet[]>>;
   stockItems: StockItem[];
   setStockItems: React.Dispatch<React.SetStateAction<StockItem[]>>;
   logs: EquipmentLog[];
@@ -39,18 +64,35 @@ interface StockAndGiveSectionProps {
 export function StockAndGiveSection({
   players,
   jerseySets,
+  setJerseySets,
   stockItems,
   setStockItems,
   logs,
   setLogs,
   onStatus,
 }: StockAndGiveSectionProps) {
+  // Birleşik Ekleme Alanı (Forma Takımı veya Yeni Malzeme Stok)
+  const [createType, setCreateType] = useState<"forma_takimi" | "malzeme_stok">(
+    "forma_takimi"
+  );
+
+  // Forma Takımı Oluşturma alanları
+  const [setName, setSetName] = useState("");
+  const [kitType, setKitType] = useState<JerseySet["kit_type"]>("Ev");
+  const [setQty, setSetQty] = useState("20");
+  const [defaultJerseySize, setDefaultJerseySize] = useState("M");
+  const [gkDefault1And12, setGkDefault1And12] = useState(true);
+  const [setPhotoFile, setSetPhotoFile] = useState<File | null>(null);
+
+  // Yeni Malzeme Stok alanları + Opsiyonel Numara Ekle
   const [prodName, setProdName] = useState("");
   const [prodCat, setProdCat] = useState("Dış Giyim");
   const [prodCount, setProdCount] = useState("20");
   const [prodSizeInfo, setProdSizeInfo] = useState("S, M, L, XL");
+  const [hasNumberField, setHasNumberField] = useState(false);
+  const [prodNumberInfo, setProdNumberInfo] = useState("");
   const [prodPhotoFile, setProdPhotoFile] = useState<File | null>(null);
-  const [savingStock, setSavingStock] = useState(false);
+  const [savingCreate, setSavingCreate] = useState(false);
 
   const [editingStock, setEditingStock] = useState<StockItem | null>(null);
 
@@ -94,38 +136,91 @@ export function StockAndGiveSection({
       setSelStockName(stockItems[0].product_name);
   }, [stockItems, selStockName]);
 
-  async function handleAddStock(e: React.FormEvent) {
+  async function handleUnifiedCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!prodName.trim()) return;
-    setSavingStock(true);
+    setSavingCreate(true);
 
-    let photoUrl: string | null = null;
-    if (prodPhotoFile) {
-      photoUrl = await uploadStockPhoto(prodPhotoFile);
-    }
+    try {
+      if (createType === "forma_takimi") {
+        if (!setName.trim()) return;
+        let photoUrl: string | null = null;
+        if (setPhotoFile) {
+          photoUrl = await uploadPhoto("jerseys", setPhotoFile);
+        }
+        const qty = Number(setQty) || 20;
+        const generatedItems = buildDefaultPieces(
+          qty,
+          defaultJerseySize,
+          gkDefault1And12
+        );
 
-    const { data, error } = await supabase
-      .from("equipment_stock")
-      .insert({
-        product_name: prodName.trim(),
-        category: prodCat.trim() || "Malzeme",
-        stock_count: Number(prodCount) || 0,
-        size_info: prodSizeInfo.trim() || null,
-        photo_url: photoUrl,
-      })
-      .select()
-      .single();
+        const { data, error } = await supabase
+          .from("jersey_sets")
+          .insert({
+            set_name: setName.trim(),
+            kit_type: kitType,
+            total_quantity: generatedItems.length,
+            photo_url: photoUrl,
+            items: generatedItems,
+          })
+          .select()
+          .single();
 
-    setSavingStock(false);
-    if (error) {
-      onStatus("Ürün eklenemedi: " + error.message);
-      return;
-    }
-    if (data) {
-      setStockItems((prev) => [...prev, data as StockItem]);
-      setProdName("");
-      setProdPhotoFile(null);
-      onStatus("✅ Yeni malzeme stoğu eklendi.");
+        if (error) {
+          onStatus("Forma takımı eklenemedi: " + error.message);
+          return;
+        }
+        if (data) {
+          const created = data as JerseySet;
+          setJerseySets?.((prev) => [created, ...prev]);
+          setSelJerseySet(created.id);
+          setSetName("");
+          setSetPhotoFile(null);
+          onStatus(
+            `✅ ${created.set_name} forma takımı eklendi (1-${created.total_quantity}).`
+          );
+        }
+      } else {
+        if (!prodName.trim()) return;
+        let photoUrl: string | null = null;
+        if (prodPhotoFile) {
+          photoUrl = await uploadPhoto("stock", prodPhotoFile);
+        }
+
+        const numNote =
+          hasNumberField && prodNumberInfo.trim()
+            ? ` [No: ${prodNumberInfo.trim()}]`
+            : "";
+
+        const { data, error } = await supabase
+          .from("equipment_stock")
+          .insert({
+            product_name: `${prodName.trim()}${numNote}`,
+            category: prodCat.trim() || "Malzeme",
+            stock_count: Number(prodCount) || 0,
+            size_info: prodSizeInfo.trim() || null,
+            photo_url: photoUrl,
+          })
+          .select()
+          .single();
+
+        if (error) {
+          onStatus("Ürün eklenemedi: " + error.message);
+          return;
+        }
+        if (data) {
+          const createdStock = data as StockItem;
+          setStockItems((prev) => [...prev, createdStock]);
+          setSelStockName(createdStock.product_name);
+          setProdName("");
+          setProdNumberInfo("");
+          setHasNumberField(false);
+          setProdPhotoFile(null);
+          onStatus("✅ Yeni malzeme stoğu eklendi.");
+        }
+      }
+    } finally {
+      setSavingCreate(false);
     }
   }
 
@@ -154,7 +249,7 @@ export function StockAndGiveSection({
   }
 
   async function handleUploadStockPhotoAfter(stockId: string, file: File) {
-    const url = await uploadStockPhoto(file);
+    const url = await uploadPhoto("stock", file);
     if (!url) {
       onStatus("Görsel yüklenemedi.");
       return;
@@ -178,24 +273,19 @@ export function StockAndGiveSection({
     setStockItems((prev) => prev.filter((s) => s.id !== id));
   }
 
-  // Envanter kartından doğrudan Eksik / Kayıp olarak işaretleme
   async function handleMarkStockMissing(stockItem: StockItem) {
     const targetPlayerId = selPlayer || players[0]?.id;
     if (!targetPlayerId) {
       onStatus("Eksik/kayıp kaydı için önce en az 1 sporcu kaydı bulunmalıdır.");
       return;
     }
-    const confirmed = confirm(
-      `"${stockItem.product_name}" ürününü Eksik / Kayıp olarak işaretlemek istiyor musunuz?`
-    );
-    if (!confirmed) return;
 
     const { data, error } = await supabase
       .from("equipment_logs")
       .insert({
         player_id: targetPlayerId,
         jersey_set_id: null,
-        item_name: `${stockItem.product_name} (Envanter Kaydı)`,
+        item_name: stockItem.product_name,
         item_size: stockItem.size_info || "M",
         jersey_number_given: null,
         category: "Malzeme",
@@ -210,7 +300,7 @@ export function StockAndGiveSection({
     }
     if (data) {
       setLogs((prev) => [data as EquipmentLog, ...prev]);
-      onStatus(`⚠️ "${stockItem.product_name}" Eksik / Kayıp listesine eklendi.`);
+      onStatus(`⚠️ "${stockItem.product_name}" tekil olarak Eksik / Kayıp işaretlendi.`);
     }
   }
 
@@ -310,10 +400,10 @@ export function StockAndGiveSection({
 
   return (
     <div className="space-y-6 text-slate-900">
-      {/* Hızlı Teslim Formu (Önce kolay erişim için üstte) */}
+      {/* 1. EN ÜSTTE: Hızlı Forma / Malzeme Teslim Et */}
       <form
         onSubmit={handleGiveItem}
-        className="bg-white rounded-2xl border-2 border-[#02274c]/20 p-6 space-y-4 shadow-xs"
+        className="bg-white rounded-2xl border-2 border-[#02274c]/25 p-6 space-y-4 shadow-xs"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-lg font-extrabold text-[#02274c]">
@@ -340,12 +430,11 @@ export function StockAndGiveSection({
                   : "border border-slate-300 bg-white text-slate-800"
               }`}
             >
-              Yağmurluk / Eşofman / Malzeme Ver
+              Diğer Malzeme Ver
             </button>
           </div>
         </div>
 
-        {/* Kategori + Oyuncu Arama Satırı */}
         <div className="grid sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
           <select
             value={playerCategoryFilter}
@@ -495,60 +584,205 @@ export function StockAndGiveSection({
         </button>
       </form>
 
-      {/* Yeni Ürün Stoğu Ekleme */}
+      {/* 2. BİRLEŞİK EKLEME ALANI: Forma Takımı Oluştur / Yeni Malzeme Stok */}
       <form
-        onSubmit={handleAddStock}
-        className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3"
+        onSubmit={handleUnifiedCreate}
+        className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
       >
-        <h3 className="text-base font-extrabold text-[#02274c]">
-          Yeni Malzeme / Ürün Stoğu Ekle
-        </h3>
-        <div className="grid sm:grid-cols-4 gap-3">
-          <input
-            type="text"
-            required
-            placeholder="Ürün Adı (Örn: Yağmurluk)"
-            value={prodName}
-            onChange={(e) => setProdName(e.target.value)}
-            className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-          />
-          <input
-            type="text"
-            placeholder="Kategori (Dış Giyim, Çanta...)"
-            value={prodCat}
-            onChange={(e) => setProdCat(e.target.value)}
-            className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-          />
-          <input
-            type="number"
-            placeholder="Stok Adedi"
-            value={prodCount}
-            onChange={(e) => setProdCount(e.target.value)}
-            className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-          />
-          <input
-            type="text"
-            placeholder="Bedenler (Örn: S, M, L, XL)"
-            value={prodSizeInfo}
-            onChange={(e) => setProdSizeInfo(e.target.value)}
-            className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-          />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-base font-extrabold text-[#02274c]">
+              Yeni Kayıt Ekle (Forma Takımı veya Malzeme Stok)
+            </h3>
+            <p className="text-xs text-slate-500">
+              Eklemek istediğiniz türü seçin; diğer malzemelerde isterseniz numara bilgisi ekleyin.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCreateType("forma_takimi")}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer ${
+                createType === "forma_takimi"
+                  ? "bg-[#02274c] text-white"
+                  : "border border-slate-300 bg-slate-50 text-slate-800"
+              }`}
+            >
+              👕 Forma Takımı Oluştur
+            </button>
+            <button
+              type="button"
+              onClick={() => setCreateType("malzeme_stok")}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer ${
+                createType === "malzeme_stok"
+                  ? "bg-[#a60513] text-white"
+                  : "border border-slate-300 bg-slate-50 text-slate-800"
+              }`}
+            >
+              📦 Yeni Malzeme Stok
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setProdPhotoFile(e.target.files?.[0] || null)}
-            className="text-xs text-slate-700"
-          />
-          <button
-            type="submit"
-            disabled={savingStock}
-            className="px-6 min-h-[44px] rounded-xl bg-[#02274c] text-white font-extrabold text-sm cursor-pointer"
-          >
-            {savingStock ? "Ekleniyor..." : "Yeni Ürün Stoğu Ekle"}
-          </button>
-        </div>
+
+        {createType === "forma_takimi" ? (
+          <>
+            <div className="grid sm:grid-cols-4 gap-3">
+              <input
+                type="text"
+                required
+                placeholder="Forma Takımı Adı (Örn: 2026 Çubuklu)"
+                value={setName}
+                onChange={(e) => setSetName(e.target.value)}
+                className="sm:col-span-2 min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+              />
+              <select
+                value={kitType}
+                onChange={(e) =>
+                  setKitType(e.target.value as JerseySet["kit_type"])
+                }
+                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+              >
+                <option value="Ev">Ev Forması</option>
+                <option value="Deplasman">Deplasman Forması</option>
+                <option value="Alternatif">Alternatif Forma</option>
+                <option value="Özel">Özel Seri</option>
+              </select>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                placeholder="Adet (1..N)"
+                value={setQty}
+                onChange={(e) => setSetQty(e.target.value)}
+                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-3 gap-3 items-center">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Varsayılan Beden
+                </label>
+                <select
+                  value={defaultJerseySize}
+                  onChange={(e) => setDefaultJerseySize(e.target.value)}
+                  className="w-full min-h-[42px] px-3 rounded-xl border-2 border-slate-300 text-sm font-bold bg-white"
+                >
+                  {SIZE_OPTIONS.map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <label className="flex items-center gap-2 text-xs font-bold text-[#02274c] bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={gkDefault1And12}
+                  onChange={(e) => setGkDefault1And12(e.target.checked)}
+                />
+                🧤 1 ve 12 numaralar ön tanımlı Kaleci Forması olsun
+              </label>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Forma Görseli (İsteğe Bağlı)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setSetPhotoFile(e.target.files?.[0] || null)}
+                  className="w-full text-xs text-slate-700"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={savingCreate}
+              className="px-6 min-h-[44px] rounded-xl bg-[#a60513] text-white font-extrabold text-sm cursor-pointer"
+            >
+              {savingCreate
+                ? "Oluşturuluyor..."
+                : "Forma Takımı Ekle (1'den Adede Numaralandır)"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="grid sm:grid-cols-4 gap-3">
+              <input
+                type="text"
+                required
+                placeholder="Ürün Adı (Örn: Eşofman Takımı, Yağmurluk)"
+                value={prodName}
+                onChange={(e) => setProdName(e.target.value)}
+                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Kategori (Dış Giyim, Eşofman...)"
+                value={prodCat}
+                onChange={(e) => setProdCat(e.target.value)}
+                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+              />
+              <input
+                type="number"
+                placeholder="Stok Adedi"
+                value={prodCount}
+                onChange={(e) => setProdCount(e.target.value)}
+                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+              />
+              <input
+                type="text"
+                placeholder="Bedenler (Örn: S, M, L, XL)"
+                value={prodSizeInfo}
+                onChange={(e) => setProdSizeInfo(e.target.value)}
+                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setHasNumberField((prev) => !prev)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border cursor-pointer ${
+                  hasNumberField
+                    ? "bg-[#02274c] text-white border-[#02274c]"
+                    : "bg-slate-50 text-[#02274c] border-slate-300"
+                }`}
+              >
+                {hasNumberField ? "✕ Numara Alanını Kapat" : "+ Numara Ekle"}
+              </button>
+
+              {hasNumberField && (
+                <input
+                  type="text"
+                  placeholder="Numara bilgisi girin (Örn: #1-#20 veya #5)"
+                  value={prodNumberInfo}
+                  onChange={(e) => setProdNumberInfo(e.target.value)}
+                  className="min-h-[40px] px-3 rounded-xl border-2 border-[#02274c]/40 text-xs sm:text-sm font-bold text-[#02274c] bg-sky-50/40"
+                />
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setProdPhotoFile(e.target.files?.[0] || null)}
+                className="text-xs text-slate-700"
+              />
+              <button
+                type="submit"
+                disabled={savingCreate}
+                className="px-6 min-h-[44px] rounded-xl bg-[#02274c] text-white font-extrabold text-sm cursor-pointer"
+              >
+                {savingCreate ? "Ekleniyor..." : "Yeni Ürün Stoğu Ekle"}
+              </button>
+            </div>
+          </>
+        )}
       </form>
 
       {editingStock && (
