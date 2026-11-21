@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Coach } from "@/types/club";
 
@@ -64,22 +65,29 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
 
   return (
     <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border-t-4 border-[#a60513]">
-        <h1 className="text-2xl font-extrabold text-[#02274c] text-center mb-1">
-          Çorum İkbalspor
-        </h1>
-        <p className="text-sm text-slate-600 text-center mb-5">
-          Yönetim ve Antrenör Portalı
-        </p>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 border-t-4 border-[#a60513] space-y-4">
+        <div className="flex flex-col items-center text-center">
+          <img
+            src="/logo.png"
+            alt="Çorum İkbalspor"
+            className="w-14 h-14 object-contain rounded-xl bg-slate-50 border border-slate-200 p-1.5 mb-2"
+          />
+          <h1 className="text-2xl font-extrabold text-[#02274c]">
+            Çorum İkbalspor
+          </h1>
+          <p className="text-sm text-slate-600">
+            Yönetim ve Antrenör Portalı
+          </p>
+        </div>
 
-        <div className="grid grid-cols-2 gap-2 mb-5 bg-slate-100 p-1 rounded-xl">
+        <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
           <button
             type="button"
             onClick={() => {
               setLoginMode("admin");
               setAuthError("");
             }}
-            className={`py-2 rounded-lg text-sm font-bold transition ${
+            className={`py-2 rounded-lg text-sm font-bold transition cursor-pointer ${
               loginMode === "admin"
                 ? "bg-[#02274c] text-white"
                 : "text-slate-700"
@@ -93,7 +101,7 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
               setLoginMode("coach");
               setAuthError("");
             }}
-            className={`py-2 rounded-lg text-sm font-bold transition ${
+            className={`py-2 rounded-lg text-sm font-bold transition cursor-pointer ${
               loginMode === "coach"
                 ? "bg-[#a60513] text-white"
                 : "text-slate-700"
@@ -104,7 +112,7 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
         </div>
 
         {authError && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
             {authError}
           </div>
         )}
@@ -130,7 +138,7 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#02274c] text-white font-bold py-2.5 rounded-lg disabled:opacity-60"
+              className="w-full bg-[#02274c] hover:bg-[#033669] text-white font-bold py-2.5 rounded-lg disabled:opacity-60 cursor-pointer"
             >
               {loading ? "Giriş Yapılıyor..." : "Admin Olarak Giriş Yap"}
             </button>
@@ -156,12 +164,22 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#a60513] text-white font-bold py-2.5 rounded-lg disabled:opacity-60"
+              className="w-full bg-[#a60513] hover:bg-[#8a0410] text-white font-bold py-2.5 rounded-lg disabled:opacity-60 cursor-pointer"
             >
               {loading ? "Giriş Yapılıyor..." : "Antrenör Olarak Giriş Yap"}
             </button>
           </form>
         )}
+
+        <div className="pt-2 border-t border-slate-100 text-center">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[#02274c] hover:text-[#a60513] transition"
+          >
+            <span>←</span>
+            <span>Ana Sayfaya Dön</span>
+          </Link>
+        </div>
       </div>
     </div>
   );

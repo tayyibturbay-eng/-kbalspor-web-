@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { EquipmentLog, JerseySet, SIZE_OPTIONS, StockItem } from "@/types/club";
+import { AGE_GROUPS, EquipmentLog, JerseySet, SIZE_OPTIONS, StockItem } from "@/types/club";
 
 const supabase = createClient();
 
@@ -54,6 +54,10 @@ export function StockAndGiveSection({
 
   const [editingStock, setEditingStock] = useState<StockItem | null>(null);
 
+  // Hızlı bulma: kategori + oyuncu arama
+  const [playerCategoryFilter, setPlayerCategoryFilter] = useState<string>("Tümü");
+  const [playerQuery, setPlayerQuery] = useState<string>("");
+
   const [selPlayer, setSelPlayer] = useState("");
   const [giveMode, setGiveMode] = useState<"forma" | "malzeme">("forma");
   const [handoverType, setHandoverType] = useState<"emanet" | "tam_teslim">("emanet");
@@ -62,9 +66,23 @@ export function StockAndGiveSection({
   const [itemSize, setItemSize] = useState("M");
   const [jerseyNo, setJerseyNo] = useState("");
 
+  const filteredPlayers = useMemo(() => {
+    const q = playerQuery.trim().toLocaleLowerCase("tr-TR");
+    return players.filter((p) => {
+      const catOk =
+        playerCategoryFilter === "Tümü" || p.age_group === playerCategoryFilter;
+      const nameOk = !q || p.full_name.toLocaleLowerCase("tr-TR").includes(q);
+      return catOk && nameOk;
+    });
+  }, [players, playerCategoryFilter, playerQuery]);
+
   useEffect(() => {
-    if (players.length > 0 && !selPlayer) setSelPlayer(players[0].id);
-  }, [players, selPlayer]);
+    if (filteredPlayers.length === 0) return;
+    const stillExists = filteredPlayers.some((p) => p.id === selPlayer);
+    if (!stillExists) {
+      setSelPlayer(filteredPlayers[0].id);
+    }
+  }, [filteredPlayers, selPlayer]);
 
   useEffect(() => {
     if (jerseySets.length > 0 && !selJerseySet)
@@ -160,22 +178,59 @@ export function StockAndGiveSection({
     setStockItems((prev) => prev.filter((s) => s.id !== id));
   }
 
+  // Envanter kartından doğrudan Eksik / Kayıp olarak işaretleme
+  async function handleMarkStockMissing(stockItem: StockItem) {
+    const targetPlayerId = selPlayer || players[0]?.id;
+    if (!targetPlayerId) {
+      onStatus("Eksik/kayıp kaydı için önce en az 1 sporcu kaydı bulunmalıdır.");
+      return;
+    }
+    const confirmed = confirm(
+      `"${stockItem.product_name}" ürününü Eksik / Kayıp olarak işaretlemek istiyor musunuz?`
+    );
+    if (!confirmed) return;
+
+    const { data, error } = await supabase
+      .from("equipment_logs")
+      .insert({
+        player_id: targetPlayerId,
+        jersey_set_id: null,
+        item_name: `${stockItem.product_name} (Envanter Kaydı)`,
+        item_size: stockItem.size_info || "M",
+        jersey_number_given: null,
+        category: "Malzeme",
+        status: "kayip_eksik",
+      })
+      .select()
+      .single();
+
+    if (error) {
+      onStatus("Eksik/kayıp kaydı açılamadı: " + error.message);
+      return;
+    }
+    if (data) {
+      setLogs((prev) => [data as EquipmentLog, ...prev]);
+      onStatus(`⚠️ "${stockItem.product_name}" Eksik / Kayıp listesine eklendi.`);
+    }
+  }
+
   async function handleGiveItem(e: React.FormEvent) {
     e.preventDefault();
     if (!selPlayer) return;
     const chosenSet = jerseySets.find((j) => j.id === selJerseySet);
+    const parsedNum = jerseyNo.trim() ? Number(jerseyNo.trim()) : null;
 
-    if (giveMode === "forma" && selJerseySet && jerseyNo) {
+    if (giveMode === "forma" && selJerseySet && parsedNum) {
       const existingHolderLog = logs.find(
         (l) =>
           l.status === "teslim_edildi" &&
           l.jersey_set_id === selJerseySet &&
-          l.jersey_number_given === Number(jerseyNo)
+          l.jersey_number_given === parsedNum
       );
       if (existingHolderLog) {
         const holder = players.find((p) => p.id === existingHolderLog.player_id);
         const proceed = confirm(
-          `⚠️ #${jerseyNo} numaralı forma şu an "${
+          `⚠️ #${parsedNum} numaralı forma şu an "${
             holder?.full_name || "başka bir sporcu"
           }" üzerinde görünüyor. Yine de teslim etmek istiyor musunuz?`
         );
@@ -195,16 +250,18 @@ export function StockAndGiveSection({
               ? `${chosenSet.set_name} (${chosenSet.kit_type}) [${handoverLabel}]`
               : `Forma [${handoverLabel}]`,
             item_size: itemSize.trim() || "M",
-            jersey_number_given: jerseyNo ? Number(jerseyNo) : null,
+            jersey_number_given: parsedNum,
             category: "Forma",
             status: "teslim_edildi",
           }
         : {
             player_id: selPlayer,
             jersey_set_id: null,
-            item_name: `${selStockName} [${handoverLabel}]`,
+            item_name: `${selStockName}${
+              parsedNum ? ` #${parsedNum}` : ""
+            } [${handoverLabel}]`,
             item_size: itemSize.trim() || "M",
-            jersey_number_given: null,
+            jersey_number_given: parsedNum,
             category: "Malzeme",
             status: "teslim_edildi",
           };
@@ -253,6 +310,192 @@ export function StockAndGiveSection({
 
   return (
     <div className="space-y-6 text-slate-900">
+      {/* Hızlı Teslim Formu (Önce kolay erişim için üstte) */}
+      <form
+        onSubmit={handleGiveItem}
+        className="bg-white rounded-2xl border-2 border-[#02274c]/20 p-6 space-y-4 shadow-xs"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-lg font-extrabold text-[#02274c]">
+            ⚡ Hızlı Forma / Malzeme Teslim Et
+          </h3>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setGiveMode("forma")}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer ${
+                giveMode === "forma"
+                  ? "bg-[#a60513] text-white"
+                  : "border border-slate-300 bg-white text-slate-800"
+              }`}
+            >
+              Forma Ver
+            </button>
+            <button
+              type="button"
+              onClick={() => setGiveMode("malzeme")}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer ${
+                giveMode === "malzeme"
+                  ? "bg-[#a60513] text-white"
+                  : "border border-slate-300 bg-white text-slate-800"
+              }`}
+            >
+              Yağmurluk / Eşofman / Malzeme Ver
+            </button>
+          </div>
+        </div>
+
+        {/* Kategori + Oyuncu Arama Satırı */}
+        <div className="grid sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <select
+            value={playerCategoryFilter}
+            onChange={(e) => setPlayerCategoryFilter(e.target.value)}
+            className="min-h-[42px] px-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-bold text-[#02274c]"
+          >
+            <option value="Tümü">Kategori: Tüm Yaş Grupları</option>
+            {AGE_GROUPS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
+
+          <input
+            type="text"
+            value={playerQuery}
+            onChange={(e) => setPlayerQuery(e.target.value)}
+            placeholder="Oyuncu adı yazarak hızlı bul..."
+            className="sm:col-span-2 min-h-[42px] px-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900"
+          />
+        </div>
+
+        <div className="grid sm:grid-cols-6 gap-3">
+          <select
+            value={selPlayer}
+            onChange={(e) => setSelPlayer(e.target.value)}
+            className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+          >
+            {filteredPlayers.length === 0 ? (
+              <option value="">Eşleşen oyuncu bulunamadı</option>
+            ) : (
+              filteredPlayers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.age_group} - {p.full_name}
+                </option>
+              ))
+            )}
+          </select>
+
+          <select
+            value={handoverType}
+            onChange={(e) =>
+              setHandoverType(e.target.value as "emanet" | "tam_teslim")
+            }
+            className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+          >
+            <option value="emanet">🔄 Emanet</option>
+            <option value="tam_teslim">✅ Tam Teslim</option>
+          </select>
+
+          {giveMode === "forma" ? (
+            <select
+              value={selJerseySet}
+              onChange={(e) => setSelJerseySet(e.target.value)}
+              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+            >
+              {jerseySets.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.set_name} ({j.kit_type})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select
+              value={selStockName}
+              onChange={(e) => setSelStockName(e.target.value)}
+              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+            >
+              {stockItems.map((s) => (
+                <option key={s.id} value={s.product_name}>
+                  {s.product_name} ({s.stock_count})
+                </option>
+              ))}
+            </select>
+          )}
+
+          {giveMode === "forma" && selectedSetPieces.length > 0 ? (
+            <select
+              value={jerseyNo}
+              onChange={(e) => {
+                const num = e.target.value;
+                setJerseyNo(num);
+                const found = selectedSetPieces.find(
+                  (x) => String(x.number) === num
+                );
+                if (found) setItemSize(found.size || "M");
+              }}
+              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+            >
+              <option value="">-- Forma No Seç --</option>
+              {selectedSetPieces.map((piece) => {
+                const assignedLog = logs.find(
+                  (l) =>
+                    l.status === "teslim_edildi" &&
+                    l.jersey_set_id === selJerseySet &&
+                    l.jersey_number_given === piece.number
+                );
+                const holder = assignedLog
+                  ? players.find((p) => p.id === assignedLog.player_id)
+                  : null;
+                return (
+                  <option key={piece.id} value={piece.number}>
+                    #{piece.number} ({piece.size || "M"}){" "}
+                    {piece.is_goalkeeper ? "🧤 Kaleci" : ""}{" "}
+                    {holder ? `[Zimmetli: ${holder.full_name}]` : "[Boşta]"}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            <input
+              type="number"
+              min={1}
+              max={999}
+              placeholder={
+                giveMode === "forma"
+                  ? "Forma Numarası"
+                  : "Numara (Opsiyonel)"
+              }
+              value={jerseyNo}
+              onChange={(e) => setJerseyNo(e.target.value)}
+              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 text-sm bg-white"
+            />
+          )}
+
+          <select
+            value={itemSize}
+            onChange={(e) => setItemSize(e.target.value)}
+            className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+          >
+            {SIZE_OPTIONS.map((sz) => (
+              <option key={sz} value={sz}>
+                Beden: {sz}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          type="submit"
+          className="px-6 min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm cursor-pointer"
+        >
+          {handoverType === "emanet"
+            ? "Emanet Olarak Ver"
+            : "Tam Teslim Et"}
+        </button>
+      </form>
+
+      {/* Yeni Ürün Stoğu Ekleme */}
       <form
         onSubmit={handleAddStock}
         className="bg-white rounded-2xl border border-slate-200 p-6 space-y-3"
@@ -320,7 +563,7 @@ export function StockAndGiveSection({
             <button
               type="button"
               onClick={() => setEditingStock(null)}
-              className="text-xs text-slate-600 underline"
+              className="text-xs text-slate-600 underline cursor-pointer"
             >
               Vazgeç
             </button>
@@ -369,13 +612,14 @@ export function StockAndGiveSection({
           </div>
           <button
             type="submit"
-            className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold"
+            className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
           >
             ✓ Değişiklikleri Kaydet
           </button>
         </form>
       )}
 
+      {/* Stok Kartları */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {stockItems.map((s) => (
           <div
@@ -413,13 +657,20 @@ export function StockAndGiveSection({
                 </p>
               )}
 
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5">
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 items-center">
                 <button
                   type="button"
                   onClick={() => setEditingStock({ ...s })}
                   className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-bold cursor-pointer"
                 >
                   ✏️ Düzenle
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMarkStockMissing(s)}
+                  className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-extrabold cursor-pointer"
+                >
+                  ⚠️ Eksik / Kayıp
                 </button>
                 <label className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">
                   📷 Görsel {s.photo_url ? "Değiştir" : "Ekle"}
@@ -445,154 +696,6 @@ export function StockAndGiveSection({
           </div>
         ))}
       </div>
-
-      <form
-        onSubmit={handleGiveItem}
-        className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
-      >
-        <h3 className="text-lg font-extrabold text-[#02274c]">
-          Oyuncuya Forma / Malzeme Teslim Et
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setGiveMode("forma")}
-            className={`px-4 py-2 rounded-xl text-sm font-extrabold cursor-pointer ${
-              giveMode === "forma"
-                ? "bg-[#a60513] text-white"
-                : "border border-slate-300 bg-white text-slate-800"
-            }`}
-          >
-            Forma Ver
-          </button>
-          <button
-            type="button"
-            onClick={() => setGiveMode("malzeme")}
-            className={`px-4 py-2 rounded-xl text-sm font-extrabold cursor-pointer ${
-              giveMode === "malzeme"
-                ? "bg-[#a60513] text-white"
-                : "border border-slate-300 bg-white text-slate-800"
-            }`}
-          >
-            Yağmurluk / Eşofman / Malzeme Ver
-          </button>
-        </div>
-
-        <div className="grid sm:grid-cols-6 gap-3">
-          <select
-            value={selPlayer}
-            onChange={(e) => setSelPlayer(e.target.value)}
-            className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-          >
-            {players.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.age_group} - {p.full_name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={handoverType}
-            onChange={(e) =>
-              setHandoverType(e.target.value as "emanet" | "tam_teslim")
-            }
-            className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-          >
-            <option value="emanet">🔄 Emanet</option>
-            <option value="tam_teslim">✅ Tam Teslim</option>
-          </select>
-
-          {giveMode === "forma" ? (
-            <select
-              value={selJerseySet}
-              onChange={(e) => setSelJerseySet(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-            >
-              {jerseySets.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.set_name} ({j.kit_type})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              value={selStockName}
-              onChange={(e) => setSelStockName(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-            >
-              {stockItems.map((s) => (
-                <option key={s.id} value={s.product_name}>
-                  {s.product_name} ({s.stock_count})
-                </option>
-              ))}
-            </select>
-          )}
-
-          {giveMode === "forma" && selectedSetPieces.length > 0 ? (
-            <select
-              value={jerseyNo}
-              onChange={(e) => {
-                const num = e.target.value;
-                setJerseyNo(num);
-                const found = selectedSetPieces.find(
-                  (x) => String(x.number) === num
-                );
-                if (found) setItemSize(found.size || "M");
-              }}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-            >
-              <option value="">-- Forma No Seç --</option>
-              {selectedSetPieces.map((piece) => {
-                const assignedLog = logs.find(
-                  (l) =>
-                    l.status === "teslim_edildi" &&
-                    l.jersey_set_id === selJerseySet &&
-                    l.jersey_number_given === piece.number
-                );
-                const holder = assignedLog
-                  ? players.find((p) => p.id === assignedLog.player_id)
-                  : null;
-                return (
-                  <option key={piece.id} value={piece.number}>
-                    #{piece.number} ({piece.size || "M"}){" "}
-                    {piece.is_goalkeeper ? "🧤 Kaleci" : ""}{" "}
-                    {holder ? `[Zimmetli: ${holder.full_name}]` : "[Boşta]"}
-                  </option>
-                );
-              })}
-            </select>
-          ) : (
-            giveMode === "forma" && (
-              <input
-                type="number"
-                placeholder="Forma Numarası"
-                value={jerseyNo}
-                onChange={(e) => setJerseyNo(e.target.value)}
-                className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 text-sm"
-              />
-            )
-          )}
-
-          <select
-            value={itemSize}
-            onChange={(e) => setItemSize(e.target.value)}
-            className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm"
-          >
-            {SIZE_OPTIONS.map((sz) => (
-              <option key={sz} value={sz}>
-                Beden: {sz}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="px-6 min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm cursor-pointer"
-        >
-          {handoverType === "emanet" ? "Emanet Olarak Ver" : "Tam Teslim Et"}
-        </button>
-      </form>
     </div>
   );
 }
