@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = "force-dynamic";
 
-function resolveAgeGroup(birthDate: string | null, explicitGroup?: string | null): string {
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+  if (!url || !key) {
+    throw new Error("Supabase ortam değişkenleri (URL veya KEY) tanımlı değil.");
+  }
+
+  return createClient(url, key);
+}
+
+function resolveAgeGroup(
+  birthDate: string | null,
+  explicitGroup?: string | null
+): string {
   if (explicitGroup && explicitGroup.trim()) return explicitGroup.trim();
   if (!birthDate) return "U15";
   const year = parseInt(birthDate.slice(0, 4), 10);
@@ -24,6 +37,7 @@ function resolveAgeGroup(birthDate: string | null, explicitGroup?: string | null
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = getSupabaseClient();
     const body = await req.json();
     const fullName = String(body.full_name || "").trim();
     const parentPhone = String(body.parent_phone || "").trim();
