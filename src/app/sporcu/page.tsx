@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
+import { MatchPredictionCard } from "@/components/ikbal/MatchPredictionCard";
 import { createClient } from "@/lib/supabase/client";
 import {
   Due,
@@ -295,6 +296,13 @@ export default function SporcuPortalPage() {
                 setPlayer={setPlayer}
                 overdueCount={overdueCount}
                 currentMonthItem={currentMonthItem}
+              />
+            )}
+
+            {player.id && player.age_group && (
+              <MatchPredictionCard
+                playerId={player.id}
+                ageGroup={player.age_group}
               />
             )}
           </div>

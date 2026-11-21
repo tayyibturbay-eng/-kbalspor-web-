@@ -117,7 +117,7 @@ export function PlayerProfileTab({
   }
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-6 shadow-xs">
+    <div className="bg-white text-slate-900 rounded-3xl border border-slate-200 p-6 space-y-6 shadow-xs">
       <h2 className="text-lg font-black text-[#02274c]">
         Bilgilerim, Profil Fotoğrafı & PIN
       </h2>
@@ -142,7 +142,7 @@ export function PlayerProfileTab({
               <h3 className="font-extrabold text-sm text-[#02274c]">
                 Profil Fotoğrafı veya Avatar
               </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs font-medium text-slate-700 mt-0.5">
                 Kendi fotoğrafınızı yükleyebilir veya aşağıdaki hazır
                 avatarlardan birini seçebilirsiniz.
               </p>
@@ -166,7 +166,7 @@ export function PlayerProfileTab({
                 onClick={() =>
                   savePlayerPhoto(null, "Profil fotoğrafı kaldırıldı.")
                 }
-                className="px-3.5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
+                className="px-3.5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-bold cursor-pointer"
               >
                 Kaldır
               </button>
@@ -175,7 +175,7 @@ export function PlayerProfileTab({
         </div>
 
         <div>
-          <p className="text-xs font-bold text-slate-600 mb-2">
+          <p className="text-xs font-bold text-slate-800 mb-2">
             Hazır Avatarlar (Tek tıkla seçin):
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
@@ -199,7 +199,7 @@ export function PlayerProfileTab({
                     alt={av.label}
                     className="w-12 h-12 rounded-full"
                   />
-                  <span className="text-[11px] font-extrabold text-slate-700">
+                  <span className="text-[11px] font-extrabold text-slate-900">
                     {av.label}
                   </span>
                 </button>
@@ -211,7 +211,7 @@ export function PlayerProfileTab({
         {photoMsg && (
           <div
             className={`text-xs font-bold ${
-              photoMsg.ok ? "text-emerald-700" : "text-red-600"
+              photoMsg.ok ? "text-emerald-800" : "text-red-700"
             }`}
           >
             {photoMsg.text}
@@ -221,25 +221,27 @@ export function PlayerProfileTab({
 
       <div className="grid sm:grid-cols-3 gap-3 text-sm">
         <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <span className="text-xs text-slate-500 block">Ad Soyad</span>
-          <span className="font-bold">{player.full_name}</span>
+          <span className="text-xs font-semibold text-slate-700 block">Ad Soyad</span>
+          <span className="font-extrabold text-slate-900">{player.full_name}</span>
         </div>
         <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <span className="text-xs text-slate-500 block">Lisans No</span>
-          <span className="font-bold">{player.license_no || "Belirtilmemiş"}</span>
+          <span className="text-xs font-semibold text-slate-700 block">Lisans No</span>
+          <span className="font-extrabold text-slate-900">
+            {player.license_no || "Belirtilmemiş"}
+          </span>
         </div>
         <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <span className="text-xs text-slate-500 block">Aidat Özeti</span>
+          <span className="text-xs font-semibold text-slate-700 block">Aidat Özeti</span>
           {overdueCount > 0 ? (
-            <span className="font-extrabold text-red-600">
+            <span className="font-extrabold text-red-700">
               ⚠️ Gecikti ({overdueCount} ay)
             </span>
           ) : currentMonthItem?.state === "paid" ? (
-            <span className="font-extrabold text-emerald-700">
+            <span className="font-extrabold text-emerald-800">
               ✓ {currentMonthItem.monthLabel}: Ödendi
             </span>
           ) : (
-            <span className="font-extrabold text-amber-700">
+            <span className="font-extrabold text-amber-800">
               {currentMonthItem?.monthLabel}: Ödenmedi
             </span>
           )}
@@ -247,7 +249,7 @@ export function PlayerProfileTab({
       </div>
 
       <form onSubmit={handlePinChange} className="space-y-3 max-w-sm">
-        <label className="block text-xs font-bold text-slate-600">
+        <label className="block text-xs font-bold text-slate-800">
           Yeni PIN Belirle (En az 4 hane)
         </label>
         <div className="flex gap-2">
@@ -257,11 +259,11 @@ export function PlayerProfileTab({
             value={newPin}
             onChange={(e) => setNewPin(e.target.value)}
             placeholder="Yeni PIN..."
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400"
+            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#02274c]"
           />
           <button
             type="submit"
-            className="px-4 py-2.5 rounded-xl bg-[#02274c] text-white text-sm font-extrabold cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-sm font-extrabold cursor-pointer"
           >
             Güncelle
           </button>
@@ -269,7 +271,7 @@ export function PlayerProfileTab({
         {pinMsg && (
           <div
             className={`text-xs font-bold ${
-              pinMsg.ok ? "text-emerald-700" : "text-red-600"
+              pinMsg.ok ? "text-emerald-800" : "text-red-700"
             }`}
           >
             {pinMsg.text}

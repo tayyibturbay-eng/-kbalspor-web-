@@ -22,6 +22,7 @@ export default function KayitPage() {
     parent_phone: "",
     position: "Orta Saha",
     guardian_name: "",
+    license_no: "",
     notes: "",
   });
   const [kvkkAccepted, setKvkkAccepted] = useState(false);
@@ -59,6 +60,7 @@ export default function KayitPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          license_no: form.license_no.trim() || null,
           kvkk_accepted: kvkkAccepted,
           consent_accepted: consentAccepted,
         }),
@@ -77,6 +79,7 @@ export default function KayitPage() {
           parent_phone: "",
           position: "Orta Saha",
           guardian_name: "",
+          license_no: "",
           notes: "",
         });
         setKvkkAccepted(false);
@@ -88,8 +91,11 @@ export default function KayitPage() {
     setLoading(false);
   }
 
+  const inputClass =
+    "w-full rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#02274c] focus:border-[#02274c]";
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       <Navbar />
       <main className="flex-1 py-10 px-4">
         <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 space-y-6">
@@ -98,45 +104,45 @@ export default function KayitPage() {
               Çorum İkbalspor
             </span>
             <h1 className="text-2xl font-extrabold text-[#02274c]">Sporcu Üyelik Başvurusu</h1>
-            <p className="text-sm text-slate-600 mt-1">
+            <p className="text-sm text-slate-700 mt-1">
               18 yaşından küçük sporcular için başvuru ve KVKK/Açık Rıza onayları velisi/vasisi tarafından doldurulmalıdır.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Sporcu Adı Soyadı *</label>
+              <label className="block text-xs font-bold text-slate-800 mb-1">Sporcu Adı Soyadı *</label>
               <input
                 type="text"
                 required
                 value={form.full_name}
                 onChange={(e) => setForm({ ...form, full_name: e.target.value })}
                 placeholder="Örn: Ahmet Yılmaz"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                className={inputClass}
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Doğum Tarihi *</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Doğum Tarihi *</label>
                 <input
                   type="date"
                   required
                   value={form.birth_date}
                   onChange={(e) => setForm({ ...form, birth_date: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  className={inputClass}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mevki</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Mevki</label>
                 <select
                   value={form.position}
                   onChange={(e) => setForm({ ...form, position: e.target.value })}
-                  className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                  className={inputClass}
                 >
                   {POSITIONS.map((pos) => (
-                    <option key={pos} value={pos}>
+                    <option key={pos} value={pos} className="bg-white text-slate-900">
                       {pos}
                     </option>
                   ))}
@@ -145,44 +151,57 @@ export default function KayitPage() {
             </div>
 
             {isMinor && (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-                <p className="text-xs font-bold text-amber-800">
+              <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-2">
+                <p className="text-xs font-bold text-amber-900">
                   18 Yaş Altı Sporcu — Veli Bilgisi Zorunludur
                 </p>
-                <label className="block text-xs font-bold text-slate-700">Veli / Vasi Adı Soyadı *</label>
+                <label className="block text-xs font-bold text-slate-800">Veli / Vasi Adı Soyadı *</label>
                 <input
                   type="text"
                   required
                   value={form.guardian_name}
                   onChange={(e) => setForm({ ...form, guardian_name: e.target.value })}
                   placeholder="Anne / Baba veya Yasal Vasi Adı Soyadı"
-                  className="w-full rounded-xl border border-amber-300 bg-white px-3.5 py-2.5 text-sm"
+                  className="w-full rounded-xl border border-amber-400 bg-white text-slate-900 placeholder:text-slate-400 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-600"
                 />
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                {isMinor ? "Veli Telefon Numarası *" : "Telefon Numarası *"}
-              </label>
-              <input
-                type="tel"
-                required
-                value={form.parent_phone}
-                onChange={(e) => setForm({ ...form, parent_phone: e.target.value })}
-                placeholder="05XX XXX XX XX"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">
+                  {isMinor ? "Veli Telefon Numarası *" : "Telefon Numarası *"}
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={form.parent_phone}
+                  onChange={(e) => setForm({ ...form, parent_phone: e.target.value })}
+                  placeholder="05XX XXX XX XX"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Lisans No (Opsiyonel)</label>
+                <input
+                  type="text"
+                  value={form.license_no}
+                  onChange={(e) => setForm({ ...form, license_no: e.target.value })}
+                  placeholder="Örn: TFF / İl Lisans No"
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Notlar (Opsiyonel)</label>
+              <label className="block text-xs font-bold text-slate-800 mb-1">Notlar (Opsiyonel)</label>
               <textarea
                 rows={2}
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="Varsa sağlık durumu veya önceki kulüp bilgisi"
-                className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+                className={inputClass}
               />
             </div>
 
@@ -201,7 +220,7 @@ export default function KayitPage() {
               </div>
 
               {showKvkkText && (
-                <div className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto leading-relaxed space-y-2">
+                <div className="text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-3 max-h-44 overflow-y-auto leading-relaxed space-y-2">
                   <p>
                     <strong>Veri Sorumlusu:</strong> Çorum İkbalspor Kulübü. 6698 sayılı Kişisel Verilerin Korunması Kanunu (&ldquo;KVKK&rdquo;) uyarınca, sporcuya ve 18 yaş altı sporcuların velisine/vasisine ait ad-soyad, doğum tarihi, iletişim bilgileri, antrenman/maç yoklama kayıtları ve lisans bilgileri kulüp faaliyetlerinin yürütülmesi, sporcu sağlığı/güvenliği ve iletişim amaçlarıyla işlenmektedir.
                   </p>
@@ -211,7 +230,7 @@ export default function KayitPage() {
                 </div>
               )}
 
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs font-medium text-slate-800">
                 <input
                   type="checkbox"
                   checked={kvkkAccepted}
@@ -223,7 +242,7 @@ export default function KayitPage() {
                 </span>
               </label>
 
-              <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+              <label className="flex items-start gap-2.5 cursor-pointer text-xs font-medium text-slate-800">
                 <input
                   type="checkbox"
                   checked={consentAccepted}
@@ -243,8 +262,8 @@ export default function KayitPage() {
               <div
                 className={`p-3 rounded-xl text-sm font-semibold ${
                   resultMsg.ok
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                    : "bg-red-50 text-red-800 border border-red-200"
                 }`}
               >
                 {resultMsg.text}

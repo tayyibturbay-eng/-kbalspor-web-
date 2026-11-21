@@ -15,6 +15,20 @@ export type Player = {
   license_no?: string | null;
   bound_device_id?: string | null;
   photo_url?: string | null;
+  card_theme?: string | null;
+  card_badge?: string | null;
+  card_motto?: string | null;
+};
+
+export type MatchPrediction = {
+  id: string;
+  player_id: string;
+  age_group: string;
+  match_title: string;
+  home_score: number;
+  away_score: number;
+  first_scorer_name?: string | null;
+  created_at?: string;
 };
 
 export type Due = {
@@ -88,6 +102,7 @@ export type MembershipRequest = {
   age_group: string;
   parent_phone: string;
   position: string | null;
+  license_no?: string | null;
   notes: string | null;
   status: string;
   created_at: string;
@@ -150,8 +165,6 @@ export const TR_MONTHS = [
 
 export const NAZMI_AVLUCA =
   "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad. (Çiftlik Çayırı - Küçük Evler Yolu civarı), Merkez / Çorum";
-  // Player tipinin içine eklenecek satır:
-// photo_url?: string | null;
 
 export type EquipmentLog = {
   id: string;
@@ -178,6 +191,7 @@ export type StockItemMini = {
   category: string;
   photo_url: string | null;
 };
+
 export interface JerseyPiece {
   id: string;
   number: number;
