@@ -198,7 +198,7 @@ export default function IkbalHomePage() {
 
               <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-center md:justify-start gap-3 pt-2">
                 <a
-                  href="https://expo.dev/artifacts/eas/RSYM9khkYpmRNHiqoXkIbhPkUI2Lw9IqvIO8Xch26nA.apk"
+                  href="https://expo.dev/artifacts/eas/iCUSsvEmKwJJa90gFQrbCKRuca2ZKOFP5jB0Wxa81aY.apk"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-3 rounded-xl shadow-md transition text-xs sm:text-sm text-center"
