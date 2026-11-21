@@ -312,12 +312,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center gap-2">
+        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
           {availableTabs.map((item) => (
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition cursor-pointer ${
+              className={`w-full px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold truncate text-center transition cursor-pointer ${
                 tab === item.id
                   ? "bg-[#a60513] text-white shadow-sm"
                   : "bg-slate-50 text-[#02274c] hover:bg-slate-100 border border-slate-200"

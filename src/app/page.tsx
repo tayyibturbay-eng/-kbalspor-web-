@@ -24,6 +24,24 @@ function formatShortDate(raw: string): string {
   return clean;
 }
 
+function isUpcomingEvent(item: TaskItem): boolean {
+  if (!item.event_date) return false;
+  const datePart = item.event_date.slice(0, 10);
+  const timePart = (item.match_time || "").trim();
+
+  if (/^\d{1,2}:\d{2}/.test(timePart)) {
+    const [hh, mm] = timePart.split(":").map((n) => parseInt(n, 10));
+    const eventDt = new Date(`${datePart}T00:00:00`);
+    if (Number.isNaN(eventDt.getTime())) return false;
+    eventDt.setHours(Number.isNaN(hh) ? 23 : hh, Number.isNaN(mm) ? 59 : mm, 59, 999);
+    return eventDt.getTime() >= Date.now();
+  }
+
+  const dayEnd = new Date(`${datePart}T23:59:59`);
+  if (Number.isNaN(dayEnd.getTime())) return false;
+  return dayEnd.getTime() >= Date.now();
+}
+
 function buildMapsUrl(location?: string | null): string {
   const query = (location || "Nazmi Avluca Spor Tesisi Çorum").trim();
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -49,12 +67,10 @@ export default function IkbalHomePage() {
         )
         .gte("event_date", todayStr)
         .order("event_date", { ascending: true })
-        .limit(8);
+        .limit(12);
       if (data) {
-        const onlyUpcoming = (data as TaskItem[]).filter(
-          (item) => (item.event_date || "").slice(0, 10) >= todayStr
-        );
-        setUpcoming(onlyUpcoming.slice(0, 4));
+        const filtered = (data as TaskItem[]).filter(isUpcomingEvent);
+        setUpcoming(filtered.slice(0, 4));
       }
     })();
   }, []);
