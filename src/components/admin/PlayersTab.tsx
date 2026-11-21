@@ -12,6 +12,10 @@ import {
 
 const supabase = createClient();
 
+type ExtendedPlayer = Player & {
+  skill_points?: number | null;
+};
+
 interface PlayersTabProps {
   role: UserRole;
   players: Player[];
@@ -34,6 +38,7 @@ export function PlayersTab({
 }: PlayersTabProps) {
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("Tümü");
+  const [pointStep, setPointStep] = useState<number>(5);
   const [newPlayer, setNewPlayer] = useState({
     full_name: "",
     birth_date: "",
@@ -73,6 +78,33 @@ export function PlayersTab({
       })).filter((x) => x.items.length > 0),
     [filteredPlayers]
   );
+
+  async function adjustPlayerPoints(p: ExtendedPlayer, delta: number) {
+    const currentPts = p.skill_points ?? 20;
+    const nextPts = Math.max(0, currentPts + delta);
+
+    const { error } = await supabase
+      .from("players")
+      .update({ skill_points: nextPts })
+      .eq("id", p.id);
+
+    if (error) {
+      onFeedback("Puan güncellenemedi: " + error.message);
+      return;
+    }
+
+    setPlayers((prev) =>
+      prev.map((x) =>
+        x.id === p.id ? ({ ...x, skill_points: nextPts } as ExtendedPlayer) : x
+      )
+    );
+    const label = delta >= 0 ? `+${delta}` : `${delta}`;
+    await onLogActivity(
+      "Yetenek Puanı Güncelleme",
+      `${p.full_name} oyuncusuna ${label} puan uygulandı (Yeni puan: ${nextPts}).`
+    );
+    onFeedback(`✅ ${p.full_name} puanı ${nextPts} olarak güncellendi (${label}).`);
+  }
 
   async function updatePlayerPosition(player: Player, newPosition: string) {
     const { error } = await supabase
@@ -115,6 +147,13 @@ export function PlayersTab({
       player_code: autoCode,
       player_pin: autoPin,
       license_no: cleanLicense,
+      skill_points: 20,
+      stat_pac: 20,
+      stat_sho: 20,
+      stat_pas: 20,
+      stat_dri: 20,
+      stat_def: 20,
+      stat_phy: 20,
       pin_changed: false,
     });
 
@@ -125,12 +164,12 @@ export function PlayersTab({
 
     await onLogActivity(
       "Oyuncu Ekleme",
-      `${newPlayer.full_name} (${ageGroup}) eklendi — ID: ${autoCode}${
+      `${newPlayer.full_name} (${ageGroup}) eklendi — ID: ${autoCode} | Ön yüklü 20 puan${
         cleanLicense ? ` | Lisans: ${cleanLicense}` : ""
       }`
     );
     onFeedback(
-      `✅ ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin}`
+      `✅ ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin} | 20 Puan`
     );
     setNewPlayer({
       full_name: "",
@@ -363,7 +402,7 @@ export function PlayersTab({
           onSubmit={addPlayer}
           className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3 text-slate-900"
         >
-          <h2 className="font-bold text-[#02274c]">Yeni Oyuncu Ekle</h2>
+          <h2 className="font-bold text-[#02274c]">Yeni Oyuncu Ekle (Ön Yüklü 20 Puan)</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <input
               required
@@ -466,12 +505,28 @@ export function PlayersTab({
               </button>
             ))}
           </div>
-          <input
-            placeholder="İsim, ID veya lisans ara..."
-            value={playerSearch}
-            onChange={(e) => setPlayerSearch(e.target.value)}
-            className={`w-full md:w-64 ${fieldClass}`}
-          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            {role === "admin" && (
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
+                <span className="text-xs font-bold text-slate-700">Puan Miktarı:</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={pointStep}
+                  onChange={(e) => setPointStep(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-14 border border-slate-300 bg-white rounded px-2 py-0.5 text-xs font-bold text-slate-900"
+                />
+              </div>
+            )}
+            <input
+              placeholder="İsim, ID veya lisans ara..."
+              value={playerSearch}
+              onChange={(e) => setPlayerSearch(e.target.value)}
+              className={`w-full md:w-64 ${fieldClass}`}
+            />
+          </div>
         </div>
 
         {groupedPlayers.map(({ group, items }) => (
@@ -488,13 +543,14 @@ export function PlayersTab({
                     <th className="p-2.5">Doğum Tarihi</th>
                     <th className="p-2.5">Mevki / Forma</th>
                     <th className="p-2.5">Lisans No</th>
+                    <th className="p-2.5">Puan</th>
                     {role === "admin" && <th className="p-2.5">ID / Şifre</th>}
-                    <th className="p-2.5">Telefon</th>
                     {role === "admin" && <th className="p-2.5">İşlem</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((p) => {
+                  {items.map((rawP) => {
+                    const p = rawP as ExtendedPlayer;
                     const warnings =
                       role === "admin" ? getPlayerWarnings(p, duplicateKeys) : [];
                     return (
@@ -548,25 +604,41 @@ export function PlayersTab({
                         <td className="p-2.5 text-xs font-semibold text-slate-900">
                           {p.license_no || "-"}
                         </td>
+                        <td className="p-2.5 text-xs font-extrabold text-[#02274c]">
+                          {p.skill_points ?? 20}p
+                        </td>
                         {role === "admin" && (
                           <td className="p-2.5 font-mono text-xs font-semibold text-slate-900">
                             {p.player_code} / {p.player_pin || "1234"}
                           </td>
                         )}
-                        <td className="p-2.5 text-xs font-medium text-slate-800">
-                          {p.parent_phone || "-"}
-                        </td>
                         {role === "admin" && (
-                          <td className="p-2.5 flex gap-2">
+                          <td className="p-2.5 flex flex-wrap gap-1.5">
                             <button
+                              type="button"
+                              onClick={() => adjustPlayerPoints(p, pointStep)}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg"
+                            >
+                              +{pointStep} Puan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustPlayerPoints(p, -pointStep)}
+                              className="bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg"
+                            >
+                              -{pointStep} Puan
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => setEditingPlayer(p)}
-                              className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-3 py-1 rounded-lg"
+                              className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-2.5 py-1 rounded-lg"
                             >
                               Düzenle
                             </button>
                             <button
+                              type="button"
                               onClick={() => deletePlayer(p.id, p.full_name)}
-                              className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-3 py-1 rounded-lg"
+                              className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-2.5 py-1 rounded-lg"
                             >
                               Sil
                             </button>

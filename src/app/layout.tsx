@@ -40,9 +40,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="tr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased overflow-x-clip`}
     >
-      <body className="min-h-full flex flex-col pb-16 lg:pb-0">{children}</body>
+      <body className="min-h-full w-full max-w-full overflow-x-clip flex flex-col pb-16 lg:pb-0">
+        {children}
+      </body>
     </html>
   );
 }

@@ -21,6 +21,9 @@ interface PredictionRow {
   match_title: string;
   home_score: number;
   away_score: number;
+  actual_home_score?: number | null;
+  actual_away_score?: number | null;
+  awarded_points?: number | null;
   first_scorer_name: string | null;
   created_at: string;
   players?: {
@@ -32,6 +35,25 @@ interface PredictionRow {
 interface MatchPredictionCardProps {
   playerId: string;
   ageGroup: string;
+}
+
+function calcPredictionPoints(
+  predHome: number,
+  predAway: number,
+  actualHome: number,
+  actualAway: number
+): number {
+  let pts = 0;
+  if (predHome === actualHome) pts += 1;
+  if (predAway === actualAway) pts += 1;
+
+  const predOutcome = predHome > predAway ? "H" : predHome < predAway ? "A" : "D";
+  const actualOutcome =
+    actualHome > actualAway ? "H" : actualHome < actualAway ? "A" : "D";
+  if (predOutcome === actualOutcome) pts += 3;
+
+  if (predHome === actualHome && predAway === actualAway) pts += 5;
+  return pts;
 }
 
 export function MatchPredictionCard({
@@ -132,7 +154,10 @@ export function MatchPredictionCard({
       return;
     }
 
-    setStatusMsg({ ok: true, text: "Maç günü tahminin kaydedildi!" });
+    setStatusMsg({
+      ok: true,
+      text: "Maç günü tahminin kaydedildi! (Doğru skor: +1/adet, Kazanan: +3, Tam tahmin: +5)",
+    });
     await loadData();
   }
 
@@ -152,6 +177,9 @@ export function MatchPredictionCard({
           <h2 className="text-lg font-extrabold text-[#02274c] mt-1">
             Skor & İlk Gol Tahmini
           </h2>
+          <p className="text-xs font-medium text-slate-600 mt-0.5">
+            Her doğru skor: +1 puan • Kazananı bilme: +3 puan • Tam doğru maç: +5 puan
+          </p>
         </div>
         <span className="text-xs font-bold text-slate-600">
           {visiblePredictions.length} tahmin yapıldı
@@ -264,26 +292,42 @@ export function MatchPredictionCard({
             {ageGroup} Grubu Tahminleri
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {visiblePredictions.map((pred) => (
-              <div
-                key={pred.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5"
-              >
-                <div className="min-w-0">
-                  <p className="text-xs font-extrabold text-[#02274c] truncate">
-                    {pred.players?.full_name || "Sporcu"}
-                    {pred.players?.jersey_number ? ` (#${pred.players.jersey_number})` : ""}
-                  </p>
-                  <p className="text-[11px] text-slate-600 truncate">
-                    {pred.match_title}
-                    {pred.first_scorer_name ? ` • Gol: ${pred.first_scorer_name}` : ""}
-                  </p>
+            {visiblePredictions.map((pred) => {
+              const hasActual =
+                typeof pred.actual_home_score === "number" &&
+                typeof pred.actual_away_score === "number";
+              const pts = hasActual
+                ? pred.awarded_points ??
+                  calcPredictionPoints(
+                    pred.home_score,
+                    pred.away_score,
+                    pred.actual_home_score!,
+                    pred.actual_away_score!
+                  )
+                : null;
+
+              return (
+                <div
+                  key={pred.id}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5"
+                >
+                  <div className="min-w-0">
+                    <p className="text-xs font-extrabold text-[#02274c] truncate">
+                      {pred.players?.full_name || "Sporcu"}
+                      {pred.players?.jersey_number ? ` (#${pred.players.jersey_number})` : ""}
+                    </p>
+                    <p className="text-[11px] text-slate-600 truncate">
+                      {pred.match_title}
+                      {pred.first_scorer_name ? ` • Gol: ${pred.first_scorer_name}` : ""}
+                      {pts !== null ? ` • +${pts}p` : ""}
+                    </p>
+                  </div>
+                  <span className="ml-2 shrink-0 px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-black">
+                    {pred.home_score} - {pred.away_score}
+                  </span>
                 </div>
-                <span className="ml-2 shrink-0 px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-black">
-                  {pred.home_score} - {pred.away_score}
-                </span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

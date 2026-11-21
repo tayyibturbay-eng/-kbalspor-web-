@@ -92,7 +92,6 @@ export default function SporcuPortalPage() {
   }
 
   async function loadPlayerData(p: Player) {
-    // Temsilci değilse yalnızca kendi yoklamasını çekerek bant genişliğinden tasarruf et
     const attendanceQuery = p.is_representative
       ? supabase.from("prayer_attendance").select("*")
       : supabase.from("prayer_attendance").select("*").eq("player_id", p.id);
@@ -272,7 +271,15 @@ export default function SporcuPortalPage() {
             )}
 
             {tab === "program" && (
-              <PlayerProgramTab trainings={trainings} tasks={tasks} />
+              <div className="space-y-6">
+                <PlayerProgramTab trainings={trainings} tasks={tasks} />
+                {player.id && player.age_group && (
+                  <MatchPredictionCard
+                    playerId={player.id}
+                    ageGroup={player.age_group}
+                  />
+                )}
+              </div>
             )}
 
             {tab === "malzemeler" && (
@@ -291,19 +298,20 @@ export default function SporcuPortalPage() {
             )}
 
             {tab === "profil" && (
-              <PlayerProfileTab
-                player={player}
-                setPlayer={setPlayer}
-                overdueCount={overdueCount}
-                currentMonthItem={currentMonthItem}
-              />
-            )}
-
-            {player.id && player.age_group && (
-              <MatchPredictionCard
-                playerId={player.id}
-                ageGroup={player.age_group}
-              />
+              <div className="space-y-6">
+                <PlayerProfileTab
+                  player={player}
+                  setPlayer={setPlayer}
+                  overdueCount={overdueCount}
+                  currentMonthItem={currentMonthItem}
+                />
+                {player.id && player.age_group && (
+                  <MatchPredictionCard
+                    playerId={player.id}
+                    ageGroup={player.age_group}
+                  />
+                )}
+              </div>
             )}
           </div>
         )}

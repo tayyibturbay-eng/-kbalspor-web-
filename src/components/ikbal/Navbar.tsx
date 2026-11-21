@@ -182,7 +182,7 @@ export function Navbar() {
           ? `${unreadCount} görülmemiş bildirim`
           : "Bildirimler"
       }
-      className={`relative inline-flex items-center justify-center rounded-full font-black transition shadow-sm ${
+      className={`relative shrink-0 inline-flex items-center justify-center rounded-full font-black transition shadow-sm ${
         unreadCount > 0
           ? "bg-[#a60513] hover:bg-red-700 text-white ring-2 ring-amber-300/80"
           : "bg-white/15 hover:bg-white/25 text-amber-300 border border-white/25"
@@ -199,20 +199,20 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#02274c] text-white border-b-4 border-[#a60513] shadow-md">
-        <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-3 shrink-0">
+      <header className="sticky top-0 z-40 w-full max-w-full bg-[#02274c] text-white border-b-4 border-[#a60513] shadow-md">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4 min-w-0">
+          <Link href="/" className="flex items-center gap-2.5 min-w-0 flex-1 lg:flex-initial shrink">
             <img
               src="/logo.png"
               alt="Çorum İkbalspor Logosu"
-              className="h-11 w-11 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25 shadow"
+              className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl object-contain bg-white p-0.5 border-2 border-white/25 shadow"
             />
-            <div className="leading-tight">
-              <span className="block text-xl font-black tracking-wide">
+            <div className="leading-tight min-w-0">
+              <span className="block text-base sm:text-xl font-black tracking-wide truncate">
                 İKBALSPOR
               </span>
-              <span className="block text-[11px] font-bold text-slate-300">
-                Çorum İkbalspor • Çorum Süper Amatör Ligi
+              <span className="block text-[10px] sm:text-[11px] font-bold text-slate-300 truncate">
+                Çorum İkbalspor • Süper Amatör Lig
               </span>
             </div>
           </Link>
@@ -236,7 +236,6 @@ export function Navbar() {
             })}
           </nav>
 
-          {/* Masaüstü: Profil Sekmesi + Yanında Ayrı Ünlem (!) Bildirim Butonu */}
           <div className="hidden lg:flex items-center gap-2">
             {session ? (
               <div className="flex items-center gap-2">
@@ -288,12 +287,12 @@ export function Navbar() {
             )}
           </div>
 
-          <div className="lg:hidden flex items-center gap-2">
+          <div className="lg:hidden flex items-center gap-1.5 shrink-0">
             <NotificationAlertButton compact />
             <button
               type="button"
               onClick={() => setOpen((p) => !p)}
-              className="px-3.5 py-2 rounded-xl bg-white/10 font-bold text-sm"
+              className="px-3 py-2 rounded-xl bg-white/10 font-bold text-xs sm:text-sm whitespace-nowrap"
             >
               {open ? "Kapat ✕" : "Menü ☰"}
             </button>
@@ -365,7 +364,7 @@ export function Navbar() {
 
       <nav
         aria-label="Mobil Alt Menü"
-        className="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(2,39,76,0.08)]"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 w-full max-w-full bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(2,39,76,0.08)]"
       >
         <div className="grid grid-cols-5 h-16">
           {LINKS.map((item) => {
@@ -374,18 +373,18 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition ${
+                className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold transition min-w-0 px-0.5 ${
                   active ? "text-[#a60513]" : "text-slate-600"
                 }`}
               >
                 <span className="text-base leading-none">{item.icon}</span>
-                <span>{item.shortLabel}</span>
+                <span className="truncate max-w-full">{item.shortLabel}</span>
               </Link>
             );
           })}
           <Link
             href={session ? session.href : "/sporcu"}
-            className={`relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-extrabold transition ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 text-[10px] font-extrabold transition min-w-0 px-0.5 ${
               pathname === "/sporcu" || pathname === "/admin"
                 ? "text-[#a60513]"
                 : "text-[#02274c]"
@@ -396,7 +395,7 @@ export function Navbar() {
                 ? "🛡️"
                 : "👤"}
             </span>
-            <span>
+            <span className="truncate max-w-full">
               {session
                 ? session.role === "player"
                   ? firstName
@@ -404,7 +403,7 @@ export function Navbar() {
                 : "Giriş"}
             </span>
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-3 min-w-4 h-4 px-1 rounded-full bg-[#a60513] text-white text-[9px] font-black flex items-center justify-center">
+              <span className="absolute top-1.5 right-2 min-w-4 h-4 px-1 rounded-full bg-[#a60513] text-white text-[9px] font-black flex items-center justify-center">
                 !{unreadCount}
               </span>
             )}

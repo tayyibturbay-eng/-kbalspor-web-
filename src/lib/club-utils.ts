@@ -1,5 +1,17 @@
 import { Player, TR_MONTHS } from "@/types/club";
 
+export function formatDateTimeTR(isoStr?: string | null): string {
+  const dt = isoStr ? new Date(isoStr) : new Date();
+  if (isNaN(dt.getTime())) return isoStr || "-";
+  return dt.toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function buildDueMonths(): string[] {
   const startDate = new Date(2026, 10, 1); // Kasım 2026
   const now = new Date();
