@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Player, TaskAssignment } from "@/types/club";
 
@@ -35,18 +35,84 @@ export function MatchResultsTab({
   );
   const [homeGoals, setHomeGoals] = useState<number>(0);
   const [awayGoals, setAwayGoals] = useState<number>(0);
-  const [selectedScorerId, setSelectedScorerId] = useState<string>(
-    players[0]?.id || ""
-  );
+  const [extraSquadIds, setExtraSquadIds] = useState<string[]>([]);
+  const [selectedScorerId, setSelectedScorerId] = useState<string>("");
   const [scorerGoalCount, setScorerGoalCount] = useState<number>(1);
   const [goalEvents, setGoalEvents] = useState<GoalEntry[]>([]);
   const [saving, setSaving] = useState(false);
 
+  // Listede olmayan oyuncuyu arayıp ekleme alanı durumu
+  const [showExtraSearch, setShowExtraSearch] = useState(false);
+  const [extraSearchQuery, setExtraSearchQuery] = useState("");
+
   const activeMatch =
     matchList.find((m) => m.id === selectedMatchId) || matchList[0] || null;
 
+  // Maçta oynayan / görevli oyuncular
+  const matchPlayers = useMemo(() => {
+    if (!activeMatch) return players;
+
+    const matchWithSquad = activeMatch as TaskAssignment & {
+      squad_player_ids?: string[] | null;
+    };
+
+    const squadIds = Array.isArray(matchWithSquad.squad_player_ids)
+      ? matchWithSquad.squad_player_ids
+      : [];
+
+    let baseList: Player[];
+    if (squadIds.length > 0) {
+      baseList = players.filter((p) => squadIds.includes(p.id));
+    } else if (activeMatch.age_group && activeMatch.age_group !== "Tümü") {
+      const groupFiltered = players.filter(
+        (p) => p.age_group === activeMatch.age_group
+      );
+      baseList = groupFiltered.length > 0 ? groupFiltered : players;
+    } else {
+      baseList = players;
+    }
+
+    const combinedIds = new Set<string>([
+      ...baseList.map((p) => p.id),
+      ...extraSquadIds,
+      ...goalEvents.map((g) => g.player_id),
+    ]);
+
+    return players.filter((p) => combinedIds.has(p.id));
+  }, [activeMatch, players, extraSquadIds, goalEvents]);
+
+  useEffect(() => {
+    if (matchPlayers.length === 0) {
+      setSelectedScorerId("");
+      return;
+    }
+    const existsInMatch = matchPlayers.some((p) => p.id === selectedScorerId);
+    if (!existsInMatch) {
+      setSelectedScorerId(matchPlayers[0].id);
+    }
+  }, [matchPlayers, selectedScorerId]);
+
+  const searchedOutsidePlayers = useMemo(() => {
+    const q = extraSearchQuery.trim().toLocaleLowerCase("tr-TR");
+    const currentIds = new Set(matchPlayers.map((p) => p.id));
+    const candidates = players.filter((p) => !currentIds.has(p.id));
+
+    if (!q) return candidates.slice(0, 8);
+    return candidates
+      .filter(
+        (p) =>
+          p.full_name.toLocaleLowerCase("tr-TR").includes(q) ||
+          (p.age_group || "").toLocaleLowerCase("tr-TR").includes(q)
+      )
+      .slice(0, 8);
+  }, [players, matchPlayers, extraSearchQuery]);
+
   async function handleSelectMatch(matchId: string) {
     setSelectedMatchId(matchId);
+    setExtraSquadIds([]);
+    setShowExtraSearch(false);
+    setExtraSearchQuery("");
+
     const { data } = await supabase
       .from("match_results")
       .select("home_goals, away_goals, goal_events")
@@ -62,6 +128,13 @@ export function MatchResultsTab({
       setAwayGoals(0);
       setGoalEvents([]);
     }
+  }
+
+  function handlePickExtraPlayer(p: Player) {
+    setExtraSquadIds((prev) => (prev.includes(p.id) ? prev : [...prev, p.id]));
+    setSelectedScorerId(p.id);
+    setExtraSearchQuery("");
+    setShowExtraSearch(false);
   }
 
   function addScorerToList() {
@@ -124,7 +197,6 @@ export function MatchResultsTab({
         return;
       }
 
-      // Bu maça yapılan tahminleri çek ve puan hesapla
       const { data: preds } = await supabase
         .from("match_predictions")
         .select("*")
@@ -186,7 +258,8 @@ export function MatchResultsTab({
           Maç Skoru ve Gol Atan Oyuncular
         </h2>
         <p className="text-xs text-slate-500">
-          Maç skorunu ve gol atan sporcuları girerek kayıt altına alabilirsin.
+          Maç kadrosundaki/kategorisindeki oyuncuları seçebilir veya alttaki +
+          butonundan başka oyuncu arayarak ekleyebilirsin.
         </p>
       </div>
 
@@ -216,7 +289,9 @@ export function MatchResultsTab({
             type="number"
             min={0}
             value={homeGoals}
-            onChange={(e) => setHomeGoals(Math.max(0, Number(e.target.value) || 0))}
+            onChange={(e) =>
+              setHomeGoals(Math.max(0, Number(e.target.value) || 0))
+            }
             className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold"
           />
         </div>
@@ -229,15 +304,22 @@ export function MatchResultsTab({
             type="number"
             min={0}
             value={awayGoals}
-            onChange={(e) => setAwayGoals(Math.max(0, Number(e.target.value) || 0))}
+            onChange={(e) =>
+              setAwayGoals(Math.max(0, Number(e.target.value) || 0))
+            }
             className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold"
           />
         </div>
       </div>
 
       <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
-        <div className="text-xs font-extrabold text-[#02274c] uppercase tracking-wider">
-          Gol Atan Oyuncu Ekle
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-extrabold text-[#02274c] uppercase tracking-wider">
+            Maçta Oynayanlar — Golcü Ekle
+          </span>
+          <span className="text-[11px] font-semibold text-slate-500">
+            {matchPlayers.length} oyuncu listeleniyor
+          </span>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2.5">
@@ -246,7 +328,7 @@ export function MatchResultsTab({
             onChange={(e) => setSelectedScorerId(e.target.value)}
             className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
           >
-            {players.map((p) => (
+            {matchPlayers.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.full_name} ({p.age_group})
               </option>
@@ -270,8 +352,70 @@ export function MatchResultsTab({
             onClick={addScorerToList}
             className="px-4 py-2 rounded-xl bg-[#02274c] hover:bg-[#043666] text-white text-xs font-extrabold cursor-pointer"
           >
-            + Golcü Ekle
+            Golcü Ekle
           </button>
+        </div>
+
+        {/* + Butonu: Listede olmayan oyuncuyu aratıp ekleme */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowExtraSearch((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-dashed border-[#02274c]/50 text-xs font-extrabold text-[#02274c] cursor-pointer"
+          >
+            <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-[#a60513] text-white text-[11px] font-black leading-none">
+              +
+            </span>
+            <span>
+              {showExtraSearch
+                ? "Arama Alanını Kapat"
+                : "Listede Olmayan Oyuncu Ekle"}
+            </span>
+          </button>
+
+          {showExtraSearch && (
+            <div className="mt-2.5 rounded-xl bg-white border border-slate-200 p-3 space-y-2.5">
+              <input
+                type="text"
+                value={extraSearchQuery}
+                onChange={(e) => setExtraSearchQuery(e.target.value)}
+                placeholder="Oyuncu adı veya kategori ara (örn. U13, Ahmet)..."
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs sm:text-sm"
+                autoFocus
+              />
+
+              <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+                {searchedOutsidePlayers.length === 0 ? (
+                  <div className="py-2 text-xs text-slate-500">
+                    Eşleşen başka oyuncu bulunamadı.
+                  </div>
+                ) : (
+                  searchedOutsidePlayers.map((p) => (
+                    <div
+                      key={p.id}
+                      className="py-2 flex items-center justify-between gap-2 text-xs sm:text-sm"
+                    >
+                      <div className="truncate">
+                        <span className="font-bold text-slate-900">
+                          {p.full_name}
+                        </span>{" "}
+                        <span className="text-xs text-slate-500">
+                          ({p.age_group})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handlePickExtraPlayer(p)}
+                        className="px-2.5 py-1 rounded-lg bg-[#a60513] hover:bg-red-700 text-white text-xs font-extrabold shrink-0 cursor-pointer"
+                      >
+                        + Seç
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {goalEvents.length > 0 && (
