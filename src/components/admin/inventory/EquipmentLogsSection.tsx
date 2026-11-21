@@ -26,15 +26,36 @@ export function EquipmentLogsSection({
   logs,
   setLogs,
 }: EquipmentLogsSectionProps) {
-  async function updateLogStatus(id: string, status: EquipmentLog["status"]) {
+  async function updateLogStatus(
+    logItem: EquipmentLog,
+    status: EquipmentLog["status"]
+  ) {
     const { error } = await supabase
       .from("equipment_logs")
       .update({ status })
-      .eq("id", id);
+      .eq("id", logItem.id);
     if (!error) {
       setLogs((prev) =>
-        prev.map((l) => (l.id === id ? { ...l, status } : l))
+        prev.map((l) => (l.id === logItem.id ? { ...l, status } : l))
       );
+
+      // İade alındığında stok malzemesi ise adetini 1 artır; forma ise zimmet kalkıp boşta görünür
+      if (status === "iade_edildi" && logItem.category === "Malzeme") {
+        const cleanProdName = logItem.item_name
+          .replace(/\s*\[(Emanet|Tam Teslim)\]\s*$/i, "")
+          .trim();
+        const { data: stRow } = await supabase
+          .from("equipment_stock")
+          .select("id, stock_count")
+          .ilike("product_name", cleanProdName)
+          .maybeSingle();
+        if (stRow) {
+          await supabase
+            .from("equipment_stock")
+            .update({ stock_count: (Number(stRow.stock_count) || 0) + 1 })
+            .eq("id", stRow.id);
+        }
+      }
     }
   }
 
@@ -51,9 +72,9 @@ export function EquipmentLogsSection({
 
   if (mode === "missing") {
     return (
-      <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
+      <div className="bg-white text-slate-900 rounded-2xl border border-slate-200 divide-y divide-slate-200">
         {logs.length === 0 ? (
-          <p className="p-6 text-slate-500 text-sm">
+          <p className="p-6 text-slate-600 text-sm">
             Eksik veya kayıp olarak işaretlenen malzeme yok.
           </p>
         ) : (
@@ -76,8 +97,8 @@ export function EquipmentLogsSection({
                 </div>
                 <button
                   type="button"
-                  onClick={() => updateLogStatus(l.id, "iade_edildi")}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold"
+                  onClick={() => updateLogStatus(l, "iade_edildi")}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
                 >
                   Bulundu / İade Alındı
                 </button>
@@ -90,9 +111,9 @@ export function EquipmentLogsSection({
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
+    <div className="bg-white text-slate-900 rounded-2xl border border-slate-200 divide-y divide-slate-200">
       {logs.length === 0 ? (
-        <p className="p-6 text-slate-500 text-sm">
+        <p className="p-6 text-slate-600 text-sm">
           Geri beklenen forma veya malzeme yok.
         </p>
       ) : (
@@ -114,26 +135,26 @@ export function EquipmentLogsSection({
                   {pl?.full_name || "Oyuncu"}
                 </strong>{" "}
                 — {l.item_name}
-                <span className="text-xs text-slate-600 ml-2">
+                <span className="text-xs text-slate-700 ml-2">
                   Beden: <strong>{l.item_size || "-"}</strong>
                   {l.jersey_number_given
                     ? ` • No: #${l.jersey_number_given}`
                     : ""}{" "}
-                  • {l.given_date}
+                  - {l.given_date}
                 </span>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => updateLogStatus(l.id, "iade_edildi")}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold"
+                  onClick={() => updateLogStatus(l, "iade_edildi")}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
                 >
-                  İade Alındı
+                  İade Alındı (Boşa Çıkar)
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateLogStatus(l.id, "kayip_eksik")}
-                  className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-extrabold"
+                  onClick={() => updateLogStatus(l, "kayip_eksik")}
+                  className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-extrabold cursor-pointer"
                 >
                   Kayıp / Eksik
                 </button>
@@ -142,7 +163,7 @@ export function EquipmentLogsSection({
                   onClick={() =>
                     sendClubAlert(pl, `${l.item_name} iadesi beklenmektedir.`)
                   }
-                  className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold"
+                  className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold cursor-pointer"
                 >
                   Bildirim Gönder
                 </button>

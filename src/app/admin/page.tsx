@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
   ActivityLog,
@@ -257,25 +258,41 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16 text-slate-900">
-      <div className="bg-[#02274c] text-white px-4 py-4 shadow">
+      <div className="bg-[#02274c] text-white px-4 py-4 shadow border-b-4 border-[#a60513]">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-extrabold">
-              {role === "admin"
-                ? `Çorum İkbalspor — Yönetici Paneli${
-                    adminName ? ` (${adminName})` : ""
-                  }`
-                : `Antrenör Paneli (${activeCoach?.full_name})`}
-            </h1>
-            <p className="text-xs text-slate-300">
-              {role === "coach"
-                ? "Oyuncuları yaş grubuna göre görüntüleyebilir, mevkilerini düzenleyebilir, antrenman ve maç ekleyebilirsiniz."
-                : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece Çorum Süper Amatör Ligi)"}
-            </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <Link
+              href="/"
+              title="Ana Sayfaya Dön"
+              className="shrink-0 flex items-center gap-2 bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-xl border border-white/20 transition"
+            >
+              <img
+                src="/logo.png"
+                alt="Çorum İkbalspor Ana Sayfa"
+                className="w-9 h-9 rounded-lg object-contain bg-white p-0.5"
+              />
+              <span className="text-xs font-extrabold text-white hidden sm:inline">
+                Ana Sayfa
+              </span>
+            </Link>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-extrabold truncate">
+                {role === "admin"
+                  ? `Çorum İkbalspor — Yönetici Paneli${
+                      adminName ? ` (${adminName})` : ""
+                    }`
+                  : `Antrenör Paneli (${activeCoach?.full_name})`}
+              </h1>
+              <p className="text-xs text-slate-300 truncate">
+                {role === "coach"
+                  ? "Oyuncuları yaş grubuna göre görüntüleyebilir, mevkilerini düzenleyebilir, antrenman ve maç ekleyebilirsiniz."
+                  : "Tam Yetkili Kulüp Yönetimi (19+ yaş sadece Çorum Süper Amatör Ligi)"}
+              </p>
+            </div>
           </div>
           <button
             onClick={handleLogout}
-            className="bg-[#a60513] hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg"
+            className="bg-[#a60513] hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg shrink-0 cursor-pointer"
           >
             Çıkış Yap
           </button>
@@ -288,22 +305,22 @@ export default function AdminPage() {
             <span>{feedback}</span>
             <button
               onClick={() => setFeedback("")}
-              className="text-xs font-bold underline ml-3"
+              className="text-xs font-bold underline ml-3 cursor-pointer"
             >
               Kapat
             </button>
           </div>
         )}
 
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center gap-2">
           {availableTabs.map((item) => (
             <button
               key={item.id}
               onClick={() => setTab(item.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition ${
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition cursor-pointer ${
                 tab === item.id
-                  ? "bg-[#a60513] text-white shadow"
-                  : "bg-white text-[#02274c] border"
+                  ? "bg-[#a60513] text-white shadow-sm"
+                  : "bg-slate-50 text-[#02274c] hover:bg-slate-100 border border-slate-200"
               }`}
             >
               {item.label}

@@ -19,8 +19,14 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://ikbalspor.com";
+
 export const metadata: Metadata = {
-  title: "Çorum İkbalspor • Resmi Kulüp ve Sporcu Portalı",
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: "Çorum İkbalspor • Resmi Kulüp ve Sporcu Portalı",
+    template: "%s | Çorum İkbalspor",
+  },
   description:
     "Çorum İkbalspor antrenman, maç takvimi, taktik kadro, aidat ve QR yoklama portalı.",
   manifest: "/manifest.json",
@@ -33,6 +39,30 @@ export const metadata: Metadata = {
     icon: "/logo.png",
     shortcut: "/logo.png",
     apple: "/logo.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "tr_TR",
+    url: "/",
+    siteName: "Çorum İkbalspor",
+    title: "Çorum İkbalspor • Resmi Kulüp ve Sporcu Portalı",
+    description:
+      "Çorum İkbalspor antrenman, maç takvimi, taktik kadro, aidat ve QR yoklama portalı.",
+    images: [
+      {
+        url: "/logo.png",
+        width: 512,
+        height: 512,
+        alt: "Çorum İkbalspor Kulüp Logosu",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Çorum İkbalspor • Resmi Kulüp ve Sporcu Portalı",
+    description:
+      "Çorum İkbalspor antrenman, maç takvimi, taktik kadro, aidat ve QR yoklama portalı.",
+    images: ["/logo.png"],
   },
 };
 

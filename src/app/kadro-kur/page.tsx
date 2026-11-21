@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -25,11 +25,21 @@ export default function SquadBuilderPage() {
   const [allPlayers, setAllPlayers] = useState<SquadPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<Record<string, SquadPlayer | null>>({});
-  const [squadNumbers, setSquadNumbers] = useState<Record<string, number | "">>({});
+  const [squadNumbers, setSquadNumbers] = useState<
+    Record<string, number | "">
+  >({});
   const [draggingPlayer, setDraggingPlayer] = useState<SquadPlayer | null>(null);
   const [draggingFromSlot, setDraggingFromSlot] = useState<string | null>(null);
   const [quotaWarning, setQuotaWarning] = useState("");
   const [copiedBanner, setCopiedBanner] = useState(false);
+  const [shareStatus, setShareStatus] = useState("");
+  const [generatingImage, setGeneratingImage] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
+    null
+  );
+
+  const squadCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -282,16 +292,17 @@ export default function SquadBuilderPage() {
     }
   };
 
+  const activeCategoryLabel =
+    SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label ||
+    selectedCategory;
+
   const buildSquadSummaryText = () => {
-    const catLabel =
-      SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label ||
-      selectedCategory;
     const lines = currentLineup.map((p) => {
       const num = getEffectiveNumber(p);
       return `#${num === "" ? "-" : num} ${p.full_name} (${p.position || "-"})`;
     });
     return (
-      `⚽ İkbalspor ${catLabel} (${FORMATIONS[formation].label}) Kadrosu\n` +
+      `⚽ Çorum İkbalspor — ${activeCategoryLabel} (${FORMATIONS[formation].label}) Kadrosu\n` +
       `📋 Oyun Planı: ${tacticPlan}` +
       (tacticNote.trim() ? `\n📝 Not: ${tacticNote.trim()}` : "") +
       `\n\n` +
@@ -305,34 +316,207 @@ export default function SquadBuilderPage() {
     setTimeout(() => setCopiedBanner(false), 2500);
   };
 
+  // Kadro özet kartını Canvas üzerinden kurumsal PNG görseline dönüştürür
+  const generateSquadPosterDataUrl = async (): Promise<string | null> => {
+    setGeneratingImage(true);
+    setShareStatus("");
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 1350;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      const grad = ctx.createLinearGradient(0, 0, 1080, 1350);
+      grad.addColorStop(0, "#02274c");
+      grad.addColorStop(0.55, "#053b6e");
+      grad.addColorStop(1, "#a60513");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1080, 1350);
+
+      // Kulüp logosunu yüklemeye çalış
+      const logoImg = new Image();
+      logoImg.crossOrigin = "anonymous";
+      logoImg.src = "/logo.png";
+      await new Promise<void>((resolve) => {
+        logoImg.onload = () => resolve();
+        logoImg.onerror = () => resolve();
+      });
+
+      if (logoImg.complete && logoImg.naturalWidth > 0) {
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.roundRect(64, 56, 104, 104, 24);
+        ctx.fill();
+        ctx.drawImage(logoImg, 74, 66, 84, 84);
+      }
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 42px sans-serif";
+      ctx.fillText("ÇORUM İKBALSPOR", 190, 102);
+
+      ctx.fillStyle = "#fde68a";
+      ctx.font = "700 26px sans-serif";
+      ctx.fillText(
+        `${activeCategoryLabel} • Diziliş: ${FORMATIONS[formation].label}`,
+        190,
+        142
+      );
+
+      // Taktik plan kutusu
+      ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+      ctx.beginPath();
+      ctx.roundRect(64, 192, 952, 110, 20);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "800 24px sans-serif";
+      ctx.fillText(`Oyun Planı: ${tacticPlan}`, 92, 236);
+      if (tacticNote.trim()) {
+        ctx.fillStyle = "#e2e8f0";
+        ctx.font = "600 20px sans-serif";
+        ctx.fillText(`Not: ${tacticNote.trim().slice(0, 75)}`, 92, 274);
+      }
+
+      // Kadro listesi
+      ctx.fillStyle = "rgba(15, 23, 42, 0.45)";
+      ctx.beginPath();
+      ctx.roundRect(64, 330, 952, 880, 24);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "800 26px sans-serif";
+      ctx.fillText(`KADRO LİSTESİ (${currentLineup.length} Oyuncu)`, 96, 378);
+
+      const listToDraw =
+        currentLineup.length > 0
+          ? currentLineup.slice(0, 14)
+          : ([] as SquadPlayer[]);
+
+      if (listToDraw.length === 0) {
+        ctx.fillStyle = "#cbd5e1";
+        ctx.font = "600 22px sans-serif";
+        ctx.fillText("Sahaya henüz oyuncu yerleştirilmedi.", 96, 440);
+      } else {
+        listToDraw.forEach((p, index) => {
+          const y = 434 + index * 54;
+          const num = getEffectiveNumber(p);
+          ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+          ctx.beginPath();
+          ctx.roundRect(92, y - 30, 896, 44, 12);
+          ctx.fill();
+
+          ctx.fillStyle = "#fca5a5";
+          ctx.font = "900 22px sans-serif";
+          ctx.fillText(`#${num === "" ? "-" : num}`, 110, y);
+
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "800 22px sans-serif";
+          ctx.fillText(p.full_name, 185, y);
+
+          ctx.fillStyle = "#cbd5e1";
+          ctx.font = "600 20px sans-serif";
+          ctx.fillText(p.position || "", 660, y);
+        });
+      }
+
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.font = "700 20px sans-serif";
+      ctx.fillText(
+        "ikbalspor.com • Çorum İkbalspor Resmi Kadro Kartı",
+        64,
+        1285
+      );
+
+      const url = canvas.toDataURL("image/png");
+      setGeneratedImageUrl(url);
+      return url;
+    } catch {
+      setShareStatus("Görsel oluşturulurken bir hata oluştu.");
+      return null;
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
+
+  // Uygulama seçim ekranını açar (Web Share API + Seçenek Modalı)
+  const handleOpenShareMenu = async () => {
+    const url = await generateSquadPosterDataUrl();
+    setShowShareModal(true);
+
+    if (
+      url &&
+      typeof navigator !== "undefined" &&
+      typeof navigator.share === "function"
+    ) {
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const file = new File([blob], "ikbalspor-kadro.png", {
+          type: "image/png",
+        });
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({
+            title: `Çorum İkbalspor — ${activeCategoryLabel} Kadrosu`,
+            text: buildSquadSummaryText(),
+            files: [file],
+          });
+          setShareStatus("Paylaşım menüsü açıldı.");
+          return;
+        }
+      } catch {
+        // Kullanıcı paylaşımı iptal ettiyse veya desteklenmiyorsa modal açık kalır
+      }
+    }
+  };
+
+  const downloadGeneratedImage = async () => {
+    const url = generatedImageUrl || (await generateSquadPosterDataUrl());
+    if (!url) return;
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ikbalspor-kadro-${selectedCategory.toLowerCase()}.png`;
+    a.click();
+    setShareStatus("Kadro görseli (PNG) indirildi.");
+  };
+
   const assignedIds = new Set(currentLineup.map((p) => p.id));
   const usedNumbersSet = new Set(
-    currentLineup
-      .map((p) => getEffectiveNumber(p))
-      .filter((n) => n !== "")
+    currentLineup.map((p) => getEffectiveNumber(p)).filter((n) => n !== "")
   );
 
-  const activeCategoryLabel =
-    SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label ||
-    selectedCategory;
+  const summaryText = buildSquadSummaryText();
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
       <Navbar />
 
       <section className="bg-gradient-to-r from-[#02274c] via-[#04376b] to-[#a60513] text-white py-6 px-4 shadow-sm">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            Taktik Tahtası & Kadro Kur
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
-            Yaş grubunu seçin, oyuncuları sahaya sürükleyin veya listeye
-            tıklayarak hızlıca dizin.
-          </p>
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              Taktik Tahtası & Kadro Kur
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
+              Yaş grubunu seçin, oyuncuları sahaya sürükleyin veya listeye
+              tıklayarak hızlıca dizin.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 bg-white/10 px-3 py-2 rounded-2xl border border-white/20">
+            <img
+              src="/logo.png"
+              alt="Çorum İkbalspor"
+              className="w-8 h-8 rounded-lg bg-white p-0.5 object-contain"
+            />
+            <span className="text-xs font-extrabold">Çorum İkbalspor</span>
+          </div>
         </div>
       </section>
 
-      <main className="max-w-7xl mx-auto px-4 pt-6 space-y-5">
+      <main
+        ref={squadCardRef}
+        className="max-w-7xl mx-auto px-4 pt-6 space-y-5"
+      >
         {/* Kategori / Yaş Grubu & Taktik Kontrol Paneli */}
         <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
           <div>
@@ -460,18 +644,18 @@ export default function SquadBuilderPage() {
                 onClick={copySquadText}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer transition shadow-xs"
               >
-                {copiedBanner ? "✓ Kopyalandı!" : "📋 Kadroyu & Taktiği Kopyala"}
+                {copiedBanner ? "✓ Kopyalandı!" : "📋 Metin Kopyala"}
               </button>
-              <a
-                href={`https://wa.me/?text=${encodeURIComponent(
-                  buildSquadSummaryText()
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="px-4 py-2 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold transition shadow-xs"
+              <button
+                type="button"
+                disabled={generatingImage}
+                onClick={handleOpenShareMenu}
+                className="px-4 py-2 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-xs font-extrabold cursor-pointer transition shadow-xs"
               >
-                📲 WhatsApp&apos;ta Paylaş
-              </a>
+                {generatingImage
+                  ? "Görsel Hazırlanıyor..."
+                  : "🖼️ Görsel & Uygulama Seçerek Paylaş"}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -491,6 +675,12 @@ export default function SquadBuilderPage() {
         {quotaWarning && (
           <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-[#a60513] font-extrabold text-xs sm:text-sm">
             ⚠️ {quotaWarning}
+          </div>
+        )}
+
+        {shareStatus && (
+          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-xs">
+            {shareStatus}
           </div>
         )}
 
@@ -614,6 +804,83 @@ export default function SquadBuilderPage() {
           </div>
         </div>
       </main>
+
+      {/* Uygulama & Görsel Paylaşım Seçim Penceresi */}
+      {showShareModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <img
+                  src="/logo.png"
+                  alt="Çorum İkbalspor"
+                  className="w-8 h-8 rounded-lg object-contain border border-slate-200 p-0.5"
+                />
+                <h3 className="text-base font-black text-[#02274c]">
+                  Kadroyu Paylaş — Uygulama Seçin
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="text-xs font-extrabold text-slate-500 hover:text-slate-900 cursor-pointer"
+              >
+                Kapat ✕
+              </button>
+            </div>
+
+            {generatedImageUrl && (
+              <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 max-h-64 flex items-center justify-center">
+                <img
+                  src={generatedImageUrl}
+                  alt="Kadro Görseli Önizleme"
+                  className="max-h-64 object-contain"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={downloadGeneratedImage}
+                className="px-4 py-3 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold cursor-pointer text-center"
+              >
+                ⬇️ Görsel Olarak İndir (PNG)
+              </button>
+
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(summaryText)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold text-center"
+              >
+                💬 WhatsApp&apos;ta Paylaş
+              </a>
+
+              <a
+                href="https://www.instagram.com/"
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => downloadGeneratedImage()}
+                className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold text-center"
+              >
+                📸 Instagram (Görseli İndir & Aç)
+              </a>
+
+              <button
+                type="button"
+                onClick={() => {
+                  copySquadText();
+                  setShowShareModal(false);
+                }}
+                className="px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#02274c] text-xs font-extrabold cursor-pointer text-center"
+              >
+                📋 Metni Kopyala & Kapat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

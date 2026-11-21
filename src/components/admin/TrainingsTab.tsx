@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   AGE_GROUPS,
@@ -14,6 +14,13 @@ import {
 import { sendPushViaApi } from "@/lib/club-utils";
 
 const supabase = createClient();
+
+function buildMapsUrl(location?: string | null): string {
+  const q = (location || NAZMI_AVLUCA || "Çorum").trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    q
+  )}`;
+}
 
 interface TrainingsTabProps {
   role: UserRole;
@@ -61,6 +68,25 @@ export function TrainingsTab({
     targetPlayers: Player[];
   } | null>(null);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const { activeOrUpcomingTrainings, pastDatedTrainings } = useMemo(() => {
+    const past: Training[] = [];
+    const current: Training[] = [];
+    for (const tr of trainings) {
+      if (
+        tr.training_type === "ekstra" &&
+        tr.training_date &&
+        tr.training_date < todayStr
+      ) {
+        past.push(tr);
+      } else {
+        current.push(tr);
+      }
+    }
+    return { activeOrUpcomingTrainings: current, pastDatedTrainings: past };
+  }, [trainings, todayStr]);
+
   async function saveTraining(e: React.FormEvent) {
     e.preventDefault();
     if (
@@ -91,16 +117,19 @@ export function TrainingsTab({
     const selectedCoachObj = coaches.find((c) => c.id === trainingForm.coach_id);
     const assignedCoachId = selectedCoachObj ? selectedCoachObj.id : null;
     const assignedCoachName = selectedCoachObj ? selectedCoachObj.full_name : null;
+    const mapsLink = buildMapsUrl(trainingForm.location);
 
     if (isEdit) {
       const { error } = await supabase
         .from("trainings")
         .update({
           title:
-            trainingForm.title || `${trainingForm.age_groups.join("-")} Antrenmanı`,
+            trainingForm.title ||
+            `${trainingForm.age_groups.join("-")} Antrenmanı`,
           training_type: trainingForm.training_type,
           age_groups: trainingForm.age_groups,
-          day_of_week: trainingForm.training_type === "duzenli" ? daysToSave[0] : null,
+          day_of_week:
+            trainingForm.training_type === "duzenli" ? daysToSave[0] : null,
           training_date: trainingForm.training_date || null,
           start_time: trainingForm.start_time,
           end_time: trainingForm.end_time || null,
@@ -119,9 +148,9 @@ export function TrainingsTab({
 
       await onLogActivity(
         "Antrenman Güncelleme",
-        `${trainingForm.age_groups.join(", ")} — ${daysToSave[0]} ${trainingForm.start_time}${
-          assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""
-        }`
+        `${trainingForm.age_groups.join(", ")} — ${daysToSave[0]} ${
+          trainingForm.start_time
+        }${assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""}`
       );
     } else {
       const rows = daysToSave.map((day) => ({
@@ -192,11 +221,13 @@ export function TrainingsTab({
             trainingForm.end_time ? `-${trainingForm.end_time}` : ""
           }`;
 
-    const fullMsg = `${header}\nGruplar: ${trainingForm.age_groups.join(", ") || "-"}${
-      assignedCoachName ? `\nAntrenör: ${assignedCoachName}` : ""
-    }${
-      extraNames.length > 0 ? `\nÖzel Çağrılan Oyuncular: ${extraNames.join(", ")}` : ""
-    }\nZaman: ${whenText}\nYer: ${trainingForm.location}${
+    const fullMsg = `${header}\nGruplar: ${
+      trainingForm.age_groups.join(", ") || "-"
+    }${assignedCoachName ? `\nAntrenör: ${assignedCoachName}` : ""}${
+      extraNames.length > 0
+        ? `\nÖzel Çağrılan Oyuncular: ${extraNames.join(", ")}`
+        : ""
+    }\nZaman: ${whenText}\nYer: ${trainingForm.location}\nHarita: ${mapsLink}${
       trainingForm.notes ? `\nNot: ${trainingForm.notes}` : ""
     }`;
 
@@ -259,14 +290,16 @@ export function TrainingsTab({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-slate-900">
       <form
         onSubmit={saveTraining}
-        className="bg-white p-5 rounded-2xl shadow-sm border space-y-4"
+        className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4"
       >
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-extrabold text-[#02274c]">
-            {trainingForm.id ? "Antrenman Düzenle" : "Toplu / Ekstra Antrenman Ekle"}
+            {trainingForm.id
+              ? "Antrenman Düzenle"
+              : "Toplu / Ekstra Antrenman Ekle"}
           </h2>
           {trainingForm.id && (
             <button
@@ -287,7 +320,7 @@ export function TrainingsTab({
                   notes: "",
                 })
               }
-              className="text-xs text-slate-500 underline"
+              className="text-xs text-slate-500 underline cursor-pointer"
             >
               Düzenlemeyi İptal Et
             </button>
@@ -303,7 +336,7 @@ export function TrainingsTab({
                 training_type: e.target.value as "duzenli" | "ekstra",
               })
             }
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
           >
             <option value="duzenli">Düzenli Haftalık Antrenman</option>
             <option value="ekstra">Ekstra Antrenman / Özel Çalışma</option>
@@ -314,14 +347,14 @@ export function TrainingsTab({
             onChange={(e) =>
               setTrainingForm({ ...trainingForm, title: e.target.value })
             }
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
           />
           <select
             value={trainingForm.coach_id}
             onChange={(e) =>
               setTrainingForm({ ...trainingForm, coach_id: e.target.value })
             }
-            className="border rounded-lg px-3 py-2 text-sm font-bold text-[#02274c]"
+            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm font-bold text-[#02274c]"
           >
             <option value="">-- Çalıştıracak Antrenörü Seç --</option>
             {coaches
@@ -333,12 +366,25 @@ export function TrainingsTab({
               ))}
           </select>
           <input
+            placeholder="Konum / Saha Adı"
             value={trainingForm.location}
             onChange={(e) =>
               setTrainingForm({ ...trainingForm, location: e.target.value })
             }
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
           />
+        </div>
+
+        <div className="text-xs text-slate-600 flex items-center gap-2">
+          <span>📍 Konum Haritası:</span>
+          <a
+            href={buildMapsUrl(trainingForm.location)}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#02274c] font-bold underline"
+          >
+            Google Maps&apos;te Aç
+          </a>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -356,8 +402,10 @@ export function TrainingsTab({
                       : [...trainingForm.age_groups, g],
                   })
                 }
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
-                  checked ? "bg-[#02274c] text-white" : "bg-slate-50 text-slate-700"
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                  checked
+                    ? "bg-[#02274c] text-white border-[#02274c]"
+                    : "bg-slate-50 text-slate-700 border-slate-200"
                 }`}
               >
                 {checked ? "✓ " : ""}
@@ -386,8 +434,10 @@ export function TrainingsTab({
                           : [...trainingForm.selected_days, d],
                       })
                     }
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border ${
-                      checked ? "bg-[#a60513] text-white" : "bg-slate-50 text-slate-700"
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                      checked
+                        ? "bg-[#a60513] text-white border-[#a60513]"
+                        : "bg-slate-50 text-slate-700 border-slate-200"
                     }`}
                   >
                     {d}
@@ -401,9 +451,12 @@ export function TrainingsTab({
               required
               value={trainingForm.training_date}
               onChange={(e) =>
-                setTrainingForm({ ...trainingForm, training_date: e.target.value })
+                setTrainingForm({
+                  ...trainingForm,
+                  training_date: e.target.value,
+                })
               }
-              className="md:col-span-2 border rounded-lg px-3 py-2 text-sm"
+              className="md:col-span-2 border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
             />
           )}
           <div className="grid grid-cols-2 gap-2">
@@ -414,7 +467,7 @@ export function TrainingsTab({
               onChange={(e) =>
                 setTrainingForm({ ...trainingForm, start_time: e.target.value })
               }
-              className="border rounded-lg px-3 py-2 text-sm"
+              className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
             />
             <input
               type="time"
@@ -422,12 +475,12 @@ export function TrainingsTab({
               onChange={(e) =>
                 setTrainingForm({ ...trainingForm, end_time: e.target.value })
               }
-              className="border rounded-lg px-3 py-2 text-sm"
+              className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
             />
           </div>
         </div>
 
-        <div className="bg-slate-50 p-3 rounded-xl border">
+        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
           <label className="text-xs font-bold text-[#02274c] block mb-1.5">
             Grup Dışından Bireysel Oyuncu Ekle (Seçili:{" "}
             {trainingForm.extra_player_ids.length})
@@ -436,12 +489,14 @@ export function TrainingsTab({
             placeholder="Oyuncu ismi ara..."
             value={extraPlayerSearch}
             onChange={(e) => setExtraPlayerSearch(e.target.value)}
-            className="w-full md:w-72 border rounded-lg px-3 py-1.5 text-xs mb-2 bg-white"
+            className="w-full md:w-72 border border-slate-300 rounded-lg px-3 py-1.5 text-xs mb-2 bg-white text-slate-900"
           />
           <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
             {players
               .filter((p) =>
-                p.full_name.toLowerCase().includes(extraPlayerSearch.toLowerCase())
+                p.full_name
+                  .toLowerCase()
+                  .includes(extraPlayerSearch.toLowerCase())
               )
               .slice(0, 30)
               .map((p) => {
@@ -454,14 +509,16 @@ export function TrainingsTab({
                       setTrainingForm({
                         ...trainingForm,
                         extra_player_ids: selected
-                          ? trainingForm.extra_player_ids.filter((id) => id !== p.id)
+                          ? trainingForm.extra_player_ids.filter(
+                              (id) => id !== p.id
+                            )
                           : [...trainingForm.extra_player_ids, p.id],
                       })
                     }
-                    className={`px-2.5 py-1 rounded-full text-xs border ${
+                    className={`px-2.5 py-1 rounded-full text-xs border cursor-pointer ${
                       selected
-                        ? "bg-emerald-600 text-white"
-                        : "bg-white text-slate-700"
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-white text-slate-700 border-slate-200"
                     }`}
                   >
                     {selected ? "✓ " : "+ "}
@@ -474,7 +531,7 @@ export function TrainingsTab({
 
         <button
           type="submit"
-          className="bg-[#02274c] text-white font-bold px-6 py-2.5 rounded-xl text-sm"
+          className="bg-[#02274c] hover:bg-[#033669] text-white font-bold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
         >
           Antrenmanı Kaydet & Gruba Bildir
         </button>
@@ -483,7 +540,9 @@ export function TrainingsTab({
       {lastWaBroadcast && (
         <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl space-y-2">
           <a
-            href={`https://wa.me/?text=${encodeURIComponent(lastWaBroadcast.message)}`}
+            href={`https://wa.me/?text=${encodeURIComponent(
+              lastWaBroadcast.message
+            )}`}
             target="_blank"
             rel="noreferrer"
             className="inline-block bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
@@ -493,38 +552,83 @@ export function TrainingsTab({
         </div>
       )}
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border grid grid-cols-1 md:grid-cols-2 gap-3">
-        {trainings.map((tr) => (
-          <div key={tr.id} className="border rounded-xl p-4 space-y-1.5">
-            <div className="flex justify-between">
-              <h3 className="font-bold text-[#02274c]">{tr.title}</h3>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={() => startEditTraining(tr)}
-                  className="bg-[#02274c] text-white text-xs px-2.5 py-1 rounded-lg font-bold"
-                >
-                  Değiştir
-                </button>
-                <button
-                  onClick={() => deleteTraining(tr)}
-                  className="bg-red-100 text-red-700 text-xs px-2.5 py-1 rounded-lg font-bold"
-                >
-                  Sil
-                </button>
+      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+        <h3 className="font-extrabold text-[#02274c] text-base">
+          Aktif & Yaklaşan Antrenmanlar ({activeOrUpcomingTrainings.length})
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {activeOrUpcomingTrainings.map((tr) => (
+            <div
+              key={tr.id}
+              className="border border-slate-200 rounded-xl p-4 space-y-1.5"
+            >
+              <div className="flex justify-between gap-2">
+                <h4 className="font-bold text-[#02274c]">{tr.title}</h4>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => startEditTraining(tr)}
+                    className="bg-[#02274c] text-white text-xs px-2.5 py-1 rounded-lg font-bold cursor-pointer"
+                  >
+                    Değiştir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteTraining(tr)}
+                    className="bg-red-100 text-red-700 text-xs px-2.5 py-1 rounded-lg font-bold cursor-pointer"
+                  >
+                    Sil
+                  </button>
+                </div>
               </div>
-            </div>
-            <div className="text-xs text-slate-600">
-              {(tr.age_groups || []).join(", ")} • {tr.day_of_week || tr.training_date}{" "}
-              {tr.start_time}
-            </div>
-            {tr.coach_name && (
-              <div className="text-xs font-bold text-[#a60513]">
-                👨‍🏫 Antrenör: {tr.coach_name}
+              <div className="text-xs text-slate-600">
+                {(tr.age_groups || []).join(", ")} •{" "}
+                {tr.day_of_week || tr.training_date} {tr.start_time}
               </div>
-            )}
-          </div>
-        ))}
+              {tr.location && (
+                <div className="text-xs text-slate-600 flex items-center gap-2">
+                  <span>📍 {tr.location}</span>
+                  <a
+                    href={buildMapsUrl(tr.location)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#02274c] font-bold underline"
+                  >
+                    Harita
+                  </a>
+                </div>
+              )}
+              {tr.coach_name && (
+                <div className="text-xs font-bold text-[#a60513]">
+                  👨‍🏫 Antrenör: {tr.coach_name}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
+
+      {pastDatedTrainings.length > 0 && (
+        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2">
+          <h3 className="font-extrabold text-slate-700 text-sm">
+            Geçmiş Tarihli Ekstra Antrenmanlar ({pastDatedTrainings.length})
+          </h3>
+          {pastDatedTrainings.slice(0, 10).map((tr) => (
+            <div
+              key={tr.id}
+              className="border-b border-slate-200/70 pb-2 text-xs text-slate-600 flex justify-between items-center"
+            >
+              <span>
+                <strong className="text-slate-800">{tr.title}</strong> (
+                {(tr.age_groups || []).join(", ")})
+              </span>
+              <span className="font-mono">
+                {tr.training_date} {tr.start_time}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

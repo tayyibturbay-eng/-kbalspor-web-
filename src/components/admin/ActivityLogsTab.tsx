@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ActivityLog } from "@/types/club";
 import { formatDateTimeTR } from "@/lib/club-utils";
 
@@ -8,24 +8,54 @@ interface ActivityLogsTabProps {
   logs: ActivityLog[];
 }
 
+function getLogCategory(log: ActivityLog): string {
+  const action = (log.action || "").toLocaleLowerCase("tr-TR");
+  const details = (log.details || "").toLocaleLowerCase("tr-TR");
+
+  if (action.includes("sil") || details.includes("silindi")) {
+    if (details.includes("oyuncu") || action.includes("oyuncu")) {
+      return "Oyuncu Silme";
+    }
+    return "Silme İşlemi";
+  }
+  if (action.includes("üyelik") || details.includes("üyelik")) {
+    return "Üyelik İşlemleri";
+  }
+  if (action.includes("qr") || action.includes("yoklama")) {
+    return "QR Yoklama";
+  }
+  if (action.includes("puan") || action.includes("yetenek")) {
+    return "Yetenek Puanı";
+  }
+  if (action.includes("bildirim")) {
+    return "Bildirim Gönderimi";
+  }
+  return "Diğer";
+}
+
 export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
   const [logSearch, setLogSearch] = useState("");
   const [logDateFilter, setLogDateFilter] = useState("");
-  const [onlyMembership, setOnlyMembership] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("Tümü");
+
+  const categories = useMemo(() => {
+    const found = new Set<string>(["Tümü", "Oyuncu Silme"]);
+    logs.forEach((l) => found.add(getLogCategory(l)));
+    return Array.from(found);
+  }, [logs]);
 
   const filteredLogs = logs.filter((l) => {
-    const dateOk = !logDateFilter || (l.created_at || "").startsWith(logDateFilter);
-    const membershipOk =
-      !onlyMembership ||
-      l.action.toLowerCase().includes("üyelik") ||
-      l.details.toLowerCase().includes("üyelik");
-    const q = logSearch.toLowerCase();
+    const dateOk =
+      !logDateFilter || (l.created_at || "").startsWith(logDateFilter);
+    const categoryOk =
+      selectedCategory === "Tümü" || getLogCategory(l) === selectedCategory;
+    const q = logSearch.toLocaleLowerCase("tr-TR");
     const searchOk =
       !q ||
-      l.action.toLowerCase().includes(q) ||
-      l.details.toLowerCase().includes(q) ||
-      l.actor.toLowerCase().includes(q);
-    return dateOk && membershipOk && searchOk;
+      (l.action || "").toLocaleLowerCase("tr-TR").includes(q) ||
+      (l.details || "").toLocaleLowerCase("tr-TR").includes(q) ||
+      (l.actor || "").toLocaleLowerCase("tr-TR").includes(q);
+    return dateOk && categoryOk && searchOk;
   });
 
   return (
@@ -34,24 +64,28 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
         <h2 className="text-lg font-extrabold text-[#02274c]">
           Son İşlemler (Gün & Saat Kayıtları)
         </h2>
+
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setOnlyMembership((v) => !v)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${
-              onlyMembership
-                ? "bg-[#a60513] text-white border-[#a60513]"
-                : "bg-white text-slate-800 border-slate-300 hover:bg-slate-50"
-            }`}
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            aria-label="İşlem kategorisi seç"
+            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-1.5 text-xs font-bold"
           >
-            {onlyMembership ? "✓ Üyelik Talepleri" : "Üyelik Taleplerini Filtrele"}
-          </button>
+            {categories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat === "Tümü" ? "Kategori: Tümü" : cat}
+              </option>
+            ))}
+          </select>
+
           <input
             type="date"
             value={logDateFilter}
             onChange={(e) => setLogDateFilter(e.target.value)}
             className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-1.5 text-xs font-medium"
           />
+
           <input
             placeholder="İşlem, kişi veya detay ara..."
             value={logSearch}
@@ -60,6 +94,7 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
           />
         </div>
       </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm text-left text-slate-900">
           <thead className="bg-slate-100 text-[#02274c] text-xs font-extrabold">
@@ -72,11 +107,19 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
           </thead>
           <tbody>
             {filteredLogs.map((l) => {
-              const isMembership =
-                l.action.toLowerCase().includes("üyelik") ||
-                l.details.toLowerCase().includes("üyelik");
+              const cat = getLogCategory(l);
+              const badgeStyle =
+                cat === "Oyuncu Silme" || cat === "Silme İşlemi"
+                  ? "bg-red-100 text-red-900"
+                  : cat === "Üyelik İşlemleri"
+                  ? "bg-amber-100 text-amber-900"
+                  : "bg-blue-50 text-blue-900";
+
               return (
-                <tr key={l.id} className="border-b border-slate-200 hover:bg-slate-50">
+                <tr
+                  key={l.id}
+                  className="border-b border-slate-200 hover:bg-slate-50"
+                >
                   <td className="p-2.5 text-xs font-mono font-semibold text-slate-800 whitespace-nowrap">
                     {formatDateTimeTR(l.created_at)}
                   </td>
@@ -85,11 +128,7 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
                   </td>
                   <td className="p-2.5">
                     <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded ${
-                        isMembership
-                          ? "bg-amber-100 text-amber-900"
-                          : "bg-blue-50 text-blue-900"
-                      }`}
+                      className={`text-xs font-bold px-2 py-0.5 rounded ${badgeStyle}`}
                     >
                       {l.action}
                     </span>

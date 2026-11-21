@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { JerseyPiece, JerseySet, SIZE_OPTIONS } from "@/types/club";
+import { EquipmentLog, JerseyPiece, JerseySet, SIZE_OPTIONS } from "@/types/club";
 
 const supabase = createClient();
 
@@ -36,15 +36,26 @@ async function uploadJerseyPhoto(file: File): Promise<string | null> {
   return pub.publicUrl;
 }
 
+type MiniPlayer = {
+  id: string;
+  full_name: string;
+  age_group?: string;
+  parent_phone?: string | null;
+};
+
 interface JerseySetsSectionProps {
   jerseySets: JerseySet[];
   setJerseySets: React.Dispatch<React.SetStateAction<JerseySet[]>>;
+  logs?: EquipmentLog[];
+  players?: MiniPlayer[];
   onStatus: (msg: string) => void;
 }
 
 export function JerseySetsSection({
   jerseySets,
   setJerseySets,
+  logs = [],
+  players = [],
   onStatus,
 }: JerseySetsSectionProps) {
   const [setName, setSetName] = useState("");
@@ -59,11 +70,23 @@ export function JerseySetsSection({
   const [editingPieces, setEditingPieces] = useState<JerseyPiece[]>([]);
   const [savingSetEdit, setSavingSetEdit] = useState(false);
 
+  function getPieceHolderName(setId: string, num: number): string | null {
+    const activeLog = logs.find(
+      (l) =>
+        l.status === "teslim_edildi" &&
+        l.jersey_set_id === setId &&
+        l.jersey_number_given === num
+    );
+    if (!activeLog) return null;
+    const holder = players.find((p) => p.id === activeLog.player_id);
+    return holder?.full_name || "Zimmetli Sporcu";
+  }
+
   function openEditSet(setItem: JerseySet) {
     setEditingSet({ ...setItem });
     const existingPieces =
       Array.isArray(setItem.items) && setItem.items.length > 0
-        ? setItem.items.map((x) => ({ ...x }))
+        ? setItem.items.map((x) => ({ ...x, size: x.size || "M" }))
         : buildDefaultPieces(setItem.total_quantity || 20, "M", true);
     setEditingPieces(existingPieces);
   }
@@ -108,7 +131,7 @@ export function JerseySetsSection({
       setSetName("");
       setPhotoFile(null);
       onStatus(
-        `✅ ${created.set_name} eklendi (1-${created.total_quantity} numaralandırıldı). İsterseniz tek tek numara ve beden düzenleyebilirsiniz.`
+        `✅ ${created.set_name} eklendi (1-${created.total_quantity} numaralandırıldı, beden: ${defaultJerseySize}).`
       );
       openEditSet(created);
     }
@@ -119,13 +142,18 @@ export function JerseySetsSection({
     if (!editingSet) return;
     setSavingSetEdit(true);
 
+    const normalizedPieces = editingPieces.map((p) => ({
+      ...p,
+      size: p.size || "M",
+    }));
+
     const { data, error } = await supabase
       .from("jersey_sets")
       .update({
         set_name: editingSet.set_name.trim(),
         kit_type: editingSet.kit_type,
-        total_quantity: editingPieces.length,
-        items: editingPieces,
+        total_quantity: normalizedPieces.length,
+        items: normalizedPieces,
       })
       .eq("id", editingSet.id)
       .select()
@@ -141,7 +169,7 @@ export function JerseySetsSection({
         prev.map((j) => (j.id === editingSet.id ? (data as JerseySet) : j))
       );
       setEditingSet(null);
-      onStatus("✅ Forma takımı, numaralar ve bedenler güncellendi.");
+      onStatus("✅ Forma takımı, numaralar ve bedenler kaydedildi.");
     }
   }
 
@@ -174,7 +202,7 @@ export function JerseySetsSection({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-slate-900">
       <form
         onSubmit={handleCreateJerseySet}
         className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
@@ -216,7 +244,7 @@ export function JerseySetsSection({
 
         <div className="grid sm:grid-cols-3 gap-3 items-center">
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
               Varsayılan Beden
             </label>
             <select
@@ -232,7 +260,7 @@ export function JerseySetsSection({
             </select>
           </div>
 
-          <label className="flex items-center gap-2 text-xs font-bold text-[#02274c] bg-slate-50 p-3 rounded-xl border cursor-pointer">
+          <label className="flex items-center gap-2 text-xs font-bold text-[#02274c] bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer">
             <input
               type="checkbox"
               checked={gkDefault1And12}
@@ -242,14 +270,14 @@ export function JerseySetsSection({
           </label>
 
           <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1">
+            <label className="block text-xs font-bold text-slate-700 mb-1">
               Forma Görseli (İsteğe Bağlı)
             </label>
             <input
               type="file"
               accept="image/*"
               onChange={(e) => setPhotoFile(e.target.files?.[0] || null)}
-              className="w-full text-xs"
+              className="w-full text-xs text-slate-700"
             />
           </div>
         </div>
@@ -277,7 +305,7 @@ export function JerseySetsSection({
             <button
               type="button"
               onClick={() => setEditingSet(null)}
-              className="text-xs font-bold text-slate-500 underline cursor-pointer"
+              className="text-xs font-bold text-slate-600 underline cursor-pointer"
             >
               Kapat
             </button>
@@ -311,9 +339,8 @@ export function JerseySetsSection({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <p className="text-xs text-slate-600">
-              Her formanın numarasını (örn. 13 → 95), bedenini ve Kaleci durumunu
-              tek tek değiştirebilirsiniz.
+            <p className="text-xs text-slate-700">
+              Her kutucukta numaranın kimde olduğu veya boşta olduğu yazar. Beden ve Kaleci bilgisini değiştirdikten sonra mutlaka kaydedin.
             </p>
             <button
               type="button"
@@ -338,86 +365,106 @@ export function JerseySetsSection({
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-96 overflow-y-auto pr-1">
-            {editingPieces.map((piece, idx) => (
-              <div
-                key={piece.id}
-                className={`p-2.5 rounded-xl border flex items-center gap-2 ${
-                  piece.is_goalkeeper
-                    ? "bg-amber-50 border-amber-300"
-                    : "bg-slate-50 border-slate-200"
-                }`}
-              >
-                <div className="w-16">
-                  <label className="block text-[10px] font-bold text-slate-500">
-                    No
-                  </label>
-                  <input
-                    type="number"
-                    value={piece.number}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      setEditingPieces((prev) =>
-                        prev.map((p, i) =>
-                          i === idx ? { ...p, number: isNaN(val) ? 0 : val } : p
-                        )
-                      );
-                    }}
-                    className="w-full px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-extrabold text-[#02274c]"
-                  />
-                </div>
-
-                <div className="w-20">
-                  <label className="block text-[10px] font-bold text-slate-500">
-                    Beden
-                  </label>
-                  <select
-                    value={piece.size}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setEditingPieces((prev) =>
-                        prev.map((p, i) =>
-                          i === idx ? { ...p, size: val } : p
-                        )
-                      );
-                    }}
-                    className="w-full px-1.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold"
-                  >
-                    {SIZE_OPTIONS.map((sz) => (
-                      <option key={sz} value={sz}>
-                        {sz}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <label className="flex items-center gap-1 text-[11px] font-extrabold text-slate-700 cursor-pointer mt-3">
-                  <input
-                    type="checkbox"
-                    checked={piece.is_goalkeeper}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setEditingPieces((prev) =>
-                        prev.map((p, i) =>
-                          i === idx ? { ...p, is_goalkeeper: checked } : p
-                        )
-                      );
-                    }}
-                  />
-                  🧤 Kaleci
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setEditingPieces((prev) => prev.filter((_, i) => i !== idx))
-                  }
-                  className="ml-auto mt-3 text-red-600 text-xs font-extrabold px-1.5 cursor-pointer"
-                  title="Bu formayı çıkar"
+            {editingPieces.map((piece, idx) => {
+              const holderName = getPieceHolderName(editingSet.id, piece.number);
+              return (
+                <div
+                  key={piece.id}
+                  className={`p-3 rounded-xl border space-y-2 ${
+                    holderName
+                      ? "bg-amber-50 border-amber-300"
+                      : piece.is_goalkeeper
+                      ? "bg-sky-50 border-sky-200"
+                      : "bg-slate-50 border-slate-200"
+                  }`}
                 >
-                  ✕
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`text-[11px] font-extrabold px-2 py-0.5 rounded ${
+                        holderName
+                          ? "bg-amber-600 text-white"
+                          : "bg-emerald-100 text-emerald-900"
+                      }`}
+                    >
+                      {holderName ? `👤 ${holderName}` : "✓ Boşta"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingPieces((prev) => prev.filter((_, i) => i !== idx))
+                      }
+                      className="text-red-700 text-xs font-extrabold px-1 cursor-pointer"
+                      title="Bu formayı çıkar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="w-16">
+                      <label className="block text-[10px] font-bold text-slate-600">
+                        No
+                      </label>
+                      <input
+                        type="number"
+                        value={piece.number}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setEditingPieces((prev) =>
+                            prev.map((p, i) =>
+                              i === idx
+                                ? { ...p, number: isNaN(val) ? 0 : val }
+                                : p
+                            )
+                          );
+                        }}
+                        className="w-full px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-extrabold text-[#02274c]"
+                      />
+                    </div>
+
+                    <div className="w-20">
+                      <label className="block text-[10px] font-bold text-slate-600">
+                        Beden
+                      </label>
+                      <select
+                        value={piece.size || "M"}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditingPieces((prev) =>
+                            prev.map((p, i) =>
+                              i === idx ? { ...p, size: val } : p
+                            )
+                          );
+                        }}
+                        className="w-full px-1.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold"
+                      >
+                        {SIZE_OPTIONS.map((sz) => (
+                          <option key={sz} value={sz}>
+                            {sz}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <label className="flex items-center gap-1 text-[11px] font-extrabold text-slate-800 cursor-pointer mt-3">
+                      <input
+                        type="checkbox"
+                        checked={piece.is_goalkeeper}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setEditingPieces((prev) =>
+                            prev.map((p, i) =>
+                              i === idx ? { ...p, is_goalkeeper: checked } : p
+                            )
+                          );
+                        }}
+                      />
+                      🧤 Kaleci
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <button
@@ -438,6 +485,10 @@ export function JerseySetsSection({
           const gkList = pieces
             .filter((x) => x.is_goalkeeper)
             .map((x) => `#${x.number}`);
+          const assignedCount = pieces.filter(
+            (x) => Boolean(getPieceHolderName(j.id, x.number))
+          ).length;
+
           return (
             <div
               key={j.id}
@@ -462,23 +513,29 @@ export function JerseySetsSection({
                   <h3 className="text-lg font-extrabold text-[#02274c]">
                     {j.set_name}
                   </h3>
-                  <p className="text-xs text-slate-600">
-                    Takım Stoğu: {j.total_quantity} adet
+                  <p className="text-xs text-slate-700 font-semibold">
+                    Toplam: {j.total_quantity} • Zimmetli: {assignedCount} • Boşta:{" "}
+                    {Math.max(0, j.total_quantity - assignedCount)}
                   </p>
                   {pieces.length > 0 && (
-                    <div className="text-[11px] text-slate-600 space-y-0.5 pt-1">
+                    <div className="text-[11px] text-slate-700 space-y-0.5 pt-1">
                       <div>
                         <strong>Numaralar:</strong>{" "}
                         {pieces
-                          .slice(0, 12)
-                          .map((x) => `#${x.number}(${x.size})`)
+                          .slice(0, 10)
+                          .map((x) => {
+                            const h = getPieceHolderName(j.id, x.number);
+                            return `#${x.number}(${x.size || "M"}${
+                              h ? `-${h.split(" ")[0]}` : "-Boş"
+                            })`;
+                          })
                           .join(", ")}
-                        {pieces.length > 12
-                          ? ` ... (+${pieces.length - 12})`
+                        {pieces.length > 10
+                          ? ` ... (+${pieces.length - 10})`
                           : ""}
                       </div>
                       {gkList.length > 0 && (
-                        <div className="text-amber-800 font-bold">
+                        <div className="text-amber-900 font-bold">
                           🧤 Kaleci Formaları: {gkList.join(", ")}
                         </div>
                       )}
@@ -492,7 +549,7 @@ export function JerseySetsSection({
                     onClick={() => openEditSet(j)}
                     className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold cursor-pointer"
                   >
-                    ✏️ Numara / Beden Düzenle
+                    ✏️ Numara / Beden / Durum
                   </button>
                   <label className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold cursor-pointer">
                     📷 Görsel {j.photo_url ? "Değiştir" : "Ekle"}
@@ -509,7 +566,7 @@ export function JerseySetsSection({
                   <button
                     type="button"
                     onClick={() => handleDeleteJerseySet(j.id, j.set_name)}
-                    className="px-2.5 py-1.5 rounded-lg bg-red-100 text-red-700 text-xs font-extrabold cursor-pointer ml-auto"
+                    className="px-2.5 py-1.5 rounded-lg bg-red-100 text-red-800 text-xs font-extrabold cursor-pointer ml-auto"
                   >
                     Sil
                   </button>

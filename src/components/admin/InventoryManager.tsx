@@ -18,8 +18,8 @@ interface MiniPlayer {
 
 export function InventoryManager({ players }: { players: MiniPlayer[] }) {
   const [subTab, setSubTab] = useState<
-    "jerseys" | "stock" | "unreturned" | "missing"
-  >("jerseys");
+    "inventory_all" | "unreturned" | "missing"
+  >("inventory_all");
 
   const [jerseySets, setJerseySets] = useState<JerseySet[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
@@ -52,14 +52,14 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
   const missingLogs = logs.filter((l) => l.status === "kayip_eksik");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-slate-900">
       {statusMsg && (
-        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex justify-between items-center">
+        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex justify-between items-center gap-3">
           <span>{statusMsg}</span>
           <button
             type="button"
             onClick={() => setStatusMsg(null)}
-            className="underline ml-3"
+            className="underline ml-3 shrink-0 cursor-pointer"
           >
             Kapat
           </button>
@@ -68,8 +68,10 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
 
       <div className="flex flex-wrap gap-2">
         {[
-          { k: "jerseys", l: `Forma Takımları (${jerseySets.length})` },
-          { k: "stock", l: `Ürün Stoğu & Teslim (${stockItems.length})` },
+          {
+            k: "inventory_all",
+            l: `Forma Takımları & Ürün Stoğu (${jerseySets.length + stockItems.length})`,
+          },
           { k: "unreturned", l: `Geri Verilmeyenler (${unreturnedLogs.length})` },
           { k: "missing", l: `Eksik / Kayıp (${missingLogs.length})` },
         ].map((item) => (
@@ -77,10 +79,10 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
             key={item.k}
             type="button"
             onClick={() => setSubTab(item.k as typeof subTab)}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer ${
+            className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
               subTab === item.k
                 ? "bg-[#02274c] text-white border-[#02274c]"
-                : "bg-white text-[#02274c] border-slate-300"
+                : "bg-white text-[#02274c] border-slate-300 hover:bg-slate-50"
             }`}
           >
             {item.l}
@@ -88,24 +90,25 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
         ))}
       </div>
 
-      {subTab === "jerseys" && (
-        <JerseySetsSection
-          jerseySets={jerseySets}
-          setJerseySets={setJerseySets}
-          onStatus={setStatusMsg}
-        />
-      )}
-
-      {subTab === "stock" && (
-        <StockAndGiveSection
-          players={players}
-          jerseySets={jerseySets}
-          stockItems={stockItems}
-          setStockItems={setStockItems}
-          logs={logs}
-          setLogs={setLogs}
-          onStatus={setStatusMsg}
-        />
+      {subTab === "inventory_all" && (
+        <div className="space-y-8">
+          <JerseySetsSection
+            jerseySets={jerseySets}
+            setJerseySets={setJerseySets}
+            onStatus={setStatusMsg}
+          />
+          <div className="border-t border-slate-200 pt-6">
+            <StockAndGiveSection
+              players={players}
+              jerseySets={jerseySets}
+              stockItems={stockItems}
+              setStockItems={setStockItems}
+              logs={logs}
+              setLogs={setLogs}
+              onStatus={setStatusMsg}
+            />
+          </div>
+        </div>
       )}
 
       {subTab === "unreturned" && (

@@ -7,11 +7,19 @@ import { createClient } from "@/lib/supabase/client";
 import {
   AGE_GROUPS,
   DAYS_OF_WEEK,
+  NAZMI_AVLUCA,
   TaskAssignment,
   Training,
 } from "@/types/club";
 
 const supabase = createClient();
+
+function buildMapsUrl(location?: string | null): string {
+  const q = (location || NAZMI_AVLUCA || "Çorum").trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    q
+  )}`;
+}
 
 export default function GorevlerPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
@@ -41,7 +49,7 @@ export default function GorevlerPage() {
     })();
   }, []);
 
-  const filteredTrainings = useMemo(() => {
+  const { filteredTrainings, pastTrainings } = useMemo(() => {
     const list =
       selectedGroup === "Tümü"
         ? trainings
@@ -49,7 +57,23 @@ export default function GorevlerPage() {
             (t.age_groups || []).includes(selectedGroup)
           );
 
-    return [...list].sort((a, b) => {
+    const activeList: Training[] = [];
+    const pastList: Training[] = [];
+
+    for (const tr of list) {
+      if (
+        tr.training_type === "ekstra" &&
+        tr.training_date &&
+        todayStr &&
+        tr.training_date < todayStr
+      ) {
+        pastList.push(tr);
+      } else {
+        activeList.push(tr);
+      }
+    }
+
+    activeList.sort((a, b) => {
       const da = a.day_of_week
         ? DAYS_OF_WEEK.indexOf(
             a.day_of_week as (typeof DAYS_OF_WEEK)[number]
@@ -63,7 +87,13 @@ export default function GorevlerPage() {
       if (da !== db) return da - db;
       return (a.start_time || "").localeCompare(b.start_time || "");
     });
-  }, [trainings, selectedGroup]);
+
+    pastList.sort((a, b) =>
+      (b.training_date || "").localeCompare(a.training_date || "")
+    );
+
+    return { filteredTrainings: activeList, pastTrainings: pastList };
+  }, [trainings, selectedGroup, todayStr]);
 
   const { upcomingTasks, pastTasks } = useMemo(() => {
     const byGroup =
@@ -78,10 +108,10 @@ export default function GorevlerPage() {
     }
 
     return {
-      upcomingTasks: byGroup.filter((t) => t.event_date >= todayStr),
+      upcomingTasks: byGroup.filter((t) => (t.event_date || "") >= todayStr),
       pastTasks: byGroup
-        .filter((t) => t.event_date < todayStr)
-        .sort((a, b) => b.event_date.localeCompare(a.event_date)),
+        .filter((t) => (t.event_date || "") < todayStr)
+        .sort((a, b) => (b.event_date || "").localeCompare(a.event_date || "")),
     };
   }, [tasks, selectedGroup, todayStr]);
 
@@ -172,9 +202,17 @@ export default function GorevlerPage() {
                     </p>
                   )}
                   {tr.location && (
-                    <p className="text-xs text-slate-500 pt-1">
-                      📍 {tr.location}
-                    </p>
+                    <div className="text-xs text-slate-600 pt-1 flex flex-wrap items-center justify-between gap-2">
+                      <span>📍 {tr.location}</span>
+                      <a
+                        href={buildMapsUrl(tr.location)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[#02274c] font-extrabold underline"
+                      >
+                        Haritada Aç
+                      </a>
+                    </div>
                   )}
                 </div>
               ))}
@@ -198,16 +236,26 @@ export default function GorevlerPage() {
                   key={task.id}
                   className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4 shadow-sm"
                 >
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <span className="inline-block px-2.5 py-0.5 rounded-full bg-red-50 text-[#a60513] text-xs font-extrabold">
                       {task.age_group}
                     </span>
                     <h3 className="font-extrabold text-slate-900">
                       {task.title}
                     </h3>
-                    <p className="text-xs text-slate-500">
-                      📍 {task.location || "Belirtilmedi"}
-                    </p>
+                    <div className="text-xs text-slate-600 flex flex-wrap items-center gap-2">
+                      <span>📍 {task.location || "Belirtilmedi"}</span>
+                      {task.location && (
+                        <a
+                          href={buildMapsUrl(task.location)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[#02274c] font-extrabold underline"
+                        >
+                          Haritada Aç
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-sm font-black text-[#02274c]">
@@ -225,27 +273,51 @@ export default function GorevlerPage() {
           )}
         </section>
 
-        {pastTasks.length > 0 && (
-          <section className="space-y-3 opacity-80">
-            <h3 className="text-base font-extrabold text-slate-600">
-              Tamamlanan Maçlar & Etkinlikler ({pastTasks.length})
+        {(pastTasks.length > 0 || pastTrainings.length > 0) && (
+          <section className="space-y-3 opacity-85">
+            <h3 className="text-base font-extrabold text-slate-700">
+              Geçmiş Etkinlikler, Antrenmanlar & Maçlar (
+              {pastTasks.length + pastTrainings.length})
             </h3>
             <div className="grid sm:grid-cols-2 gap-3">
               {pastTasks.slice(0, 10).map((task) => (
                 <div
                   key={task.id}
-                  className="bg-slate-100/80 rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4"
+                  className="bg-slate-100/90 rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4"
                 >
                   <div>
                     <span className="text-[11px] font-bold text-slate-500">
-                      {task.age_group}
+                      {task.age_group} • Maç/Etkinlik
                     </span>
                     <div className="font-bold text-sm text-slate-800">
                       {task.title}
                     </div>
+                    {task.location && (
+                      <div className="text-[11px] text-slate-500">
+                        📍 {task.location}
+                      </div>
+                    )}
                   </div>
                   <span className="text-xs font-bold text-slate-500">
                     {task.event_date}
+                  </span>
+                </div>
+              ))}
+              {pastTrainings.slice(0, 10).map((tr) => (
+                <div
+                  key={tr.id}
+                  className="bg-slate-100/90 rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4"
+                >
+                  <div>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {(tr.age_groups || []).join(", ")} • Antrenman
+                    </span>
+                    <div className="font-bold text-sm text-slate-800">
+                      {tr.title}
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500">
+                    {tr.training_date}
                   </span>
                 </div>
               ))}

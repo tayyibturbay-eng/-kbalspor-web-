@@ -24,6 +24,13 @@ function formatShortDate(raw: string): string {
   return clean;
 }
 
+function buildMapsUrl(location?: string | null): string {
+  const query = (location || "Nazmi Avluca Spor Tesisi Çorum").trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    query
+  )}`;
+}
+
 export default function IkbalHomePage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
   const [currentYear, setCurrentYear] = useState(2026);
@@ -42,8 +49,13 @@ export default function IkbalHomePage() {
         )
         .gte("event_date", todayStr)
         .order("event_date", { ascending: true })
-        .limit(4);
-      if (data) setUpcoming(data as TaskItem[]);
+        .limit(8);
+      if (data) {
+        const onlyUpcoming = (data as TaskItem[]).filter(
+          (item) => (item.event_date || "").slice(0, 10) >= todayStr
+        );
+        setUpcoming(onlyUpcoming.slice(0, 4));
+      }
     })();
   }, []);
 
@@ -56,9 +68,14 @@ export default function IkbalHomePage() {
         <section className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">
             <div className="lg:col-span-7 space-y-5 min-w-0">
-              <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] sm:text-xs font-extrabold uppercase tracking-wider max-w-full truncate">
-                Çorum İkbalspor • Süper Amatör Lig
-              </span>
+              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] sm:text-xs font-extrabold uppercase tracking-wider max-w-full truncate">
+                <img
+                  src="/logo.png"
+                  alt="Çorum İkbalspor"
+                  className="w-4 h-4 rounded-xs object-contain bg-white p-0.5"
+                />
+                <span>Çorum İkbalspor • Süper Amatör Lig</span>
+              </div>
 
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black leading-tight break-words">
                 Geleceğin Yıldızları{" "}
@@ -122,11 +139,23 @@ export default function IkbalHomePage() {
                             {t.title}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-200 mt-1 break-words">
-                          {formatShortDate(t.event_date)}
-                          {t.match_time ? ` • ${t.match_time}` : ""}
-                          {t.location ? ` • ${t.location}` : ""}
-                        </p>
+                        <div className="text-xs text-slate-200 mt-1 flex flex-wrap items-center justify-between gap-2">
+                          <span>
+                            {formatShortDate(t.event_date)}
+                            {t.match_time ? ` • ${t.match_time}` : ""}
+                            {t.location ? ` • ${t.location}` : ""}
+                          </span>
+                          {t.location && (
+                            <a
+                              href={buildMapsUrl(t.location)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-amber-200 hover:underline font-bold shrink-0"
+                            >
+                              📍 Harita
+                            </a>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -230,11 +259,16 @@ export default function IkbalHomePage() {
 
       <footer className="bg-[#02274c] text-slate-200 border-t-4 border-[#a60513] py-8 px-4">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-center sm:text-left">
-          <div className="font-extrabold text-white">
-            Çorum İkbalspor • İkbalspor Kulübü
+          <div className="flex items-center justify-center sm:justify-start gap-2.5 font-extrabold text-white">
+            <img
+              src="/logo.png"
+              alt="Çorum İkbalspor"
+              className="w-7 h-7 rounded-md bg-white p-0.5 object-contain"
+            />
+            <span>Çorum İkbalspor • Çorum</span>
           </div>
           <div className="text-slate-300">
-            © 2026 İkbalspor. Tüm hakları saklıdır.
+            © {currentYear} Çorum İkbalspor. Tüm hakları saklıdır.
           </div>
         </div>
       </footer>
