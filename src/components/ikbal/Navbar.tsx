@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/", label: "Ana Sayfa", shortLabel: "Ana Sayfa", icon: "🏠" },
   { href: "/kadro-kur", label: "Kadro Kur", shortLabel: "Kadro", icon: "⚽" },
   { href: "/gorevler", label: "Görevler & Maçlar", shortLabel: "Maçlar", icon: "📅" },
+  { href: "/siralama", label: "Genel Sıralama", shortLabel: "Sıralama", icon: "🏆" },
   { href: "/iletisim", label: "İletişim", shortLabel: "İletişim", icon: "📞" },
 ];
 
@@ -17,6 +18,7 @@ type AuthSession =
       role: "player";
       name: string;
       ageGroup: string | null;
+      secondaryAgeGroup: string | null;
       photoUrl: string | null;
       href: "/sporcu";
     }
@@ -24,6 +26,7 @@ type AuthSession =
       role: "coach" | "admin";
       name: string;
       ageGroup: null;
+      secondaryAgeGroup: null;
       photoUrl: null;
       href: "/admin";
     }
@@ -31,12 +34,15 @@ type AuthSession =
 
 function isNotificationForGroup(
   targetGroup: string | null | undefined,
-  playerAgeGroup: string | null | undefined
+  playerAgeGroup: string | null | undefined,
+  secondaryAgeGroup?: string | null
 ): boolean {
   const tg = (targetGroup || "Tümü").trim();
   if (!playerAgeGroup) return true;
   if (tg === "Tümü" || tg === "Tüm Kulüp") return true;
-  return tg === playerAgeGroup.trim();
+  if (tg === playerAgeGroup.trim()) return true;
+  if (secondaryAgeGroup && tg === secondaryAgeGroup.trim()) return true;
+  return false;
 }
 
 export function Navbar() {
@@ -55,7 +61,7 @@ export function Navbar() {
       if (!playerId) return null;
       const { data: p } = await supabase
         .from("players")
-        .select("full_name, age_group, photo_url")
+        .select("full_name, age_group, secondary_age_group, photo_url")
         .eq("id", playerId)
         .maybeSingle();
       if (!p) return null;
@@ -63,6 +69,7 @@ export function Navbar() {
         role: "player",
         name: p.full_name || "Sporcu Profili",
         ageGroup: p.age_group || null,
+        secondaryAgeGroup: p.secondary_age_group || null,
         photoUrl: p.photo_url || null,
         href: "/sporcu",
       };
@@ -80,6 +87,7 @@ export function Navbar() {
               role: "coach",
               name: parsed.full_name || "Antrenör",
               ageGroup: null,
+              secondaryAgeGroup: null,
               photoUrl: null,
               href: "/admin",
             };
@@ -95,6 +103,7 @@ export function Navbar() {
           role: "admin",
           name: "Yönetim Paneli",
           ageGroup: null,
+          secondaryAgeGroup: null,
           photoUrl: null,
           href: "/admin",
         };
@@ -117,6 +126,10 @@ export function Navbar() {
       const lastSeenMs = lastSeen ? new Date(lastSeen).getTime() : 0;
       const playerGroup =
         currentSession?.role === "player" ? currentSession.ageGroup : null;
+      const secondGroup =
+        currentSession?.role === "player"
+          ? currentSession.secondaryAgeGroup
+          : null;
 
       const unseen = data.filter(
         (row: {
@@ -127,7 +140,8 @@ export function Navbar() {
           const isNew = new Date(row.created_at).getTime() > lastSeenMs;
           const groupMatch = isNotificationForGroup(
             row.target_group || row.age_group,
-            playerGroup
+            playerGroup,
+            secondGroup
           );
           return isNew && groupMatch;
         }
@@ -366,7 +380,7 @@ export function Navbar() {
         aria-label="Mobil Alt Menü"
         className="lg:hidden fixed bottom-0 inset-x-0 z-40 w-full max-w-full bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_12px_rgba(2,39,76,0.08)]"
       >
-        <div className="grid grid-cols-5 h-16">
+        <div className="grid grid-cols-6 h-16">
           {LINKS.map((item) => {
             const active = pathname === item.href;
             return (
