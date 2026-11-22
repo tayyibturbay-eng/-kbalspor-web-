@@ -60,7 +60,11 @@ export default function KayitPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          full_name: form.full_name.trim(),
+          parent_phone: form.parent_phone.trim(),
+          guardian_name: form.guardian_name.trim(),
           license_no: form.license_no.trim() || null,
+          notes: form.notes.trim(),
           kvkk_accepted: kvkkAccepted,
           consent_accepted: consentAccepted,
         }),
