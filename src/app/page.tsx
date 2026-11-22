@@ -24,7 +24,7 @@ function formatShortDate(raw: string): string {
   return clean;
 }
 
-function isUpcomingEvent(item: TaskItem): boolean {
+function isUpcomingEvent(item: TaskItem, nowMs: number): boolean {
   if (!item.event_date) return false;
   const datePart = item.event_date.slice(0, 10);
   const timePart = (item.match_time || "").trim();
@@ -39,12 +39,12 @@ function isUpcomingEvent(item: TaskItem): boolean {
       59,
       999
     );
-    return eventDt.getTime() >= Date.now();
+    return eventDt.getTime() >= nowMs;
   }
 
   const dayEnd = new Date(`${datePart}T23:59:59`);
   if (Number.isNaN(dayEnd.getTime())) return false;
-  return dayEnd.getTime() >= Date.now();
+  return dayEnd.getTime() >= nowMs;
 }
 
 function buildMapsUrl(location?: string | null): string {
@@ -57,13 +57,15 @@ function buildMapsUrl(location?: string | null): string {
 export default function IkbalHomePage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
   const [showRegModal, setShowRegModal] = useState(false);
-  const currentYear = new Date().getFullYear();
+  const [currentYear, setCurrentYear] = useState<number>(2026);
 
   useEffect(() => {
     let active = true;
-    const todayStr = new Date().toISOString().slice(0, 10);
 
     (async () => {
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const nowMs = now.getTime();
       const supabase = createClient();
       const { data } = await supabase
         .from("tasks_assignments")
@@ -73,9 +75,14 @@ export default function IkbalHomePage() {
         .gte("event_date", todayStr)
         .order("event_date", { ascending: true })
         .limit(12);
-      if (active && data) {
-        const filtered = (data as TaskItem[]).filter(isUpcomingEvent);
-        setUpcoming(filtered.slice(0, 4));
+      if (active) {
+        setCurrentYear(new Date().getFullYear());
+        if (data) {
+          const filtered = (data as TaskItem[]).filter((item) =>
+            isUpcomingEvent(item, nowMs)
+          );
+          setUpcoming(filtered.slice(0, 4));
+        }
       }
     })();
 
