@@ -22,6 +22,7 @@ interface CategoryPlayerRow {
   full_name: string;
   age_group: string;
   jersey_number?: number | null;
+  skill_points?: number | null;
 }
 
 interface PredictionRow {
@@ -34,18 +35,21 @@ interface PredictionRow {
   actual_home_score?: number | null;
   actual_away_score?: number | null;
   awarded_points?: number | null;
+  reward_claimed?: boolean | null;
   first_scorer_name: string | null;
   scorer_multiplier?: number | null;
   created_at: string;
   players?: {
     full_name?: string | null;
     jersey_number?: number | null;
+    skill_points?: number | null;
   } | null;
 }
 
 interface MatchPredictionCardProps {
   playerId: string;
   ageGroup: string;
+  onPointsClaimed?: (newTotalPoints: number) => void;
 }
 
 function calcPredictionPoints(
@@ -72,18 +76,31 @@ function isMatchRecord(t: MatchTaskRow): boolean {
   return t.task_type === "mac" || titleLower.includes("maç") || titleLower.includes("mac");
 }
 
+function normalizeScoreInput(raw: string): { str: string; num: number } {
+  const digitsOnly = raw.replace(/[^0-9]/g, "");
+  if (!digitsOnly) return { str: "", num: 0 };
+  const stripped = digitsOnly.replace(/^0+(?=\d)/, "");
+  const num = Math.max(0, Math.min(30, Number(stripped) || 0));
+  return { str: String(num), num };
+}
+
 export function MatchPredictionCard({
   playerId,
   ageGroup,
+  onPointsClaimed,
 }: MatchPredictionCardProps) {
   const [matches, setMatches] = useState<MatchTaskRow[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string>("");
   const [categoryPlayers, setCategoryPlayers] = useState<CategoryPlayerRow[]>([]);
   const [homeScore, setHomeScore] = useState<number>(2);
+  const [homeScoreInput, setHomeScoreInput] = useState<string>("2");
   const [awayScore, setAwayScore] = useState<number>(1);
+  const [awayScoreInput, setAwayScoreInput] = useState<string>("1");
   const [firstScorer, setFirstScorer] = useState<string>("");
+  const [showOtherAgePlayers, setShowOtherAgePlayers] = useState<boolean>(false);
   const [predictions, setPredictions] = useState<PredictionRow[]>([]);
   const [saving, setSaving] = useState(false);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(
     null
   );
@@ -101,7 +118,7 @@ export function MatchPredictionCard({
     return (selectedMatch?.age_group || ageGroup || "Tümü").trim();
   }, [selectedMatch, ageGroup]);
 
-  const filteredPlayers = useMemo(() => {
+  const groupPlayers = useMemo(() => {
     if (!effectiveCategory || effectiveCategory === "Tümü") {
       return categoryPlayers;
     }
@@ -110,6 +127,15 @@ export function MatchPredictionCard({
     );
     return exact.length > 0 ? exact : categoryPlayers;
   }, [categoryPlayers, effectiveCategory]);
+
+  const otherPlayers = useMemo(() => {
+    const groupIds = new Set(groupPlayers.map((p) => p.id));
+    return categoryPlayers.filter((p) => !groupIds.has(p.id));
+  }, [categoryPlayers, groupPlayers]);
+
+  const selectableScorers = useMemo(() => {
+    return showOtherAgePlayers ? categoryPlayers : groupPlayers;
+  }, [showOtherAgePlayers, categoryPlayers, groupPlayers]);
 
   const playerMultipliers = useMemo(() => {
     const goalCounts = new Map<string, number>();
@@ -125,12 +151,12 @@ export function MatchPredictionCard({
     }
 
     const map = new Map<string, number>();
-    for (const p of filteredPlayers) {
+    for (const p of categoryPlayers) {
       const prevGoals = goalCounts.get(p.full_name.trim().toLowerCase()) || 0;
       map.set(p.id, calculateGoalPointsForScorer(prevGoals, false));
     }
     return map;
-  }, [filteredPlayers, predictions]);
+  }, [categoryPlayers, predictions]);
 
   const fetchPredictionData = useCallback(async () => {
     const [taskRes, predRes, playersRes] = await Promise.all([
@@ -141,12 +167,12 @@ export function MatchPredictionCard({
         .limit(40),
       supabase
         .from("match_predictions")
-        .select("*, players(full_name, jersey_number)")
+        .select("*, players(full_name, jersey_number, skill_points)")
         .order("created_at", { ascending: false })
-        .limit(60),
+        .limit(80),
       supabase
         .from("players")
-        .select("id, full_name, age_group, jersey_number")
+        .select("id, full_name, age_group, jersey_number, skill_points")
         .order("full_name", { ascending: true }),
     ]);
 
@@ -189,7 +215,9 @@ export function MatchPredictionCard({
         const mine = predData.find((r) => r.player_id === playerId);
         if (mine) {
           setHomeScore(mine.home_score);
+          setHomeScoreInput(String(mine.home_score));
           setAwayScore(mine.away_score);
+          setAwayScoreInput(String(mine.away_score));
           setFirstScorer(mine.first_scorer_name || "");
         }
       }
@@ -213,12 +241,99 @@ export function MatchPredictionCard({
   }, [playerId, fetchPredictionData, applyFetchedData]);
 
   useEffect(() => {
-    if (!filteredPlayers.length) return;
+    if (!groupPlayers.length) return;
     setFirstScorer((prev) => {
-      if (prev && filteredPlayers.some((p) => p.full_name === prev)) return prev;
-      return filteredPlayers[0].full_name;
+      if (prev && categoryPlayers.some((p) => p.full_name === prev)) return prev;
+      return groupPlayers[0].full_name;
     });
-  }, [filteredPlayers]);
+  }, [groupPlayers, categoryPlayers]);
+
+  const claimablePredictions = useMemo(() => {
+    return predictions
+      .filter((pred) => {
+        if (pred.player_id !== playerId) return false;
+        if (pred.reward_claimed === true) return false;
+        const hasActual =
+          typeof pred.actual_home_score === "number" &&
+          typeof pred.actual_away_score === "number";
+        if (!hasActual) return false;
+        const pts =
+          typeof pred.awarded_points === "number"
+            ? pred.awarded_points
+            : calcPredictionPoints(
+                pred.home_score,
+                pred.away_score,
+                pred.actual_home_score!,
+                pred.actual_away_score!
+              );
+        return pts > 0;
+      })
+      .map((pred) => {
+        const pts =
+          typeof pred.awarded_points === "number"
+            ? pred.awarded_points
+            : calcPredictionPoints(
+                pred.home_score,
+                pred.away_score,
+                pred.actual_home_score!,
+                pred.actual_away_score!
+              );
+        return { ...pred, earnedPts: pts };
+      });
+  }, [predictions, playerId]);
+
+  async function handleClaimReward(predId: string, earnedPts: number) {
+    if (!playerId || earnedPts <= 0) return;
+    setClaimingId(predId);
+    setStatusMsg(null);
+
+    const currentPlayer = categoryPlayers.find((p) => p.id === playerId);
+    const currentPts = Number(currentPlayer?.skill_points ?? 0);
+    const nextTotalPts = currentPts + earnedPts;
+
+    const { error: updPredErr } = await supabase
+      .from("match_predictions")
+      .update({ reward_claimed: true, awarded_points: earnedPts })
+      .eq("id", predId)
+      .eq("player_id", playerId);
+
+    if (updPredErr) {
+      setClaimingId(null);
+      setStatusMsg({
+        ok: false,
+        text: "Ödül durumu güncellenemedi: " + updPredErr.message,
+      });
+      return;
+    }
+
+    const { error: updPlayerErr } = await supabase
+      .from("players")
+      .update({ skill_points: nextTotalPts })
+      .eq("id", playerId);
+
+    setClaimingId(null);
+    if (updPlayerErr) {
+      setStatusMsg({
+        ok: false,
+        text: "Puan eklenemedi: " + updPlayerErr.message,
+      });
+      return;
+    }
+
+    setCategoryPlayers((prev) =>
+      prev.map((p) => (p.id === playerId ? { ...p, skill_points: nextTotalPts } : p))
+    );
+    setPredictions((prev) =>
+      prev.map((r) =>
+        r.id === predId ? { ...r, reward_claimed: true, awarded_points: earnedPts } : r
+      )
+    );
+    onPointsClaimed?.(nextTotalPts);
+    setStatusMsg({
+      ok: true,
+      text: `🎉 +${earnedPts} tahmin puanı toplandı! Yeni toplam puanın: ${nextTotalPts}p`,
+    });
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -232,9 +347,9 @@ export function MatchPredictionCard({
       return;
     }
 
-    const chosenScorer = firstScorer.trim() || filteredPlayers[0]?.full_name || null;
+    const chosenScorer = firstScorer.trim() || groupPlayers[0]?.full_name || null;
     const matchedPlayer = chosenScorer
-      ? filteredPlayers.find((p) => p.full_name === chosenScorer)
+      ? categoryPlayers.find((p) => p.full_name === chosenScorer)
       : null;
     const multiplier = matchedPlayer
       ? playerMultipliers.get(matchedPlayer.id) ?? 1
@@ -294,6 +409,39 @@ export function MatchPredictionCard({
         </span>
       </div>
 
+      {claimablePredictions.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2.5">
+          <div className="text-xs font-extrabold text-amber-950 uppercase">
+            🎁 Toplanabilir Tahmin Ödüllerin Var!
+          </div>
+          {claimablePredictions.map((item) => (
+            <div
+              key={item.id}
+              className="flex flex-wrap items-center justify-between gap-2 bg-white border border-amber-200 rounded-xl px-3.5 py-2.5"
+            >
+              <div>
+                <p className="text-xs font-extrabold text-[#02274c]">
+                  {item.match_title} ({item.home_score} - {item.away_score})
+                </p>
+                <p className="text-xs font-bold text-emerald-700">
+                  Kazanılan Ödül: +{item.earnedPts} Puan
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={claimingId === item.id}
+                onClick={() => handleClaimReward(item.id, item.earnedPts)}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer disabled:opacity-50"
+              >
+                {claimingId === item.id
+                  ? "Toplanıyor..."
+                  : `Ödülü Topla (+${item.earnedPts}p)`}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-slate-800 mb-1">
@@ -326,11 +474,21 @@ export function MatchPredictionCard({
               İkbalspor Gol
             </label>
             <input
-              type="number"
-              min={0}
-              max={30}
-              value={homeScore}
-              onChange={(e) => setHomeScore(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              value={homeScoreInput}
+              onFocus={() => setHomeScoreInput("")}
+              onBlur={() => {
+                if (homeScoreInput.trim() === "") {
+                  setHomeScore(0);
+                  setHomeScoreInput("0");
+                }
+              }}
+              onChange={(e) => {
+                const { str, num } = normalizeScoreInput(e.target.value);
+                setHomeScoreInput(str);
+                setHomeScore(num);
+              }}
               className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[#02274c]"
             />
           </div>
@@ -340,29 +498,54 @@ export function MatchPredictionCard({
               Rakip Gol
             </label>
             <input
-              type="number"
-              min={0}
-              max={30}
-              value={awayScore}
-              onChange={(e) => setAwayScore(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              value={awayScoreInput}
+              onFocus={() => setAwayScoreInput("")}
+              onBlur={() => {
+                if (awayScoreInput.trim() === "") {
+                  setAwayScore(0);
+                  setAwayScoreInput("0");
+                }
+              }}
+              onChange={(e) => {
+                const { str, num } = normalizeScoreInput(e.target.value);
+                setAwayScoreInput(str);
+                setAwayScore(num);
+              }}
               className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[#02274c]"
             />
           </div>
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <label className="block text-xs font-bold text-slate-800">
-              Gol Atacak Oyuncu ({effectiveCategory} Kadrosu)
+              Gol Atacak Oyuncu ({showOtherAgePlayers ? "Tüm Kategoriler" : `${effectiveCategory} Kadrosu`})
             </label>
-            <span className="text-[11px] font-bold text-[#02274c]">
-              {filteredPlayers.length} oyuncu
-            </span>
+            <div className="flex items-center gap-2">
+              {otherPlayers.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowOtherAgePlayers((prev) => !prev)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border cursor-pointer ${
+                    showOtherAgePlayers
+                      ? "bg-[#02274c] text-white border-[#02274c]"
+                      : "bg-slate-100 text-[#02274c] border-slate-200 hover:bg-slate-200"
+                  }`}
+                >
+                  {showOtherAgePlayers ? "Yalnızca Maç Grubu" : "+ Diğer Yaş Grupları"}
+                </button>
+              )}
+              <span className="text-[11px] font-bold text-[#02274c]">
+                {selectableScorers.length} oyuncu
+              </span>
+            </div>
           </div>
 
-          {filteredPlayers.length > 0 ? (
+          {selectableScorers.length > 0 ? (
             <div className="flex flex-wrap gap-2">
-              {filteredPlayers.map((cand) => {
+              {selectableScorers.map((cand) => {
                 const mult = playerMultipliers.get(cand.id) ?? 1;
                 const isSelected = firstScorer === cand.full_name;
                 return (
@@ -379,6 +562,7 @@ export function MatchPredictionCard({
                     <span>
                       {cand.full_name}
                       {cand.jersey_number ? ` #${cand.jersey_number}` : ""}
+                      {showOtherAgePlayers ? ` (${cand.age_group})` : ""}
                     </span>
                     <span
                       className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${

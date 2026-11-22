@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { MatchPredictionCard } from "@/components/ikbal/MatchPredictionCard";
+import { PlayerCardSection } from "@/components/sporcu/PlayerCardSection";
 import { createClient } from "@/lib/supabase/client";
 import {
   Due,
