@@ -50,13 +50,11 @@ export function MatchGoalPredictionHub({
   const [players, setPlayers] = useState<SimplePlayer[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string>("");
 
-  // Kullanıcı gol tahmini state'i
   const [predictorId, setPredictorId] = useState<string>(currentPlayerId || "");
   const [predictedScorerId, setPredictedScorerId] = useState<string>("");
   const [predictions, setPredictions] = useState<GoalPredictionRecord[]>([]);
 
-  // Admin maç gol sonuçları state'i (her gol tek tek hangi oyuncu atmış)
-  const [goalScorerIds, setGoalScorerIds] = useState<string[]>([""]);
+  const [goalScorerIds, setGoalScorerIds] = useState<string[]>([]);
   const [playerGoalHistory, setPlayerGoalHistory] = useState<
     Record<string, number>
   >({});
@@ -65,10 +63,7 @@ export function MatchGoalPredictionHub({
   const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
-    if (currentPlayerId) setPredictorId(currentPlayerId);
-  }, [currentPlayerId]);
-
-  useEffect(() => {
+    let active = true;
     (async () => {
       const [mRes, pRes] = await Promise.all([
         supabase
@@ -82,6 +77,8 @@ export function MatchGoalPredictionHub({
           .order("full_name", { ascending: true }),
       ]);
 
+      if (!active) return;
+
       if (mRes.data && mRes.data.length > 0) {
         const list = mRes.data as MatchTask[];
         setMatches(list);
@@ -91,9 +88,7 @@ export function MatchGoalPredictionHub({
       if (pRes.data && pRes.data.length > 0) {
         const pList = pRes.data as SimplePlayer[];
         setPlayers(pList);
-        if (!predictorId) {
-          setPredictorId(currentPlayerId || pList[0].id);
-        }
+        setPredictorId((prev) => currentPlayerId || prev || pList[0].id);
 
         const initialHist: Record<string, number> = {};
         pList.forEach((pl) => {
@@ -102,14 +97,19 @@ export function MatchGoalPredictionHub({
         setPlayerGoalHistory(initialHist);
       }
     })();
-  }, [currentPlayerId, predictorId]);
+
+    return () => {
+      active = false;
+    };
+  }, [currentPlayerId]);
+
+  const effectivePredictorId = currentPlayerId || predictorId || players[0]?.id || "";
 
   const selectedMatch = useMemo(
     () => matches.find((m) => m.id === selectedMatchId) || null,
     [matches, selectedMatchId]
   );
 
-  // Seçilen maçın yaş grubundaki oyuncular (eşleşme yoksa tüm oyuncular)
   const groupPlayers = useMemo(() => {
     if (!selectedMatch) return players;
     const byGroup = players.filter(
@@ -120,26 +120,30 @@ export function MatchGoalPredictionHub({
     return byGroup.length > 0 ? byGroup : players;
   }, [players, selectedMatch]);
 
-  useEffect(() => {
-    if (groupPlayers.length > 0) {
-      setPredictedScorerId((prev) =>
-        groupPlayers.some((p) => p.id === prev) ? prev : groupPlayers[0].id
-      );
-      setGoalScorerIds((prev) =>
-        prev.length > 0 ? prev : [groupPlayers[0].id]
-      );
-    }
-  }, [groupPlayers]);
+  const effectivePredictedScorerId = useMemo(() => {
+    if (groupPlayers.length === 0) return "";
+    return groupPlayers.some((p) => p.id === predictedScorerId)
+      ? predictedScorerId
+      : groupPlayers[0].id;
+  }, [groupPlayers, predictedScorerId]);
+
+  const effectiveGoalScorerIds = useMemo(() => {
+    if (groupPlayers.length === 0) return goalScorerIds;
+    if (goalScorerIds.length === 0) return [groupPlayers[0].id];
+    return goalScorerIds.map((id) =>
+      groupPlayers.some((p) => p.id === id) ? id : groupPlayers[0].id
+    );
+  }, [groupPlayers, goalScorerIds]);
 
   function handleSavePrediction(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedMatch || !predictorId || !predictedScorerId) return;
+    if (!selectedMatch || !effectivePredictorId || !effectivePredictedScorerId) return;
 
     const record: GoalPredictionRecord = {
       id: `pred-${Date.now()}`,
       match_id: selectedMatch.id,
-      predictor_player_id: predictorId,
-      predicted_scorer_id: predictedScorerId,
+      predictor_player_id: effectivePredictorId,
+      predicted_scorer_id: effectivePredictedScorerId,
     };
 
     setPredictions((prev) => [
@@ -148,12 +152,12 @@ export function MatchGoalPredictionHub({
         (x) =>
           !(
             x.match_id === selectedMatch.id &&
-            x.predictor_player_id === predictorId
+            x.predictor_player_id === effectivePredictorId
           )
       ),
     ]);
     const scorerName =
-      players.find((p) => p.id === predictedScorerId)?.full_name || "Oyuncu";
+      players.find((p) => p.id === effectivePredictedScorerId)?.full_name || "Oyuncu";
     setStatusBanner(
       `✅ "${selectedMatch.title}" maçı için gol tahmininiz kaydedildi: ${scorerName}`
     );
@@ -161,25 +165,26 @@ export function MatchGoalPredictionHub({
 
   function addGoalSlot() {
     const defaultId = groupPlayers[0]?.id || "";
-    setGoalScorerIds((prev) => [...prev, defaultId]);
+    setGoalScorerIds([...effectiveGoalScorerIds, defaultId]);
   }
 
   function updateGoalSlot(index: number, playerId: string) {
-    setGoalScorerIds((prev) =>
-      prev.map((item, idx) => (idx === index ? playerId : item))
+    setGoalScorerIds(
+      effectiveGoalScorerIds.map((item, idx) => (idx === index ? playerId : item))
     );
   }
 
   function removeGoalSlot(index: number) {
-    setGoalScorerIds((prev) =>
-      prev.length <= 1 ? prev : prev.filter((_, idx) => idx !== index)
+    if (effectiveGoalScorerIds.length <= 1) return;
+    setGoalScorerIds(
+      effectiveGoalScorerIds.filter((_, idx) => idx !== index)
     );
   }
 
   async function handleFinalizeMatchGoals(e: React.FormEvent) {
     e.preventDefault();
     if (!selectedMatch) return;
-    const validScorers = goalScorerIds.filter(Boolean);
+    const validScorers = effectiveGoalScorerIds.filter(Boolean);
     if (validScorers.length === 0) return;
 
     setSaving(true);
@@ -187,7 +192,6 @@ export function MatchGoalPredictionHub({
       const scorerPointGainMap: Record<string, number> = {};
       const nextHistory: Record<string, number> = { ...playerGoalHistory };
 
-      // Her golü tek tek işleyerek 1-3 arası çarpan puanını hesapla
       for (const scorerId of validScorers) {
         const prevGoals = nextHistory[scorerId] || 0;
         const ptsForThisGoal = calculateGoalPointsForScorer(
@@ -202,11 +206,7 @@ export function MatchGoalPredictionHub({
 
       setPlayerGoalHistory(nextHistory);
 
-      // Gol atan kişiyi doğru bilen tahmincilere +1 puan ver
       const predictorBonusMap: Record<string, number> = {};
-      const matchPreds = predictions.filter(
-        (pr) => pr.match_id === selectedMatch.id
-      );
 
       const updatedPreds = predictions.map((pr) => {
         if (pr.match_id !== selectedMatch.id) return pr;
@@ -220,7 +220,6 @@ export function MatchGoalPredictionHub({
       });
       setPredictions(updatedPreds);
 
-      // Genel (overall) puanları güncelle (tüm kategoriler aynı potada)
       const updatedPlayers = await Promise.all(
         players.map(async (pl) => {
           const currentPts = Number(pl.skill_points ?? 20);
@@ -276,7 +275,6 @@ export function MatchGoalPredictionHub({
         </div>
       )}
 
-      {/* Maç Seçimi & Gol Tahmini Alanı */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <form
           onSubmit={handleSavePrediction}
@@ -309,7 +307,7 @@ export function MatchGoalPredictionHub({
                 Tahmin Yapan Kişi
               </label>
               <select
-                value={predictorId}
+                value={effectivePredictorId}
                 onChange={(e) => setPredictorId(e.target.value)}
                 className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold bg-white"
               >
@@ -327,7 +325,7 @@ export function MatchGoalPredictionHub({
               Bu Maçta Kim Gol Atar? ({selectedMatch?.age_group || "Grup"} Kadrosu)
             </label>
             <select
-              value={predictedScorerId}
+              value={effectivePredictedScorerId}
               onChange={(e) => setPredictedScorerId(e.target.value)}
               className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold text-[#02274c] bg-white"
             >
@@ -351,7 +349,6 @@ export function MatchGoalPredictionHub({
           </button>
         </form>
 
-        {/* Admin Gol Sonucu Giriş Paneli */}
         {isAdmin ? (
           <form
             onSubmit={handleFinalizeMatchGoals}
@@ -380,7 +377,7 @@ export function MatchGoalPredictionHub({
             </label>
 
             <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {goalScorerIds.map((scorerId, idx) => (
+              {effectiveGoalScorerIds.map((scorerId, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <span className="text-xs font-black text-[#a60513] w-14 shrink-0">
                     {idx + 1}. Gol
@@ -396,7 +393,7 @@ export function MatchGoalPredictionHub({
                       </option>
                     ))}
                   </select>
-                  {goalScorerIds.length > 1 && (
+                  {effectiveGoalScorerIds.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeGoalSlot(idx)}
@@ -427,22 +424,21 @@ export function MatchGoalPredictionHub({
               🏆 Genel (Overall) Puan Sistemi Nasıl Çalışır?
             </h3>
             <p className="text-xs text-slate-700 leading-relaxed">
-              • Maçtaki golcüyü doğru tahmin ettiğinizde <strong>+1 puan</strong> kazanırsınız.
+              - Maçtaki golcüyü doğru tahmin ettiğinizde <strong>+1 puan</strong> kazanırsınız.
             </p>
             <p className="text-xs text-slate-700 leading-relaxed">
-              • Golcü çarpanı <strong>1 ile 3 puan</strong> arasındadır; hiç gol atmayan bir oyuncu gol attığında <strong>3 puan</strong> kazandırır.
+              - Golcü çarpanı <strong>1 ile 3 puan</strong> arasındadır; hiç gol atmayan bir oyuncu gol attığında <strong>3 puan</strong> kazandırır.
             </p>
             <p className="text-xs text-slate-700 leading-relaxed">
-              • Kategoriler kendi içinde ayrılmadan <strong>U11 ile U17 ve diğer tüm kategoriler aynı genel sıralamada</strong> yarışır.
+              - Kategoriler kendi içinde ayrılmadan <strong>U11 ile U17 ve diğer tüm kategoriler aynı genel sıralamada</strong> yarışır.
             </p>
           </div>
         )}
       </div>
 
-      {/* Ortak Genel Sıralama & Podyum Kartları */}
       <LeaderboardPodium
         rankings={overallLeaderboard}
-        currentPlayerId={currentPlayerId || predictorId}
+        currentPlayerId={currentPlayerId || effectivePredictorId}
       />
     </div>
   );

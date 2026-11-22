@@ -42,37 +42,22 @@ export default function SquadBuilderPage() {
   const squadCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    let active = true;
     (async () => {
-      setLoading(true);
       const { data } = await supabase
         .from("players")
         .select(
           "id, player_code, full_name, age_group, birth_date, position, jersey_number, photo_url"
         )
         .order("jersey_number", { ascending: true });
+      if (!active) return;
       setAllPlayers((data as SquadPlayer[]) || []);
       setLoading(false);
     })();
+    return () => {
+      active = false;
+    };
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const raw = localStorage.getItem(`ikbal_squad_${selectedCategory}`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed.formation && FORMATIONS[parsed.formation]) {
-          setFormation(parsed.formation);
-        }
-        setSlots(parsed.slots || {});
-        setSquadNumbers(parsed.squadNumbers || {});
-        setTacticPlan(parsed.tacticPlan || TACTIC_PLANS[0]);
-        setTacticNote(parsed.tacticNote || "");
-      }
-    } catch {
-      // bozuk taslak varsa yoksay
-    }
-  }, [selectedCategory]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -89,10 +74,34 @@ export default function SquadBuilderPage() {
   }, [selectedCategory, formation, slots, squadNumbers, tacticPlan, tacticNote]);
 
   const handleCategoryChange = (cat: string) => {
-    setSlots({});
-    setSquadNumbers({});
     setQuotaWarning("");
     setSelectedCategory(cat);
+
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(`ikbal_squad_${cat}`);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          setFormation(
+            parsed.formation && FORMATIONS[parsed.formation]
+              ? parsed.formation
+              : "4-3-3"
+          );
+          setSlots(parsed.slots || {});
+          setSquadNumbers(parsed.squadNumbers || {});
+          setTacticPlan(parsed.tacticPlan || TACTIC_PLANS[0]);
+          setTacticNote(parsed.tacticNote || "");
+          return;
+        }
+      } catch {
+        // bozuk taslak varsa yoksay
+      }
+    }
+
+    setSlots({});
+    setSquadNumbers({});
+    setTacticPlan(TACTIC_PLANS[0]);
+    setTacticNote("");
   };
 
   const eligibleList = allPlayers
@@ -316,7 +325,6 @@ export default function SquadBuilderPage() {
     setTimeout(() => setCopiedBanner(false), 2500);
   };
 
-  // Kadro özet kartını Canvas üzerinden kurumsal PNG görseline dönüştürür
   const generateSquadPosterDataUrl = async (): Promise<string | null> => {
     setGeneratingImage(true);
     setShareStatus("");
@@ -334,7 +342,6 @@ export default function SquadBuilderPage() {
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 1080, 1350);
 
-      // Kulüp logosunu yüklemeye çalış
       const logoImg = new Image();
       logoImg.crossOrigin = "anonymous";
       logoImg.src = "/logo.png";
@@ -363,7 +370,6 @@ export default function SquadBuilderPage() {
         142
       );
 
-      // Taktik plan kutusu
       ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
       ctx.beginPath();
       ctx.roundRect(64, 192, 952, 110, 20);
@@ -378,7 +384,6 @@ export default function SquadBuilderPage() {
         ctx.fillText(`Not: ${tacticNote.trim().slice(0, 75)}`, 92, 274);
       }
 
-      // Kadro listesi
       ctx.fillStyle = "rgba(15, 23, 42, 0.45)";
       ctx.beginPath();
       ctx.roundRect(64, 330, 952, 880, 24);
@@ -439,7 +444,6 @@ export default function SquadBuilderPage() {
     }
   };
 
-  // Uygulama seçim ekranını açar (Web Share API + Seçenek Modalı)
   const handleOpenShareMenu = async () => {
     const url = await generateSquadPosterDataUrl();
     setShowShareModal(true);
@@ -495,7 +499,7 @@ export default function SquadBuilderPage() {
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Taktik Tahtası & Kadro Kur
+              Taktik Tahtası &amp; Kadro Kur
             </h1>
             <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
               Yaş grubunu seçin, oyuncuları sahaya sürükleyin veya listeye
@@ -517,7 +521,6 @@ export default function SquadBuilderPage() {
         ref={squadCardRef}
         className="max-w-7xl mx-auto px-4 pt-6 space-y-5"
       >
-        {/* Kategori / Yaş Grubu & Taktik Kontrol Paneli */}
         <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
@@ -528,7 +531,7 @@ export default function SquadBuilderPage() {
                 Aktif: {activeCategoryLabel}
               </span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-10 gap-2">
               {SQUAD_CATEGORIES.map((cat) => {
                 const active = selectedCategory === cat.key;
                 return (
@@ -685,7 +688,6 @@ export default function SquadBuilderPage() {
         )}
 
         <div className="grid lg:grid-cols-12 gap-6 items-start">
-          {/* Sol: Uygun Oyuncu Listesi */}
           <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-base font-black text-[#02274c]">
@@ -785,7 +787,6 @@ export default function SquadBuilderPage() {
             )}
           </div>
 
-          {/* Sağ: Çim Saha Taktik Tahtası */}
           <div className="lg:col-span-8">
             <PitchBoard
               selectedCategory={selectedCategory}
@@ -805,7 +806,6 @@ export default function SquadBuilderPage() {
         </div>
       </main>
 
-      {/* Uygulama & Görsel Paylaşım Seçim Penceresi */}
       {showShareModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
@@ -864,7 +864,7 @@ export default function SquadBuilderPage() {
                 onClick={() => downloadGeneratedImage()}
                 className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold text-center"
               >
-                📸 Instagram (Görseli İndir & Aç)
+                📸 Instagram (Görseli İndir &amp; Aç)
               </a>
 
               <button
@@ -875,7 +875,7 @@ export default function SquadBuilderPage() {
                 }}
                 className="px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#02274c] text-xs font-extrabold cursor-pointer text-center"
               >
-                📋 Metni Kopyala & Kapat
+                📋 Metni Kopyala &amp; Kapat
               </button>
             </div>
           </div>

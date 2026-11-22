@@ -37,18 +37,12 @@ export function QrAttendanceTab({
     new Date().toISOString().slice(0, 10)
   );
   const [qrSearch, setQrSearch] = useState("");
-  const [liveAttendance, setLiveAttendance] =
-    useState<PrayerAttendance[]>(attendance);
-  const [liveSessions, setLiveSessions] = useState<PrayerSession[]>(sessions);
+  const [localAttendanceDelta, setLocalAttendanceDelta] = useState<{
+    added: PrayerAttendance[];
+    removedKeys: string[];
+  }>({ added: [], removedKeys: [] });
+  const [closedSessionIds, setClosedSessionIds] = useState<string[]>([]);
   const [closingSession, setClosingSession] = useState(false);
-
-  useEffect(() => {
-    setLiveAttendance(attendance);
-  }, [attendance]);
-
-  useEffect(() => {
-    setLiveSessions(sessions);
-  }, [sessions]);
 
   useEffect(() => {
     const channel = supabase
@@ -56,33 +50,7 @@ export function QrAttendanceTab({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "prayer_attendance" },
-        (payload) => {
-          if (payload.eventType === "INSERT" && payload.new) {
-            const added = payload.new as PrayerAttendance;
-            setLiveAttendance((prev) => {
-              const exists = prev.some(
-                (item) =>
-                  item.id === added.id ||
-                  (item.session_id === added.session_id &&
-                    item.player_id === added.player_id)
-              );
-              return exists ? prev : [...prev, added];
-            });
-          } else if (payload.eventType === "DELETE" && payload.old) {
-            const removed = payload.old as Partial<PrayerAttendance>;
-            setLiveAttendance((prev) =>
-              prev.filter(
-                (item) =>
-                  item.id !== removed.id &&
-                  !(
-                    removed.session_id &&
-                    removed.player_id &&
-                    item.session_id === removed.session_id &&
-                    item.player_id === removed.player_id
-                  )
-              )
-            );
-          }
+        () => {
           onRefreshQr();
         }
       )
@@ -100,21 +68,46 @@ export function QrAttendanceTab({
     };
   }, [onRefreshQr]);
 
-  const activeSession = useMemo(
-    () => liveSessions.find((s) => s.is_active) || null,
-    [liveSessions]
+  const effectiveAttendance = useMemo(() => {
+    const removed = new Set(localAttendanceDelta.removedKeys);
+    const base = attendance.filter(
+      (a) => !removed.has(`${a.session_id}:${a.player_id}`)
+    );
+    const merged = [...base];
+    for (const item of localAttendanceDelta.added) {
+      const exists = merged.some(
+        (x) => x.session_id === item.session_id && x.player_id === item.player_id
+      );
+      if (!exists && !removed.has(`${item.session_id}:${item.player_id}`)) {
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [attendance, localAttendanceDelta]);
+
+  const effectiveSessions = useMemo(
+    () =>
+      sessions.map((s) =>
+        closedSessionIds.includes(s.id) ? { ...s, is_active: false } : s
+      ),
+    [sessions, closedSessionIds]
   );
 
-  const latestSession = activeSession || liveSessions[0] || null;
+  const activeSession = useMemo(
+    () => effectiveSessions.find((s) => s.is_active) || null,
+    [effectiveSessions]
+  );
+
+  const latestSession = activeSession || effectiveSessions[0] || null;
 
   const checkedInIds = useMemo(
     () =>
       new Set(
-        liveAttendance
+        effectiveAttendance
           .filter((a) => latestSession && a.session_id === latestSession.id)
           .map((a) => a.player_id)
       ),
-    [liveAttendance, latestSession]
+    [effectiveAttendance, latestSession]
   );
 
   async function createQrSession(e: React.FormEvent) {
@@ -169,6 +162,7 @@ export function QrAttendanceTab({
       localStorage.setItem("ikbal_last_qr_created_at", String(Date.now()));
     }
 
+    setClosedSessionIds([]);
     await onLogActivity(
       "QR Yoklama Başlatma",
       `${newSessionTitle} (${chosenDate})`
@@ -196,10 +190,8 @@ export function QrAttendanceTab({
       return;
     }
 
-    setLiveSessions((prev) =>
-      prev.map((s) =>
-        s.id === activeSession.id ? { ...s, is_active: false } : s
-      )
+    setClosedSessionIds((prev) =>
+      prev.includes(activeSession.id) ? prev : [...prev, activeSession.id]
     );
     await onLogActivity(
       "QR Yoklama Kapatma",
@@ -214,12 +206,16 @@ export function QrAttendanceTab({
     player: Player,
     isPresent: boolean
   ) {
+    const key = `${sessionId}:${player.id}`;
     if (isPresent) {
-      setLiveAttendance((prev) =>
-        prev.filter(
+      setLocalAttendanceDelta((prev) => ({
+        added: prev.added.filter(
           (a) => !(a.session_id === sessionId && a.player_id === player.id)
-        )
-      );
+        ),
+        removedKeys: prev.removedKeys.includes(key)
+          ? prev.removedKeys
+          : [...prev.removedKeys, key],
+      }));
       await supabase
         .from("prayer_attendance")
         .delete()
@@ -231,16 +227,18 @@ export function QrAttendanceTab({
       );
     } else {
       const nowIso = new Date().toISOString();
-      setLiveAttendance((prev) => [
-        ...prev,
-        {
-          id: `temp-${sessionId}-${player.id}`,
-          session_id: sessionId,
-          player_id: player.id,
-          created_at: nowIso,
-          checked_in_at: nowIso,
-        } as PrayerAttendance,
-      ]);
+      setLocalAttendanceDelta((prev) => ({
+        added: [
+          ...prev.added,
+          {
+            id: `temp-${sessionId}-${player.id}`,
+            session_id: sessionId,
+            player_id: player.id,
+            checked_in_at: nowIso,
+          },
+        ],
+        removedKeys: prev.removedKeys.filter((k) => k !== key),
+      }));
       await supabase
         .from("prayer_attendance")
         .insert({ session_id: sessionId, player_id: player.id });

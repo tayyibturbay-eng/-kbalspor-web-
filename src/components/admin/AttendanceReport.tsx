@@ -36,7 +36,6 @@ export function AttendanceReport({
   const [loading, setLoading] = useState(true);
 
   const loadReport = async () => {
-    setLoading(true);
     const supabase = createClient();
     const [sRes, aRes, pRes] = await Promise.all([
       supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
@@ -50,7 +49,23 @@ export function AttendanceReport({
   };
 
   useEffect(() => {
-    loadReport();
+    let active = true;
+    (async () => {
+      const supabase = createClient();
+      const [sRes, aRes, pRes] = await Promise.all([
+        supabase.from("prayer_sessions").select("*").order("session_date", { ascending: false }),
+        supabase.from("prayer_attendance").select("*"),
+        supabase.from("players").select("id, full_name, age_group").order("full_name"),
+      ]);
+      if (!active) return;
+      if (sRes.data) setSessions(sRes.data as SessionRow[]);
+      if (aRes.data) setAttendance(aRes.data as AttendanceRow[]);
+      if (pRes.data) setPlayers(pRes.data as PlayerRow[]);
+      setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function handleDeleteSession(sess: SessionRow) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   AGE_GROUPS,
@@ -71,12 +71,10 @@ export function StockAndGiveSection({
   setLogs,
   onStatus,
 }: StockAndGiveSectionProps) {
-  // Birleşik Ekleme Alanı (Forma Takımı veya Yeni Malzeme Stok)
   const [createType, setCreateType] = useState<"forma_takimi" | "malzeme_stok">(
     "forma_takimi"
   );
 
-  // Forma Takımı Oluşturma alanları
   const [setName, setSetName] = useState("");
   const [kitType, setKitType] = useState<JerseySet["kit_type"]>("Ev");
   const [setQty, setSetQty] = useState("20");
@@ -84,7 +82,6 @@ export function StockAndGiveSection({
   const [gkDefault1And12, setGkDefault1And12] = useState(true);
   const [setPhotoFile, setSetPhotoFile] = useState<File | null>(null);
 
-  // Yeni Malzeme Stok alanları + Opsiyonel Numara Ekle
   const [prodName, setProdName] = useState("");
   const [prodCat, setProdCat] = useState("Dış Giyim");
   const [prodCount, setProdCount] = useState("20");
@@ -96,7 +93,6 @@ export function StockAndGiveSection({
 
   const [editingStock, setEditingStock] = useState<StockItem | null>(null);
 
-  // Hızlı bulma: kategori + oyuncu arama
   const [playerCategoryFilter, setPlayerCategoryFilter] = useState<string>("Tümü");
   const [playerQuery, setPlayerQuery] = useState<string>("");
 
@@ -118,22 +114,25 @@ export function StockAndGiveSection({
     });
   }, [players, playerCategoryFilter, playerQuery]);
 
-  useEffect(() => {
-    if (filteredPlayers.length === 0) return;
-    const stillExists = filteredPlayers.some((p) => p.id === selPlayer);
-    if (!stillExists) {
-      setSelPlayer(filteredPlayers[0].id);
-    }
+  const effectivePlayerId = useMemo(() => {
+    if (filteredPlayers.length === 0) return "";
+    return filteredPlayers.some((p) => p.id === selPlayer)
+      ? selPlayer
+      : filteredPlayers[0].id;
   }, [filteredPlayers, selPlayer]);
 
-  useEffect(() => {
-    if (jerseySets.length > 0 && !selJerseySet)
-      setSelJerseySet(jerseySets[0].id);
+  const effectiveJerseySetId = useMemo(() => {
+    if (jerseySets.length === 0) return "";
+    return jerseySets.some((j) => j.id === selJerseySet)
+      ? selJerseySet
+      : jerseySets[0].id;
   }, [jerseySets, selJerseySet]);
 
-  useEffect(() => {
-    if (stockItems.length > 0 && !selStockName)
-      setSelStockName(stockItems[0].product_name);
+  const effectiveStockName = useMemo(() => {
+    if (stockItems.length === 0) return selStockName;
+    return stockItems.some((s) => s.product_name === selStockName)
+      ? selStockName
+      : stockItems[0].product_name;
   }, [stockItems, selStockName]);
 
   async function handleUnifiedCreate(e: React.FormEvent) {
@@ -274,7 +273,7 @@ export function StockAndGiveSection({
   }
 
   async function handleMarkStockMissing(stockItem: StockItem) {
-    const targetPlayerId = selPlayer || players[0]?.id;
+    const targetPlayerId = effectivePlayerId || players[0]?.id;
     if (!targetPlayerId) {
       onStatus("Eksik/kayıp kaydı için önce en az 1 sporcu kaydı bulunmalıdır.");
       return;
@@ -306,15 +305,15 @@ export function StockAndGiveSection({
 
   async function handleGiveItem(e: React.FormEvent) {
     e.preventDefault();
-    if (!selPlayer) return;
-    const chosenSet = jerseySets.find((j) => j.id === selJerseySet);
+    if (!effectivePlayerId) return;
+    const chosenSet = jerseySets.find((j) => j.id === effectiveJerseySetId);
     const parsedNum = jerseyNo.trim() ? Number(jerseyNo.trim()) : null;
 
-    if (giveMode === "forma" && selJerseySet && parsedNum) {
+    if (giveMode === "forma" && effectiveJerseySetId && parsedNum) {
       const existingHolderLog = logs.find(
         (l) =>
           l.status === "teslim_edildi" &&
-          l.jersey_set_id === selJerseySet &&
+          l.jersey_set_id === effectiveJerseySetId &&
           l.jersey_number_given === parsedNum
       );
       if (existingHolderLog) {
@@ -334,8 +333,8 @@ export function StockAndGiveSection({
     const payload =
       giveMode === "forma"
         ? {
-            player_id: selPlayer,
-            jersey_set_id: selJerseySet || null,
+            player_id: effectivePlayerId,
+            jersey_set_id: effectiveJerseySetId || null,
             item_name: chosenSet
               ? `${chosenSet.set_name} (${chosenSet.kit_type}) [${handoverLabel}]`
               : `Forma [${handoverLabel}]`,
@@ -345,9 +344,9 @@ export function StockAndGiveSection({
             status: "teslim_edildi",
           }
         : {
-            player_id: selPlayer,
+            player_id: effectivePlayerId,
             jersey_set_id: null,
-            item_name: `${selStockName}${
+            item_name: `${effectiveStockName}${
               parsedNum ? ` #${parsedNum}` : ""
             } [${handoverLabel}]`,
             item_size: itemSize.trim() || "M",
@@ -372,7 +371,7 @@ export function StockAndGiveSection({
 
       if (giveMode === "malzeme") {
         const targetStock = stockItems.find(
-          (s) => s.product_name === selStockName
+          (s) => s.product_name === effectiveStockName
         );
         if (targetStock && targetStock.stock_count > 0) {
           const nextCount = targetStock.stock_count - 1;
@@ -393,14 +392,13 @@ export function StockAndGiveSection({
     }
   }
 
-  const selectedSetObj = jerseySets.find((j) => j.id === selJerseySet);
+  const selectedSetObj = jerseySets.find((j) => j.id === effectiveJerseySetId);
   const selectedSetPieces = Array.isArray(selectedSetObj?.items)
     ? selectedSetObj.items
     : [];
 
   return (
     <div className="space-y-6 text-slate-900">
-      {/* 1. EN ÜSTTE: Hızlı Forma / Malzeme Teslim Et */}
       <form
         onSubmit={handleGiveItem}
         className="bg-white rounded-2xl border-2 border-[#02274c]/25 p-6 space-y-4 shadow-xs"
@@ -460,7 +458,7 @@ export function StockAndGiveSection({
 
         <div className="grid sm:grid-cols-6 gap-3">
           <select
-            value={selPlayer}
+            value={effectivePlayerId}
             onChange={(e) => setSelPlayer(e.target.value)}
             className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
           >
@@ -488,7 +486,7 @@ export function StockAndGiveSection({
 
           {giveMode === "forma" ? (
             <select
-              value={selJerseySet}
+              value={effectiveJerseySetId}
               onChange={(e) => setSelJerseySet(e.target.value)}
               className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
             >
@@ -500,7 +498,7 @@ export function StockAndGiveSection({
             </select>
           ) : (
             <select
-              value={selStockName}
+              value={effectiveStockName}
               onChange={(e) => setSelStockName(e.target.value)}
               className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
             >
@@ -530,7 +528,7 @@ export function StockAndGiveSection({
                 const assignedLog = logs.find(
                   (l) =>
                     l.status === "teslim_edildi" &&
-                    l.jersey_set_id === selJerseySet &&
+                    l.jersey_set_id === effectiveJerseySetId &&
                     l.jersey_number_given === piece.number
                 );
                 const holder = assignedLog
@@ -584,7 +582,6 @@ export function StockAndGiveSection({
         </button>
       </form>
 
-      {/* 2. BİRLEŞİK EKLEME ALANI: Forma Takımı Oluştur / Yeni Malzeme Stok */}
       <form
         onSubmit={handleUnifiedCreate}
         className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
@@ -853,7 +850,6 @@ export function StockAndGiveSection({
         </form>
       )}
 
-      {/* Stok Kartları */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {stockItems.map((s) => (
           <div

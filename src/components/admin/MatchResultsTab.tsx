@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Player, TaskAssignment } from "@/types/club";
 
@@ -98,15 +98,11 @@ export function MatchResultsTab({
     return players.filter((p) => combinedIds.has(p.id));
   }, [activeMatch, players, extraSquadIds, goalEvents]);
 
-  useEffect(() => {
-    if (matchPlayers.length === 0) {
-      setSelectedScorerId("");
-      return;
-    }
-    const existsInMatch = matchPlayers.some((p) => p.id === selectedScorerId);
-    if (!existsInMatch) {
-      setSelectedScorerId(matchPlayers[0].id);
-    }
+  const effectiveScorerId = useMemo(() => {
+    if (matchPlayers.length === 0) return "";
+    return matchPlayers.some((p) => p.id === selectedScorerId)
+      ? selectedScorerId
+      : matchPlayers[0].id;
   }, [matchPlayers, selectedScorerId]);
 
   const searchedOutsidePlayers = useMemo(() => {
@@ -155,8 +151,8 @@ export function MatchResultsTab({
   }
 
   function addScorerToList() {
-    if (!selectedScorerId || scorerGoalCount < 1) return;
-    const foundPlayer = players.find((p) => p.id === selectedScorerId);
+    if (!effectiveScorerId || scorerGoalCount < 1) return;
+    const foundPlayer = players.find((p) => p.id === effectiveScorerId);
     if (!foundPlayer) return;
 
     setGoalEvents((prev) => {
@@ -423,7 +419,7 @@ export function MatchResultsTab({
 
         <div className="flex flex-col sm:flex-row gap-2.5">
           <select
-            value={selectedScorerId}
+            value={effectiveScorerId}
             onChange={(e) => setSelectedScorerId(e.target.value)}
             className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
           >

@@ -71,13 +71,11 @@ export default function GorevlerPage() {
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("Tümü");
   const [loading, setLoading] = useState(true);
-  const [todayStr, setTodayStr] = useState("");
+  const todayStr = getLocalTodayStr();
 
   useEffect(() => {
-    setTodayStr(getLocalTodayStr());
-
+    let active = true;
     (async () => {
-      setLoading(true);
       const [trRes, taskRes] = await Promise.all([
         supabase
           .from("trainings")
@@ -88,10 +86,14 @@ export default function GorevlerPage() {
           .select("*")
           .order("event_date", { ascending: true }),
       ]);
+      if (!active) return;
       if (trRes.data) setTrainings(trRes.data as Training[]);
       if (taskRes.data) setTasks(taskRes.data as TaskAssignment[]);
       setLoading(false);
     })();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const { filteredTrainings, pastTrainings } = useMemo(() => {
@@ -170,7 +172,7 @@ export default function GorevlerPage() {
               Kulüp Programı
             </span>
             <h1 className="text-2xl sm:text-3xl font-black">
-              Antrenman Saatleri & Maç Takvimi
+              Antrenman Saatleri &amp; Maç Takvimi
             </h1>
             <p className="text-sm text-slate-200 max-w-2xl">
               Kulübümüze yeni katılmak isteyen sporcular ve veliler, yaş
@@ -268,7 +270,7 @@ export default function GorevlerPage() {
 
         <section className="space-y-4">
           <h2 className="text-xl font-black text-[#a60513]">
-            Yaklaşan Maçlar & Etkinlikler ({upcomingTasks.length})
+            Yaklaşan Maçlar &amp; Etkinlikler ({upcomingTasks.length})
           </h2>
 
           {upcomingTasks.length === 0 ? (
@@ -322,7 +324,7 @@ export default function GorevlerPage() {
         {(pastTasks.length > 0 || pastTrainings.length > 0) && (
           <section className="space-y-3 opacity-85">
             <h3 className="text-base font-extrabold text-slate-700">
-              Geçmiş Etkinlikler, Antrenmanlar & Maçlar (
+              Geçmiş Etkinlikler, Antrenmanlar &amp; Maçlar (
               {pastTasks.length + pastTrainings.length})
             </h3>
             <div className="grid sm:grid-cols-2 gap-3">

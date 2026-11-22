@@ -33,7 +33,12 @@ function isUpcomingEvent(item: TaskItem): boolean {
     const [hh, mm] = timePart.split(":").map((n) => parseInt(n, 10));
     const eventDt = new Date(`${datePart}T00:00:00`);
     if (Number.isNaN(eventDt.getTime())) return false;
-    eventDt.setHours(Number.isNaN(hh) ? 23 : hh, Number.isNaN(mm) ? 59 : mm, 59, 999);
+    eventDt.setHours(
+      Number.isNaN(hh) ? 23 : hh,
+      Number.isNaN(mm) ? 59 : mm,
+      59,
+      999
+    );
     return eventDt.getTime() >= Date.now();
   }
 
@@ -51,11 +56,11 @@ function buildMapsUrl(location?: string | null): string {
 
 export default function IkbalHomePage() {
   const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
-  const [currentYear, setCurrentYear] = useState(2026);
   const [showRegModal, setShowRegModal] = useState(false);
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    setCurrentYear(new Date().getFullYear());
+    let active = true;
     const todayStr = new Date().toISOString().slice(0, 10);
 
     (async () => {
@@ -68,11 +73,15 @@ export default function IkbalHomePage() {
         .gte("event_date", todayStr)
         .order("event_date", { ascending: true })
         .limit(12);
-      if (data) {
+      if (active && data) {
         const filtered = (data as TaskItem[]).filter(isUpcomingEvent);
         setUpcoming(filtered.slice(0, 4));
       }
     })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   return (

@@ -11,6 +11,13 @@ import {
 
 const supabase = createClient();
 
+function generatePlayerCode(): string {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  const num = 1000 + (arr[0] % 9000);
+  return `IKB-${num}`;
+}
+
 interface RequestsTabProps {
   requests: MembershipRequest[];
   onFeedback: (msg: string) => void;
@@ -27,7 +34,7 @@ export function RequestsTab({
   const [requestPositions, setRequestPositions] = useState<Record<string, string>>({});
 
   async function approveRequest(req: MembershipRequest) {
-    const code = `IKB-${Math.floor(1000 + Math.random() * 9000)}`;
+    const code = generatePlayerCode();
     const pin = defaultPinFromPhone(req.parent_phone);
     const group = req.birth_date
       ? calcAgeGroupFromBirthDate(req.birth_date)

@@ -63,11 +63,23 @@ function getPointsValue(entry: { skill_points?: number | null }): number {
   return Number(entry.skill_points ?? 20);
 }
 
+function getInitialSporcuTab(): SporcuTab {
+  if (typeof window === "undefined") return "qr";
+  try {
+    const savedTab = localStorage.getItem(SPORCU_TAB_KEY) as SporcuTab | null;
+    if (savedTab && VALID_SPORCU_TABS.includes(savedTab)) {
+      return savedTab;
+    }
+  } catch {
+    // yoksay
+  }
+  return "qr";
+}
+
 export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [restoringSession, setRestoringSession] = useState<boolean>(true);
-  const [tab, setTab] = useState<SporcuTab>("qr");
-  const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
+  const [tab, setTab] = useState<SporcuTab>(() => getInitialSporcuTab());
 
   const [dues, setDues] = useState<Due[]>([]);
   const [defaultFee, setDefaultFee] = useState<number>(500);
@@ -81,68 +93,15 @@ export default function SporcuPortalPage() {
   const [jerseySets, setJerseySets] = useState<JerseySetMini[]>([]);
   const [stockItems, setStockItems] = useState<StockItemMini[]>([]);
 
+  const now = new Date();
+  const currentIdx = now.getFullYear() * 12 + now.getMonth();
+
   function handleTabChange(nextTab: SporcuTab) {
     setTab(nextTab);
     try {
       localStorage.setItem(SPORCU_TAB_KEY, nextTab);
     } catch {
       // yoksay
-    }
-  }
-
-  useEffect(() => {
-    const now = new Date();
-    setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
-
-    try {
-      const savedTab = localStorage.getItem(SPORCU_TAB_KEY) as SporcuTab | null;
-      if (savedTab && VALID_SPORCU_TABS.includes(savedTab)) {
-        setTab(savedTab);
-      }
-    } catch {
-      // yoksay
-    }
-
-    const savedId = localStorage.getItem("ikbal_logged_player_id");
-    if (savedId) {
-      restoreSession(savedId);
-    } else {
-      setRestoringSession(false);
-    }
-  }, []);
-
-  async function restoreSession(playerId: string) {
-    setRestoringSession(true);
-    try {
-      const { data, error } = await supabase
-        .from("players")
-        .select("*")
-        .eq("id", playerId)
-        .maybeSingle();
-
-      if (error) {
-        // Geçici ağ/sunucu hatasında oturumu silmeden ekranda kal
-        return;
-      }
-
-      if (!data) {
-        localStorage.removeItem("ikbal_logged_player_id");
-        window.dispatchEvent(new Event("ikbal-auth-changed"));
-        return;
-      }
-
-      const p = data as Player;
-      const deviceId = getOrCreateWebDeviceId();
-      if (p.bound_device_id && p.bound_device_id !== deviceId) {
-        localStorage.removeItem("ikbal_logged_player_id");
-        window.dispatchEvent(new Event("ikbal-auth-changed"));
-        return;
-      }
-
-      setPlayer(p);
-      await loadPlayerData(p);
-    } finally {
-      setRestoringSession(false);
     }
   }
 
@@ -234,6 +193,59 @@ export default function SporcuPortalPage() {
       if (allP) setTeamPlayers(allP as Player[]);
     }
   }
+
+  useEffect(() => {
+    let active = true;
+    const savedId =
+      typeof window !== "undefined"
+        ? localStorage.getItem("ikbal_logged_player_id")
+        : null;
+
+    if (!savedId) {
+      Promise.resolve().then(() => {
+        if (active) setRestoringSession(false);
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("players")
+          .select("*")
+          .eq("id", savedId)
+          .maybeSingle();
+
+        if (!active) return;
+        if (error) return;
+
+        if (!data) {
+          localStorage.removeItem("ikbal_logged_player_id");
+          window.dispatchEvent(new Event("ikbal-auth-changed"));
+          return;
+        }
+
+        const p = data as Player;
+        const deviceId = getOrCreateWebDeviceId();
+        if (p.bound_device_id && p.bound_device_id !== deviceId) {
+          localStorage.removeItem("ikbal_logged_player_id");
+          window.dispatchEvent(new Event("ikbal-auth-changed"));
+          return;
+        }
+
+        setPlayer(p);
+        await loadPlayerData(p);
+      } finally {
+        if (active) setRestoringSession(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const dueItems: DueDisplayItem[] = useMemo(() => {
     const kasim2026Idx = 2026 * 12 + 10;

@@ -33,6 +33,19 @@ type AuthSession =
 
 const SESSION_CACHE_KEY = "ikbal_navbar_session_v1";
 
+function getCachedSession(): AuthSession {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached) as AuthSession;
+    }
+  } catch {
+    // yoksay
+  }
+  return null;
+}
+
 function isNotificationForGroup(
   targetGroup: string | null | undefined,
   playerAgeGroup: string | null | undefined,
@@ -46,29 +59,49 @@ function isNotificationForGroup(
   return false;
 }
 
+function NotificationButton({
+  unreadCount,
+  compact = false,
+}: {
+  unreadCount: number;
+  compact?: boolean;
+}) {
+  return (
+    <Link
+      href="/bildirimler"
+      aria-label="Bildirimler"
+      title={
+        unreadCount > 0
+          ? `${unreadCount} görülmemiş bildirim`
+          : "Bildirimler"
+      }
+      className={`relative shrink-0 inline-flex items-center justify-center rounded-full font-black ${
+        unreadCount > 0
+          ? "bg-[#a60513] hover:bg-red-700 text-white ring-2 ring-amber-300/80"
+          : "bg-white/15 hover:bg-white/25 text-amber-300 border border-white/25"
+      } ${compact ? "w-9 h-9 text-sm" : "w-10 h-10 text-base"}`}
+    >
+      <span>!</span>
+      {unreadCount > 0 && (
+        <span className="-top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center shadow">
+          {unreadCount}
+        </span>
+      )}
+    </Link>
+  );
+}
+
 export function Navbar() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-  const [session, setSession] = useState<AuthSession>(null);
+  const [menuOpenForPath, setMenuOpenForPath] = useState<string | null>(null);
+  const [session, setSession] = useState<AuthSession>(() => getCachedSession());
   const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  const open = menuOpenForPath === pathname;
 
   useEffect(() => {
     let active = true;
     const supabase = createClient();
-
-    // İlk anda önbellekten anında okuyarak sayfa geçişinde bekleme oluşturma
-    try {
-      const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
-      if (cached) {
-        setSession(JSON.parse(cached) as AuthSession);
-      }
-    } catch {
-      // yoksay
-    }
 
     async function checkPlayer(): Promise<AuthSession> {
       const playerId = localStorage.getItem("ikbal_logged_player_id");
@@ -201,30 +234,6 @@ export function Navbar() {
 
   const firstName = session?.name.split(" ")[0] || "";
 
-  const NotificationAlertButton = ({ compact = false }: { compact?: boolean }) => (
-    <Link
-      href="/bildirimler"
-      aria-label="Bildirimler"
-      title={
-        unreadCount > 0
-          ? `${unreadCount} görülmemiş bildirim`
-          : "Bildirimler"
-      }
-      className={`relative shrink-0 inline-flex items-center justify-center rounded-full font-black ${
-        unreadCount > 0
-          ? "bg-[#a60513] hover:bg-red-700 text-white ring-2 ring-amber-300/80"
-          : "bg-white/15 hover:bg-white/25 text-amber-300 border border-white/25"
-      } ${compact ? "w-9 h-9 text-sm" : "w-10 h-10 text-base"}`}
-    >
-      <span>!</span>
-      {unreadCount > 0 && (
-        <span className="-top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center shadow">
-          {unreadCount}
-        </span>
-      )}
-    </Link>
-  );
-
   return (
     <>
       <header className="sticky top-0 z-40 w-full max-w-full bg-[#02274c] text-white border-b-4 border-[#a60513] shadow-sm">
@@ -297,7 +306,7 @@ export function Navbar() {
                   </span>
                 </Link>
 
-                <NotificationAlertButton />
+                <NotificationButton unreadCount={unreadCount} />
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -313,16 +322,20 @@ export function Navbar() {
                 >
                   Yönetim Paneli
                 </Link>
-                <NotificationAlertButton />
+                <NotificationButton unreadCount={unreadCount} />
               </div>
             )}
           </div>
 
           <div className="lg:hidden flex items-center gap-1.5 shrink-0">
-            <NotificationAlertButton compact />
+            <NotificationButton unreadCount={unreadCount} compact />
             <button
               type="button"
-              onClick={() => setOpen((p) => !p)}
+              onClick={() =>
+                setMenuOpenForPath((prev) =>
+                  prev === pathname ? null : pathname
+                )
+              }
               className="px-3 py-2 rounded-xl bg-white/10 font-bold text-xs sm:text-sm whitespace-nowrap"
             >
               {open ? "Kapat ✕" : "Menü ☰"}
@@ -336,7 +349,7 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={() => setMenuOpenForPath(null)}
                 className={`block px-4 py-2.5 rounded-xl font-bold text-sm ${
                   pathname === item.href
                     ? "bg-[#a60513] text-white"
@@ -351,7 +364,7 @@ export function Navbar() {
               <div className="flex items-center gap-2 mt-2">
                 <Link
                   href={session.href}
-                  onClick={() => setOpen(false)}
+                  onClick={() => setMenuOpenForPath(null)}
                   className="flex-1 flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#a60513] text-white font-extrabold text-sm"
                 >
                   {session.photoUrl ? (
@@ -369,20 +382,20 @@ export function Navbar() {
                       : "Yönetim Paneline Git"}
                   </span>
                 </Link>
-                <NotificationAlertButton compact />
+                <NotificationButton unreadCount={unreadCount} compact />
               </div>
             ) : (
               <>
                 <Link
                   href="/sporcu"
-                  onClick={() => setOpen(false)}
+                  onClick={() => setMenuOpenForPath(null)}
                   className="block px-4 py-2.5 rounded-xl bg-[#a60513] text-white font-extrabold text-sm text-center mt-2"
                 >
                   Sporcu Girişi
                 </Link>
                 <Link
                   href="/admin"
-                  onClick={() => setOpen(false)}
+                  onClick={() => setMenuOpenForPath(null)}
                   className="block px-4 py-2.5 rounded-xl bg-white text-[#02274c] font-extrabold text-sm text-center"
                 >
                   Yönetim Paneli
