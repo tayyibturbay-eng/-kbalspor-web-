@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -96,6 +96,22 @@ export default function IkbalHomePage() {
       <Navbar />
 
       <main className="flex-1 w-full max-w-full overflow-x-clip">
+      <div className="max-w-6xl mx-auto px-4 pt-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#a60513]">Android Mobil Uygulama</span>
+            <p className="text-sm font-extrabold text-[#02274c]">Çorum İkbalspor Güncel APK Sürümü Hazır</p>
+          </div>
+          <a
+            href="https://expo.dev/artifacts/eas/MdwkNzqnjFQbyV-GBGa7Mspm1yYETJdvHKlk7WOlee8.apk"
+            target="_blank"
+            rel="noreferrer"
+            className="px-4 py-2.5 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-xs font-extrabold"
+          >
+            📲 Android APK İndir
+          </a>
+        </div>
+      </div>
         {/* Hero */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">

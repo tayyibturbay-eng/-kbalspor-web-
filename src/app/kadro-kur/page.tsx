@@ -15,7 +15,10 @@ import { PitchBoard } from "@/components/kadro/PitchBoard";
 const supabase = createClient();
 
 export default function SquadBuilderPage() {
-  const [selectedCategory, setSelectedCategory] = useState(
+  
+  const [shareVisualMode, setShareVisualMode] = useState<"card" | "pitch">("card");
+  const [pitchImageUrl, setPitchImageUrl] = useState<string | null>(null);
+const [selectedCategory, setSelectedCategory] = useState(
     "Çorum Süper Amatör Ligi-U19"
   );
   const [formation, setFormation] = useState("4-3-3");
@@ -852,7 +855,7 @@ export default function SquadBuilderPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={downloadGeneratedImage}
+                onClick={() => { const activeUrl = shareVisualMode === "pitch" ? (pitchImageUrl || renderPitchFormationCanvas()) : generatedImageUrl; if (!activeUrl) return; const link = document.createElement("a"); link.href = activeUrl; link.download = shareVisualMode === "pitch" ? "ikbalspor-saha-dizilisi.png" : "ikbalspor-kadro.png"; link.click(); }}
                 className="px-4 py-3 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold cursor-pointer text-center"
               >
                 ⬇️ Görsel Olarak İndir (PNG)

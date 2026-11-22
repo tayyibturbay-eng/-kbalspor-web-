@@ -71,6 +71,36 @@ function calcPredictionPoints(
   return pts;
 }
 
+function formatMatchScheduleLabel(
+  eventDate?: string | null,
+  dueDate?: string | null,
+  matchTime?: string | null
+): string {
+  const rawDate = String(eventDate || dueDate || "").trim();
+  const rawTime = String(matchTime || "").trim();
+
+  let datePart = "";
+  const isoMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    datePart = `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}`;
+  } else if (rawDate) {
+    datePart = rawDate.slice(0, 10);
+  }
+
+  let timePart = "";
+  const explicitTime = rawTime.match(/(\d{1,2}):(\d{2})/);
+  if (explicitTime) {
+    timePart = `${explicitTime[1].padStart(2, "0")}:${explicitTime[2]}`;
+  } else {
+    const isoTime = rawDate.match(/T(\d{2}):(\d{2})/);
+    if (isoTime && !(isoTime[1] === "00" && isoTime[2] === "00")) {
+      timePart = `${isoTime[1]}:${isoTime[2]}`;
+    }
+  }
+
+  if (datePart && timePart) return `${datePart} • ${timePart}`;
+  return datePart || timePart;
+}
 function isMatchRecord(t: MatchTaskRow): boolean {
   const titleLower = (t.title || "").toLowerCase();
   return t.task_type === "mac" || titleLower.includes("maç") || titleLower.includes("mac");
@@ -457,7 +487,7 @@ export function MatchPredictionCard({
                 <option key={m.id} value={m.id} className="bg-white text-slate-900">
                   {m.title}
                   {m.age_group ? ` [${m.age_group}]` : ""}
-                  {m.event_date || m.due_date ? ` (${m.event_date || m.due_date})` : ""}
+                  {formatMatchScheduleLabel(m.event_date, m.due_date, m.match_time) ? ` (${formatMatchScheduleLabel(m.event_date, m.due_date, m.match_time)})` : ""}
                 </option>
               ))}
             </select>
