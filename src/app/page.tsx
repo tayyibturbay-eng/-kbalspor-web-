@@ -80,6 +80,25 @@ export default function IkbalHomePage() {
       <Navbar />
 
       <main className="flex-1 w-full max-w-full overflow-x-clip">
+        {/* Kurumsal Kulüp Üst Bandı */}
+        <div className="bg-[#011a33] text-slate-200 border-b border-white/10">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] sm:text-xs">
+            <div className="flex items-center gap-2 font-semibold tracking-wide">
+              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
+              <span>ÇORUM İKBALSPOR KULÜBÜ • KURUMSAL SPORTİF YAPI</span>
+            </div>
+            <div className="flex items-center gap-4 text-slate-300">
+              <a href="#hakkimizda" className="hover:text-white transition">
+                Hakkımızda
+              </a>
+              <span className="hidden sm:inline text-white/25">|</span>
+              <span className="hidden sm:inline font-medium text-red-200">
+                U11–U19 Altyapı &amp; A Takım
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Hero */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">
@@ -110,13 +129,13 @@ export default function IkbalHomePage() {
                   href="/kadro-kur"
                   className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center text-center shadow-lg transition"
                 >
-                  Kendi Kadronu Kur (U11–U19 & SAL)
+                  Kendi Kadronu Kur (U11–U19 &amp; SAL)
                 </Link>
                 <Link
                   href="/gorevler"
                   className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-xs sm:text-sm flex items-center justify-center text-center shadow-lg transition"
                 >
-                  Görevler & Maç Takvimi
+                  Görevler &amp; Maç Takvimi
                 </Link>
               </div>
             </div>
@@ -227,7 +246,7 @@ export default function IkbalHomePage() {
                     ÇORUM İKBALSPOR
                   </p>
                   <p className="text-[11px] text-slate-300 mt-1">
-                    Sporcu & Yönetim Portalı
+                    Sporcu &amp; Yönetim Portalı
                   </p>
                   <span className="mt-3 bg-[#a60513] text-white text-[10px] font-bold px-3 py-1 rounded-full">
                     Android Yayında
@@ -263,6 +282,98 @@ export default function IkbalHomePage() {
             >
               Başvuru Formunu Aç
             </button>
+          </div>
+        </section>
+
+        {/* Hakkımızda — Kurumsal Kulüp Kimliği */}
+        <section
+          id="hakkimizda"
+          aria-labelledby="hakkimizda-baslik"
+          className="max-w-6xl mx-auto px-4 sm:px-6 pt-2 pb-12"
+        >
+          <div className="rounded-3xl bg-white border border-slate-200/90 shadow-md overflow-hidden">
+            <div className="bg-gradient-to-r from-[#02274c] via-[#04376b] to-[#a60513] px-6 py-7 sm:px-10 sm:py-9 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div className="max-w-2xl space-y-2">
+                <span className="inline-block text-[11px] font-extrabold uppercase tracking-widest bg-white/15 border border-white/20 px-3 py-1 rounded-full">
+                  Hakkımızda • Kurumsal Kimlik
+                </span>
+                <h2
+                  id="hakkimizda-baslik"
+                  className="text-2xl sm:text-3xl font-black tracking-tight"
+                >
+                  Saha İçi Disiplin ve Kurumsal Kulüp Kültürü
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-100 leading-relaxed">
+                  Çorum İkbalspor; altyapıdan yetişen sporcuları çağdaş
+                  antrenman planlaması, takım ruhu ve kurumsal yönetim
+                  standartlarıyla buluşturarak Çorum futboluna kalıcı katkı
+                  sunan kulüptür.
+                </p>
+              </div>
+
+              <div className="shrink-0 flex items-center gap-3 bg-white/10 border border-white/20 rounded-2xl px-4 py-3">
+                <img
+                  src="/logo.png"
+                  alt="Çorum İkbalspor Arması"
+                  className="w-12 h-12 rounded-xl bg-white p-1.5 object-contain shrink-0"
+                />
+                <div className="text-left">
+                  <div className="text-xs font-extrabold uppercase tracking-wider text-red-200">
+                    Çorum • Türkiye
+                  </div>
+                  <div className="text-sm font-black text-white">
+                    Çorum İkbalspor
+                  </div>
+                  <div className="text-[11px] text-slate-200">
+                    Altyapı &amp; A Takım Organizasyonu
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-10 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-5 space-y-2">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-[#a60513]">
+                  01 • Altyapı Gelişimi
+                </div>
+                <h3 className="text-base font-extrabold text-[#02274c]">
+                  Yaş Gruplarına Göre Planlı Eğitim
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  U11&apos;den U19&apos;a kadar her kategoride teknik beceri,
+                  oyun görüşü ve fiziksel gelişimi kademeli ve ölçülebilir
+                  şekilde destekliyoruz.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-5 space-y-2">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-[#a60513]">
+                  02 • Karakter &amp; Sportmenlik
+                </div>
+                <h3 className="text-base font-extrabold text-[#02274c]">
+                  Sahada Saygı, Hayatta Disiplin
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Sporcularımızın yalnızca iyi birer futbolcu değil; sorumluluk
+                  sahibi, takım arkadaşına saygılı ve ahlaki değerleri güçlü
+                  bireyler olarak yetişmesini önemsiyoruz.
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-5 space-y-2">
+                <div className="text-xs font-extrabold uppercase tracking-wider text-[#a60513]">
+                  03 • Kurumsal İletişim
+                </div>
+                <h3 className="text-base font-extrabold text-[#02274c]">
+                  Şeffaf &amp; Düzenli Kulüp Operasyonu
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                  Maç programları, duyurular, aidat/malzeme süreçleri ve
+                  sporcu bilgilendirmelerini düzenli bir yapı ile sporcular ve
+                  ailelerle paylaşıyoruz.
+                </p>
+              </div>
+            </div>
           </div>
         </section>
       </main>
