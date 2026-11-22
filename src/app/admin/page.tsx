@@ -29,6 +29,7 @@ import { CoachesTab } from "@/components/admin/CoachesTab";
 import { ActivityLogsTab } from "@/components/admin/ActivityLogsTab";
 
 const supabase = createClient();
+const ADMIN_TAB_KEY = "ikbal_admin_tab";
 
 type AdminTab =
   | "oyuncular"
@@ -43,13 +44,40 @@ type AdminTab =
   | "antrenorler"
   | "islemler";
 
+const VALID_ADMIN_TABS: AdminTab[] = [
+  "oyuncular",
+  "talepler",
+  "antrenmanlar",
+  "aidat",
+  "envanter",
+  "gorevler",
+  "mac_sonucu",
+  "bildirim",
+  "namaz",
+  "antrenorler",
+  "islemler",
+];
+
+function getSavedAdminTab(): AdminTab | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const saved = localStorage.getItem(ADMIN_TAB_KEY) as AdminTab | null;
+    if (saved && VALID_ADMIN_TABS.includes(saved)) {
+      return saved;
+    }
+  } catch {
+    // yoksay
+  }
+  return null;
+}
+
 export default function AdminPage() {
   const [role, setRole] = useState<UserRole>("none");
   const [adminName, setAdminName] = useState("");
   const [activeCoach, setActiveCoach] = useState<Coach | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  const [tab, setTab] = useState<AdminTab>("oyuncular");
+  const [tab, setTabState] = useState<AdminTab>("oyuncular");
   const [feedback, setFeedback] = useState("");
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -63,30 +91,59 @@ export default function AdminPage() {
   const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [monthlyFee, setMonthlyFee] = useState("500");
 
+  function setTab(nextTab: AdminTab) {
+    setTabState(nextTab);
+    try {
+      localStorage.setItem(ADMIN_TAB_KEY, nextTab);
+    } catch {
+      // yoksay
+    }
+  }
+
   useEffect(() => {
+    let active = true;
+
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        setRole("admin");
-        setAdminName((data.session.user.user_metadata?.full_name as string) || "");
-        await loadAll();
-      } else {
-        const savedCoach =
-          typeof window !== "undefined" ? localStorage.getItem("ikbal_coach") : null;
-        if (savedCoach) {
-          try {
-            const parsedCoach = JSON.parse(savedCoach) as Coach;
-            setActiveCoach(parsedCoach);
-            setRole("coach");
-            setTab("antrenmanlar");
-            await loadAll();
-          } catch {
-            localStorage.removeItem("ikbal_coach");
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!active) return;
+
+        const savedTab = getSavedAdminTab();
+
+        if (data.session) {
+          setRole("admin");
+          setAdminName(
+            (data.session.user.user_metadata?.full_name as string) || ""
+          );
+          if (savedTab) {
+            setTabState(savedTab);
+          }
+          await loadAll();
+        } else {
+          const savedCoach =
+            typeof window !== "undefined"
+              ? localStorage.getItem("ikbal_coach")
+              : null;
+          if (savedCoach) {
+            try {
+              const parsedCoach = JSON.parse(savedCoach) as Coach;
+              setActiveCoach(parsedCoach);
+              setRole("coach");
+              setTabState(savedTab || "antrenmanlar");
+              await loadAll();
+            } catch {
+              localStorage.removeItem("ikbal_coach");
+            }
           }
         }
+      } finally {
+        if (active) setCheckingAuth(false);
       }
-      setCheckingAuth(false);
     })();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function refreshPlayers() {
@@ -126,7 +183,10 @@ export default function AdminPage() {
   }
 
   async function refreshCoaches() {
-    const { data } = await supabase.from("coaches").select("*").order("full_name");
+    const { data } = await supabase
+      .from("coaches")
+      .select("*")
+      .order("full_name");
     if (data) setCoaches(data);
   }
 
@@ -201,6 +261,11 @@ export default function AdminPage() {
   async function handleLogout() {
     await supabase.auth.signOut();
     localStorage.removeItem("ikbal_coach");
+    try {
+      localStorage.removeItem(ADMIN_TAB_KEY);
+    } catch {
+      // yoksay
+    }
     setRole("none");
     setAdminName("");
     setActiveCoach(null);
@@ -221,26 +286,31 @@ export default function AdminPage() {
         onAdminSuccess={async (name) => {
           setRole("admin");
           setAdminName(name);
-          setTab("oyuncular");
+          setTab(getSavedAdminTab() || "oyuncular");
           await loadAll();
         }}
         onCoachSuccess={async (coach) => {
           setActiveCoach(coach);
           setRole("coach");
-          setTab("antrenmanlar");
+          setTab(getSavedAdminTab() || "antrenmanlar");
           await loadAll();
         }}
       />
     );
   }
 
-  const pendingRequestsCount = requests.filter((r) => r.status === "bekliyor").length;
+  const pendingRequestsCount = requests.filter(
+    (r) => r.status === "bekliyor"
+  ).length;
 
   const availableTabs: Array<{ id: AdminTab; label: string }> =
     role === "admin"
       ? [
           { id: "oyuncular", label: `Oyuncular (${players.length})` },
-          { id: "talepler", label: `Üyelik Talepleri (${pendingRequestsCount})` },
+          {
+            id: "talepler",
+            label: `Üyelik Talepleri (${pendingRequestsCount})`,
+          },
           { id: "antrenmanlar", label: `Antrenmanlar (${trainings.length})` },
           { id: "aidat", label: "Aidatlar" },
           { id: "envanter", label: "Forma & Ekipman" },
@@ -436,7 +506,9 @@ export default function AdminPage() {
           />
         )}
 
-        {tab === "islemler" && role === "admin" && <ActivityLogsTab logs={logs} />}
+        {tab === "islemler" && role === "admin" && (
+          <ActivityLogsTab logs={logs} />
+        )}
       </div>
     </div>
   );

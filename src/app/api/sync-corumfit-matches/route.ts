@@ -1,14 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+function cleanEnvValue(raw?: string): string {
+  if (!raw) return "";
+  return raw.trim().replace(/^["']+|["']+$/g, "").trim();
+}
 
-  if (!url || !key) {
-    throw new Error("Supabase ortam değişkenleri (URL veya KEY) tanımlı değil.");
+function getSupabaseClient() {
+  const url =
+    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+    cleanEnvValue(process.env.SUPABASE_URL);
+  const key =
+    cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY) ||
+    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+    cleanEnvValue(process.env.SUPABASE_ANON_KEY);
+
+  if (!url || !/^https?:\/\//i.test(url)) {
+    throw new Error(
+      "Geçerli bir Supabase URL bulunamadı (NEXT_PUBLIC_SUPABASE_URL)."
+    );
+  }
+
+  if (!key) {
+    throw new Error("Supabase API anahtarı (SERVICE_ROLE veya ANON KEY) eksik.");
   }
 
   return createClient(url, key);
@@ -73,7 +87,6 @@ function parseStrictValidDate(rawDate: string, rawTime?: string | null): {
   if (year < currentYear - 1 || year > currentYear + 2) return null;
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
-  // Gerçek takvim günü kontrolü (ör. 31 Şubat veya 30 Nisan sonrası taşmayı engeller)
   const checkDate = new Date(year, month - 1, day);
   if (
     checkDate.getFullYear() !== year ||
@@ -143,7 +156,6 @@ function extractMatchesFromHtml(html: string) {
     const timeToken = /\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(joined)?.[0] || null;
     const parsed = parseStrictValidDate(dateToken, timeToken);
 
-    // Tarih geçersizse veya geçmiş tarih/saat ise ekleme
     if (!parsed) continue;
     if (parsed.eventTimestamp < nowTs) continue;
 

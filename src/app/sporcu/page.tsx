@@ -39,6 +39,14 @@ type LeaderboardPlayerEntry = {
 };
 
 const supabase = createClient();
+const SPORCU_TAB_KEY = "ikbal_sporcu_tab";
+const VALID_SPORCU_TABS: SporcuTab[] = [
+  "qr",
+  "program",
+  "malzemeler",
+  "aidat",
+  "profil",
+];
 
 function parseMonthIndex(label: string): number {
   const parts = label.trim().split(/\s+/);
@@ -57,6 +65,7 @@ function getPointsValue(entry: { skill_points?: number | null }): number {
 
 export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
+  const [restoringSession, setRestoringSession] = useState<boolean>(true);
   const [tab, setTab] = useState<SporcuTab>("qr");
   const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
 
@@ -72,36 +81,69 @@ export default function SporcuPortalPage() {
   const [jerseySets, setJerseySets] = useState<JerseySetMini[]>([]);
   const [stockItems, setStockItems] = useState<StockItemMini[]>([]);
 
+  function handleTabChange(nextTab: SporcuTab) {
+    setTab(nextTab);
+    try {
+      localStorage.setItem(SPORCU_TAB_KEY, nextTab);
+    } catch {
+      // yoksay
+    }
+  }
+
   useEffect(() => {
     const now = new Date();
     setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
 
+    try {
+      const savedTab = localStorage.getItem(SPORCU_TAB_KEY) as SporcuTab | null;
+      if (savedTab && VALID_SPORCU_TABS.includes(savedTab)) {
+        setTab(savedTab);
+      }
+    } catch {
+      // yoksay
+    }
+
     const savedId = localStorage.getItem("ikbal_logged_player_id");
     if (savedId) {
       restoreSession(savedId);
+    } else {
+      setRestoringSession(false);
     }
   }, []);
 
   async function restoreSession(playerId: string) {
-    const { data } = await supabase
-      .from("players")
-      .select("*")
-      .eq("id", playerId)
-      .maybeSingle();
-    if (!data) {
-      localStorage.removeItem("ikbal_logged_player_id");
-      window.dispatchEvent(new Event("ikbal-auth-changed"));
-      return;
+    setRestoringSession(true);
+    try {
+      const { data, error } = await supabase
+        .from("players")
+        .select("*")
+        .eq("id", playerId)
+        .maybeSingle();
+
+      if (error) {
+        // Geçici ağ/sunucu hatasında oturumu silmeden ekranda kal
+        return;
+      }
+
+      if (!data) {
+        localStorage.removeItem("ikbal_logged_player_id");
+        window.dispatchEvent(new Event("ikbal-auth-changed"));
+        return;
+      }
+
+      const p = data as Player;
+      const deviceId = getOrCreateWebDeviceId();
+      if (p.bound_device_id && p.bound_device_id !== deviceId) {
+        localStorage.removeItem("ikbal_logged_player_id");
+        window.dispatchEvent(new Event("ikbal-auth-changed"));
+        return;
+      }
+
+      setPlayer(p);
+      await loadPlayerData(p);
+    } finally {
+      setRestoringSession(false);
     }
-    const p = data as Player;
-    const deviceId = getOrCreateWebDeviceId();
-    if (p.bound_device_id && p.bound_device_id !== deviceId) {
-      localStorage.removeItem("ikbal_logged_player_id");
-      window.dispatchEvent(new Event("ikbal-auth-changed"));
-      return;
-    }
-    setPlayer(p);
-    await loadPlayerData(p);
   }
 
   async function loadPlayerData(p: Player) {
@@ -306,6 +348,7 @@ export default function SporcuPortalPage() {
 
   function handleLogout() {
     localStorage.removeItem("ikbal_logged_player_id");
+    localStorage.removeItem(SPORCU_TAB_KEY);
     window.dispatchEvent(new Event("ikbal-auth-changed"));
     setPlayer(null);
   }
@@ -315,7 +358,11 @@ export default function SporcuPortalPage() {
       <Navbar />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8">
-        {!player ? (
+        {restoringSession && !player ? (
+          <div className="py-16 text-center text-sm font-bold text-[#02274c]">
+            Sporcu oturumu yükleniyor...
+          </div>
+        ) : !player ? (
           <PlayerLogin
             onLoginSuccess={async (loggedPlayer) => {
               setPlayer(loggedPlayer);
@@ -327,7 +374,7 @@ export default function SporcuPortalPage() {
             <PlayerHeader
               player={player}
               tab={tab}
-              onTabChange={setTab}
+              onTabChange={handleTabChange}
               onLogout={handleLogout}
               totalSessionsCount={allSessions.length}
               attendanceRate={attendanceRate}
