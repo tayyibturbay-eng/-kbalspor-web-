@@ -1,32 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function cleanEnvValue(raw?: string): string {
-  if (!raw) return "";
-  return raw.trim().replace(/^["']+|["']+$/g, "").trim();
-}
-
-function getSupabaseClient() {
-  const url =
-    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_URL) ||
-    cleanEnvValue(process.env.SUPABASE_URL);
-  const key =
-    cleanEnvValue(process.env.SUPABASE_SERVICE_ROLE_KEY) ||
-    cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-    cleanEnvValue(process.env.SUPABASE_ANON_KEY);
-
-  if (!url || !/^https?:\/\//i.test(url)) {
-    throw new Error(
-      "Geçerli bir Supabase URL bulunamadı (NEXT_PUBLIC_SUPABASE_URL)."
-    );
-  }
-
-  if (!key) {
-    throw new Error("Supabase API anahtarı (SERVICE_ROLE veya ANON KEY) eksik.");
-  }
-
-  return createClient(url, key);
-}
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function decodeHtmlBuffer(buf: ArrayBuffer, contentType: string | null): string {
   const ct = (contentType || "").toLowerCase();
@@ -226,7 +199,7 @@ export async function POST(req: NextRequest) {
     }
 
     const upcomingMatches = extractMatchesFromHtml(htmlContent);
-    const supabase = getSupabaseClient();
+    const supabase = createServerSupabaseClient();
 
     const { data: existingRows } = await supabase
       .from("tasks_assignments")
