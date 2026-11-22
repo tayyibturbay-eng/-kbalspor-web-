@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const supabase = createClient();
@@ -77,7 +77,7 @@ export function MatchPredictionCard({
     return selectedMatch.trim();
   }, [selectedMatch, customMatchTitle]);
 
-  async function loadData() {
+  const fetchPredictionData = useCallback(async () => {
     const [taskRes, predRes] = await Promise.all([
       supabase
         .from("tasks_assignments")
@@ -92,8 +92,55 @@ export function MatchPredictionCard({
         .limit(40),
     ]);
 
-    if (taskRes.data) {
-      const groupMatches = (taskRes.data as MatchTaskRow[]).filter((t) => {
+    return {
+      taskData: (taskRes.data as MatchTaskRow[] | null) || null,
+      predData: (predRes.data as PredictionRow[] | null) || null,
+    };
+  }, [ageGroup]);
+
+  useEffect(() => {
+    if (!playerId || !ageGroup) return;
+    let active = true;
+
+    (async () => {
+      const { taskData, predData } = await fetchPredictionData();
+      if (!active) return;
+
+      if (taskData) {
+        const groupMatches = taskData.filter((t) => {
+          const groupOk = !t.age_group || t.age_group === ageGroup;
+          const isMatch =
+            t.task_type === "mac" ||
+            (t.title || "").toLowerCase().includes("maç");
+          return groupOk && isMatch;
+        });
+        setMatches(groupMatches);
+        setSelectedMatch((prev) => {
+          if (prev) return prev;
+          return groupMatches.length > 0 ? groupMatches[0].title : "__custom__";
+        });
+      }
+
+      if (predData) {
+        setPredictions(predData);
+        const mine = predData.find((r) => r.player_id === playerId);
+        if (mine) {
+          setHomeScore(mine.home_score);
+          setAwayScore(mine.away_score);
+          setFirstScorer(mine.first_scorer_name || "");
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [playerId, ageGroup, fetchPredictionData]);
+
+  async function refreshAfterSave() {
+    const { taskData, predData } = await fetchPredictionData();
+    if (taskData) {
+      const groupMatches = taskData.filter((t) => {
         const groupOk = !t.age_group || t.age_group === ageGroup;
         const isMatch =
           t.task_type === "mac" ||
@@ -101,30 +148,11 @@ export function MatchPredictionCard({
         return groupOk && isMatch;
       });
       setMatches(groupMatches);
-      if (groupMatches.length > 0 && !selectedMatch) {
-        setSelectedMatch(groupMatches[0].title);
-      } else if (groupMatches.length === 0 && !selectedMatch) {
-        setSelectedMatch("__custom__");
-      }
     }
-
-    if (predRes.data) {
-      const rows = predRes.data as PredictionRow[];
-      setPredictions(rows);
-      const mine = rows.find((r) => r.player_id === playerId);
-      if (mine) {
-        setHomeScore(mine.home_score);
-        setAwayScore(mine.away_score);
-        setFirstScorer(mine.first_scorer_name || "");
-      }
+    if (predData) {
+      setPredictions(predData);
     }
   }
-
-  useEffect(() => {
-    if (!playerId || !ageGroup) return;
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerId, ageGroup]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -158,7 +186,7 @@ export function MatchPredictionCard({
       ok: true,
       text: "Maç günü tahminin kaydedildi! (Doğru skor: +1/adet, Kazanan: +3, Tam tahmin: +5)",
     });
-    await loadData();
+    await refreshAfterSave();
   }
 
   const visiblePredictions = useMemo(() => {
@@ -175,7 +203,7 @@ export function MatchPredictionCard({
             {ageGroup} • Maç Günü Tahmini
           </span>
           <h2 className="text-lg font-extrabold text-[#02274c] mt-1">
-            Skor & İlk Gol Tahmini
+            Skor &amp; İlk Gol Tahmini
           </h2>
           <p className="text-xs font-medium text-slate-600 mt-0.5">
             Her doğru skor: +1 puan • Kazananı bilme: +3 puan • Tam doğru maç: +5 puan
