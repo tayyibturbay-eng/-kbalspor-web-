@@ -61,12 +61,7 @@ export function EquipmentLogsSection({
 
   async function sendClubAlert(player: MiniPlayer | undefined, text: string) {
     if (!player) return;
-    await supabase.from("club_messages").insert({
-      title: "⚠️ Malzeme İade Hatırlatması",
-      body: `${player.full_name}: ${text}`,
-      target_group: player.age_group,
-      sender_name: "Yönetim (Malzeme Takip)",
-    });
+    await supabase.from("club_messages").insert({ body: `${player.full_name}: ${text}`, message_text: `${player.full_name}: ${text}`, age_group: player.age_group, sender_name: "Yönetim (Malzeme Takip)", created_at: new Date().toISOString() });
     alert(`${player.full_name} için kulüp mesajı/bildirimi yayınlandı.`);
   }
 

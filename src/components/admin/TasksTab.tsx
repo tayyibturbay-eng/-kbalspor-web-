@@ -209,15 +209,7 @@ export function TasksTab({
     });
     const msg = `${baseMsg}\n📍 Konum Haritası: ${mapsLink}`;
 
-    await supabase.from("club_messages").insert({
-      title: `⚽ MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${newTask.title} (${newTask.age_group})`,
-      body: msg,
-      target_group: "Tümü",
-      sender_name:
-        role === "coach" && activeCoach
-          ? `Antrenör ${activeCoach.full_name}`
-          : adminName || "Yönetici",
-    });
+    const taskCombined = `⚽ MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${newTask.title} (${newTask.age_group})\n${msg}`; await supabase.from("club_messages").insert({ body: taskCombined, message_text: taskCombined, age_group: newTask.age_group || "Tümü", sender_name: role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : adminName || "Yönetici", created_at: new Date().toISOString() });
 
     const pushRes = await sendPushViaApi(
       ["Tümü"],
@@ -287,12 +279,7 @@ export function TasksTab({
     });
     const msg = `${baseMsg}\n📍 Konum Haritası: ${mapsLink}`;
 
-    await supabase.from("club_messages").insert({
-      title: `⏰ YARIN MAÇ VAR! ${t.title}`,
-      body: msg,
-      target_group: "Tümü",
-      sender_name: "Maç Hatırlatma",
-    });
+    const remCombined = `⏰ YARIN MAÇ VAR! ${t.title}\n${msg}`; await supabase.from("club_messages").insert({ body: remCombined, message_text: remCombined, age_group: t.age_group || "Tümü", sender_name: "Maç Hatırlatma", created_at: new Date().toISOString() });
     const pushRes = await sendPushViaApi(
       ["Tümü"],
       `⏰ YARIN MAÇ VAR! ${t.title}`,

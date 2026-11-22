@@ -152,7 +152,7 @@ export function Navbar() {
     async function loadUnreadCount(currentSession: AuthSession) {
       const { data } = await supabase
         .from("club_messages")
-        .select("created_at, target_group, age_group")
+        .select("created_at, age_group")
         .order("created_at", { ascending: false })
         .limit(25);
 

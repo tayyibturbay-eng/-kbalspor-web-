@@ -92,6 +92,7 @@ export function StockAndGiveSection({
   const [savingCreate, setSavingCreate] = useState(false);
 
   const [editingStock, setEditingStock] = useState<StockItem | null>(null);
+  const [missingQtyById, setMissingQtyById] = useState<Record<string, number>>({});
 
   const [playerCategoryFilter, setPlayerCategoryFilter] = useState<string>("Tümü");
   const [playerQuery, setPlayerQuery] = useState<string>("");
@@ -895,13 +896,35 @@ export function StockAndGiveSection({
                 >
                   ✏️ Düzenle
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleMarkStockMissing(s)}
-                  className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-extrabold cursor-pointer"
-                >
-                  ⚠️ Eksik / Kayıp
-                </button>
+                                <div className="inline-flex items-center gap-1">
+                  <select
+                    aria-label={`${s.product_name} eksik/kayıp adet`}
+                    value={missingQtyById[s.id] || 1}
+                    onChange={(e) =>
+                      setMissingQtyById((prev) => ({
+                        ...prev,
+                        [s.id]: Number(e.target.value) || 1,
+                      }))
+                    }
+                    className="rounded-lg border border-amber-300 bg-white text-slate-900 px-2 py-1 text-xs font-extrabold"
+                  >
+                    {Array.from(
+                      { length: Math.max(1, Number(s.stock_count) || 1) },
+                      (_, idx) => idx + 1
+                    ).map((qtyVal) => (
+                      <option key={qtyVal} value={qtyVal}>
+                        {qtyVal} Adet
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleMarkStockMissing(s)}
+                    className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-extrabold cursor-pointer"
+                  >
+                    ⚠️ Eksik / Kayıp
+                  </button>
+                </div>
                 <label className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">
                   📷 Görsel {s.photo_url ? "Değiştir" : "Ekle"}
                   <input

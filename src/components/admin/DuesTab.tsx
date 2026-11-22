@@ -124,12 +124,7 @@ export function DuesTab({
     }
 
     const msg = `📢 AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbalspor aylık kulüp aidat ücreti ${feeNum}₺ olarak güncellenmiştir. Bilginize sunarız. 🔴🔵`;
-    await supabase.from("club_messages").insert({
-      title: `📢 Aidat Ücreti Güncellendi (${feeNum}₺)`,
-      body: msg,
-      target_group: "Tüm Kulüp",
-      sender_name: adminName || "Yönetici",
-    });
+    await supabase.from("club_messages").insert({ body: msg, message_text: msg, age_group: "Tüm Kulüp", sender_name: adminName || "Yönetici", created_at: new Date().toISOString() });
 
     await onLogActivity(
       "Aidat Ücreti Güncelleme",
@@ -278,12 +273,7 @@ export function DuesTab({
       pastDueCustomNote.trim() ||
       `📢 AİDAT HATIRLATMA (${pastDueMonth})\nSayın velilerimiz ve sporcularımız, ${pastDueMonth} dönemine ait kulüp aidat ödemesini henüz gerçekleştirmeyen sporcularımızın ödemelerini en kısa sürede tamamlamalarını rica ederiz. 🔴🔵`;
 
-    const { error } = await supabase.from("club_messages").insert({
-      title: `⚠️ ${pastDueMonth} Aidat Hatırlatması (${pastUnpaidPlayers.length} Sporcu)`,
-      body: bodyText,
-      target_group: "Aidat Bekleyenler",
-      sender_name: adminName || "Yönetici",
-    });
+    const { error } = await supabase.from("club_messages").insert({ body: bodyText, message_text: bodyText, age_group: "Tümü", sender_name: adminName || "Yönetici", created_at: new Date().toISOString() });
 
     if (error) {
       onFeedback("Bildirim gönderilemedi: " + error.message);

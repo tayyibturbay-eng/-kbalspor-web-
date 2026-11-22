@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { calculateGoalPointsForScorer } from "@/lib/goal-scoring";
 
 const supabase = createClient();
 
@@ -10,8 +11,17 @@ interface MatchTaskRow {
   title: string;
   age_group?: string | null;
   task_type?: string | null;
+  event_date?: string | null;
   due_date?: string | null;
+  match_time?: string | null;
   created_at?: string;
+}
+
+interface CategoryPlayerRow {
+  id: string;
+  full_name: string;
+  age_group: string;
+  jersey_number?: number | null;
 }
 
 interface PredictionRow {
@@ -25,6 +35,7 @@ interface PredictionRow {
   actual_away_score?: number | null;
   awarded_points?: number | null;
   first_scorer_name: string | null;
+  scorer_multiplier?: number | null;
   created_at: string;
   players?: {
     full_name?: string | null;
@@ -56,13 +67,18 @@ function calcPredictionPoints(
   return pts;
 }
 
+function isMatchRecord(t: MatchTaskRow): boolean {
+  const titleLower = (t.title || "").toLowerCase();
+  return t.task_type === "mac" || titleLower.includes("maç") || titleLower.includes("mac");
+}
+
 export function MatchPredictionCard({
   playerId,
   ageGroup,
 }: MatchPredictionCardProps) {
   const [matches, setMatches] = useState<MatchTaskRow[]>([]);
-  const [selectedMatch, setSelectedMatch] = useState<string>("");
-  const [customMatchTitle, setCustomMatchTitle] = useState<string>("");
+  const [selectedMatchId, setSelectedMatchId] = useState<string>("");
+  const [categoryPlayers, setCategoryPlayers] = useState<CategoryPlayerRow[]>([]);
   const [homeScore, setHomeScore] = useState<number>(2);
   const [awayScore, setAwayScore] = useState<number>(1);
   const [firstScorer, setFirstScorer] = useState<string>("");
@@ -72,57 +88,104 @@ export function MatchPredictionCard({
     null
   );
 
+  const selectedMatch = useMemo(() => {
+    if (!matches.length) return null;
+    return matches.find((m) => m.id === selectedMatchId) || matches[0];
+  }, [matches, selectedMatchId]);
+
   const activeMatchTitle = useMemo(() => {
-    if (selectedMatch === "__custom__") return customMatchTitle.trim();
-    return selectedMatch.trim();
-  }, [selectedMatch, customMatchTitle]);
+    return (selectedMatch?.title || "").trim();
+  }, [selectedMatch]);
+
+  const effectiveCategory = useMemo(() => {
+    return (selectedMatch?.age_group || ageGroup || "Tümü").trim();
+  }, [selectedMatch, ageGroup]);
+
+  const filteredPlayers = useMemo(() => {
+    if (!effectiveCategory || effectiveCategory === "Tümü") {
+      return categoryPlayers;
+    }
+    const exact = categoryPlayers.filter(
+      (p) => (p.age_group || "").trim() === effectiveCategory
+    );
+    return exact.length > 0 ? exact : categoryPlayers;
+  }, [categoryPlayers, effectiveCategory]);
+
+  const playerMultipliers = useMemo(() => {
+    const goalCounts = new Map<string, number>();
+    for (const pred of predictions) {
+      if (
+        typeof pred.actual_home_score === "number" &&
+        typeof pred.actual_away_score === "number" &&
+        pred.first_scorer_name
+      ) {
+        const key = pred.first_scorer_name.trim().toLowerCase();
+        goalCounts.set(key, (goalCounts.get(key) || 0) + 1);
+      }
+    }
+
+    const map = new Map<string, number>();
+    for (const p of filteredPlayers) {
+      const prevGoals = goalCounts.get(p.full_name.trim().toLowerCase()) || 0;
+      map.set(p.id, calculateGoalPointsForScorer(prevGoals, false));
+    }
+    return map;
+  }, [filteredPlayers, predictions]);
 
   const fetchPredictionData = useCallback(async () => {
-    const [taskRes, predRes] = await Promise.all([
+    const [taskRes, predRes, playersRes] = await Promise.all([
       supabase
         .from("tasks_assignments")
         .select("*")
-        .order("created_at", { ascending: false })
-        .limit(30),
+        .order("event_date", { ascending: true })
+        .limit(40),
       supabase
         .from("match_predictions")
         .select("*, players(full_name, jersey_number)")
-        .eq("age_group", ageGroup)
         .order("created_at", { ascending: false })
-        .limit(40),
+        .limit(60),
+      supabase
+        .from("players")
+        .select("id, full_name, age_group, jersey_number")
+        .order("full_name", { ascending: true }),
     ]);
 
     return {
-      taskData: (taskRes.data as MatchTaskRow[] | null) || null,
-      predData: (predRes.data as PredictionRow[] | null) || null,
+      taskData: (taskRes.data as MatchTaskRow[] | null) || [],
+      predData: (predRes.data as PredictionRow[] | null) || [],
+      playersData: (playersRes.data as CategoryPlayerRow[] | null) || [],
     };
-  }, [ageGroup]);
+  }, []);
 
-  useEffect(() => {
-    if (!playerId || !ageGroup) return;
-    let active = true;
+  const applyFetchedData = useCallback(
+    (
+      taskData: MatchTaskRow[],
+      predData: PredictionRow[],
+      playersData: CategoryPlayerRow[],
+      syncMine = false
+    ) => {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const matchRows = taskData.filter((t) => {
+        if (!isMatchRecord(t)) return false;
+        const dateVal = String(t.event_date || t.due_date || "").slice(0, 10);
+        return !dateVal || dateVal >= todayIso;
+      });
+      const finalMatches =
+        matchRows.length > 0 ? matchRows : taskData.filter((t) => isMatchRecord(t));
 
-    (async () => {
-      const { taskData, predData } = await fetchPredictionData();
-      if (!active) return;
+      setMatches(finalMatches);
+      setCategoryPlayers(playersData);
+      setPredictions(predData);
 
-      if (taskData) {
-        const groupMatches = taskData.filter((t) => {
-          const groupOk = !t.age_group || t.age_group === ageGroup;
-          const isMatch =
-            t.task_type === "mac" ||
-            (t.title || "").toLowerCase().includes("maç");
-          return groupOk && isMatch;
-        });
-        setMatches(groupMatches);
-        setSelectedMatch((prev) => {
-          if (prev) return prev;
-          return groupMatches.length > 0 ? groupMatches[0].title : "__custom__";
-        });
-      }
+      setSelectedMatchId((prev) => {
+        if (prev && finalMatches.some((m) => m.id === prev)) return prev;
+        const groupFirst = finalMatches.find(
+          (m) => !m.age_group || m.age_group === ageGroup
+        );
+        return groupFirst?.id || finalMatches[0]?.id || "";
+      });
 
-      if (predData) {
-        setPredictions(predData);
+      if (syncMine) {
         const mine = predData.find((r) => r.player_id === playerId);
         if (mine) {
           setHomeScore(mine.home_score);
@@ -130,48 +193,63 @@ export function MatchPredictionCard({
           setFirstScorer(mine.first_scorer_name || "");
         }
       }
+    },
+    [ageGroup, playerId]
+  );
+
+  useEffect(() => {
+    if (!playerId) return;
+    let active = true;
+
+    (async () => {
+      const { taskData, predData, playersData } = await fetchPredictionData();
+      if (!active) return;
+      applyFetchedData(taskData, predData, playersData, true);
     })();
 
     return () => {
       active = false;
     };
-  }, [playerId, ageGroup, fetchPredictionData]);
+  }, [playerId, fetchPredictionData, applyFetchedData]);
 
-  async function refreshAfterSave() {
-    const { taskData, predData } = await fetchPredictionData();
-    if (taskData) {
-      const groupMatches = taskData.filter((t) => {
-        const groupOk = !t.age_group || t.age_group === ageGroup;
-        const isMatch =
-          t.task_type === "mac" ||
-          (t.title || "").toLowerCase().includes("maç");
-        return groupOk && isMatch;
-      });
-      setMatches(groupMatches);
-    }
-    if (predData) {
-      setPredictions(predData);
-    }
-  }
+  useEffect(() => {
+    if (!filteredPlayers.length) return;
+    setFirstScorer((prev) => {
+      if (prev && filteredPlayers.some((p) => p.full_name === prev)) return prev;
+      return filteredPlayers[0].full_name;
+    });
+  }, [filteredPlayers]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setStatusMsg(null);
 
     if (!activeMatchTitle) {
-      setStatusMsg({ ok: false, text: "Lütfen bir maç seçin veya maç adını yazın." });
+      setStatusMsg({
+        ok: false,
+        text: "Şu anda seçilebilir aktif maç bulunmuyor.",
+      });
       return;
     }
+
+    const chosenScorer = firstScorer.trim() || filteredPlayers[0]?.full_name || null;
+    const matchedPlayer = chosenScorer
+      ? filteredPlayers.find((p) => p.full_name === chosenScorer)
+      : null;
+    const multiplier = matchedPlayer
+      ? playerMultipliers.get(matchedPlayer.id) ?? 1
+      : 1;
 
     setSaving(true);
     const { error } = await supabase.from("match_predictions").upsert(
       {
         player_id: playerId,
-        age_group: ageGroup,
+        age_group: effectiveCategory,
         match_title: activeMatchTitle,
         home_score: Math.max(0, Math.min(30, Number(homeScore) || 0)),
         away_score: Math.max(0, Math.min(30, Number(awayScore) || 0)),
-        first_scorer_name: firstScorer.trim() || null,
+        first_scorer_name: chosenScorer,
+        scorer_multiplier: multiplier,
       },
       { onConflict: "player_id,match_title" }
     );
@@ -184,9 +262,11 @@ export function MatchPredictionCard({
 
     setStatusMsg({
       ok: true,
-      text: "Maç günü tahminin kaydedildi! (Doğru skor: +1/adet, Kazanan: +3, Tam tahmin: +5)",
+      text: `Maç günü tahminin kaydedildi! (Gol çarpanı: x${multiplier.toFixed(2)})`,
     });
-    await refreshAfterSave();
+
+    const { taskData, predData, playersData } = await fetchPredictionData();
+    applyFetchedData(taskData, predData, playersData, false);
   }
 
   const visiblePredictions = useMemo(() => {
@@ -200,10 +280,10 @@ export function MatchPredictionCard({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <div>
           <span className="inline-block bg-[#02274c] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
-            {ageGroup} • Maç Günü Tahmini
+            {effectiveCategory} • Maç Günü Tahmini
           </span>
           <h2 className="text-lg font-extrabold text-[#02274c] mt-1">
-            Skor &amp; İlk Gol Tahmini
+            Skor &amp; Golcü Tahmini
           </h2>
           <p className="text-xs font-medium text-slate-600 mt-0.5">
             Her doğru skor: +1 puan • Kazananı bilme: +3 puan • Tam doğru maç: +5 puan
@@ -217,40 +297,30 @@ export function MatchPredictionCard({
       <form onSubmit={handleSave} className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-slate-800 mb-1">
-            Maç Seçimi
+            Aktif Maç Seçimi
           </label>
-          <select
-            value={selectedMatch}
-            onChange={(e) => setSelectedMatch(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
-          >
-            {matches.map((m) => (
-              <option key={m.id} value={m.title} className="bg-white text-slate-900">
-                {m.title} {m.due_date ? `(${m.due_date})` : ""}
-              </option>
-            ))}
-            <option value="__custom__" className="bg-white text-slate-900">
-              + Haftalık Maç Başlığı Gir
-            </option>
-          </select>
+          {matches.length > 0 ? (
+            <select
+              value={selectedMatch?.id || ""}
+              onChange={(e) => setSelectedMatchId(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+            >
+              {matches.map((m) => (
+                <option key={m.id} value={m.id} className="bg-white text-slate-900">
+                  {m.title}
+                  {m.age_group ? ` [${m.age_group}]` : ""}
+                  {m.event_date || m.due_date ? ` (${m.event_date || m.due_date})` : ""}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="w-full rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-3.5 py-2.5 text-xs font-bold">
+              Şu anda aktif maç kaydı bulunmuyor.
+            </div>
+          )}
         </div>
 
-        {selectedMatch === "__custom__" && (
-          <div>
-            <label className="block text-xs font-bold text-slate-800 mb-1">
-              Maç Adı
-            </label>
-            <input
-              type="text"
-              value={customMatchTitle}
-              onChange={(e) => setCustomMatchTitle(e.target.value)}
-              placeholder={`Örn: İkbalspor ${ageGroup} - Rakip`}
-              className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#02274c]"
-            />
-          </div>
-        )}
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
+        <div className="grid grid-cols-2 gap-3 items-end">
           <div>
             <label className="block text-xs font-bold text-slate-800 mb-1">
               İkbalspor Gol
@@ -278,19 +348,56 @@ export function MatchPredictionCard({
               className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[#02274c]"
             />
           </div>
+        </div>
 
-          <div className="col-span-2 sm:col-span-1">
-            <label className="block text-xs font-bold text-slate-800 mb-1">
-              İlk Gol / Öne Çıkan (Opsiyonel)
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <label className="block text-xs font-bold text-slate-800">
+              Gol Atacak Oyuncu ({effectiveCategory} Kadrosu)
             </label>
-            <input
-              type="text"
-              value={firstScorer}
-              onChange={(e) => setFirstScorer(e.target.value)}
-              placeholder="Örn: Emirhan"
-              className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#02274c]"
-            />
+            <span className="text-[11px] font-bold text-[#02274c]">
+              {filteredPlayers.length} oyuncu
+            </span>
           </div>
+
+          {filteredPlayers.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {filteredPlayers.map((cand) => {
+                const mult = playerMultipliers.get(cand.id) ?? 1;
+                const isSelected = firstScorer === cand.full_name;
+                return (
+                  <button
+                    key={cand.id}
+                    type="button"
+                    onClick={() => setFirstScorer(cand.full_name)}
+                    className={`px-3 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer flex items-center gap-1.5 ${
+                      isSelected
+                        ? "bg-[#a60513] text-white border-[#a60513] shadow-sm"
+                        : "bg-slate-50 text-[#02274c] border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    <span>
+                      {cand.full_name}
+                      {cand.jersey_number ? ` #${cand.jersey_number}` : ""}
+                    </span>
+                    <span
+                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                        isSelected
+                          ? "bg-white/20 text-white"
+                          : "bg-[#02274c]/10 text-[#02274c]"
+                      }`}
+                    >
+                      x{mult.toFixed(2)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">
+              {effectiveCategory} kategorisinde kayıtlı oyuncu bulunamadı.
+            </p>
+          )}
         </div>
 
         {statusMsg && (
@@ -307,8 +414,8 @@ export function MatchPredictionCard({
 
         <button
           type="submit"
-          disabled={saving}
-          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#a60513] hover:bg-red-700 text-white text-sm font-extrabold transition disabled:opacity-50"
+          disabled={saving || !activeMatchTitle}
+          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#a60513] hover:bg-red-700 text-white text-sm font-extrabold transition disabled:opacity-50 cursor-pointer"
         >
           {saving ? "Kaydediliyor..." : "Tahminimi Kaydet"}
         </button>
@@ -317,7 +424,7 @@ export function MatchPredictionCard({
       {visiblePredictions.length > 0 && (
         <div className="border-t border-slate-100 pt-4 space-y-2">
           <h3 className="text-xs font-extrabold uppercase text-slate-700">
-            {ageGroup} Grubu Tahminleri
+            {effectiveCategory} Grubu Tahminleri
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {visiblePredictions.map((pred) => {
@@ -346,7 +453,13 @@ export function MatchPredictionCard({
                     </p>
                     <p className="text-[11px] text-slate-600 truncate">
                       {pred.match_title}
-                      {pred.first_scorer_name ? ` • Gol: ${pred.first_scorer_name}` : ""}
+                      {pred.first_scorer_name
+                        ? ` • Gol: ${pred.first_scorer_name}${
+                            typeof pred.scorer_multiplier === "number"
+                              ? ` (x${pred.scorer_multiplier.toFixed(2)})`
+                              : ""
+                          }`
+                        : ""}
                       {pts !== null ? ` • +${pts}p` : ""}
                     </p>
                   </div>

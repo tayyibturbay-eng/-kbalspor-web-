@@ -43,15 +43,7 @@ export function NotificationsTab({
     );
 
     if (notifSaveAnnouncement) {
-      await supabase.from("club_messages").insert({
-        title: notifTitle.trim(),
-        body: notifBody.trim(),
-        target_group: groups.join(", "),
-        sender_name:
-          role === "coach" && activeCoach
-            ? activeCoach.full_name
-            : adminName || "Yönetici",
-      });
+      const notifCombined = `${notifTitle.trim()}\n${notifBody.trim()}`.trim(); await supabase.from("club_messages").insert({ body: notifCombined, message_text: notifCombined, age_group: groups.join(", "), sender_name: role === "coach" && activeCoach ? activeCoach.full_name : adminName || "Yönetici", created_at: new Date().toISOString() });
     }
 
     await onLogActivity(

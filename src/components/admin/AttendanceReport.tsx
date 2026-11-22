@@ -114,13 +114,13 @@ export function AttendanceReport({
 
   return (
     <div className="space-y-6">
-      {/* Düzenli Katılım & Ödül Sıralaması */}
+      {/* Düzenli Katılım Sıralaması */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
-            <h3 className="text-lg font-extrabold text-[#02274c]">🏆 Düzenli Katılım Sıralaması (Ödül Listesi)</h3>
+            <h3 className="text-lg font-extrabold text-[#02274c]">🏆 Düzenli Katılım Sıralaması</h3>
             <p className="text-xs text-slate-500">
-              Toplam {sessions.length} etkinlik üzerinden %80 ve üzeri katılım sağlayanlar Ödül Adayı olarak işaretlenir.
+              Toplam {sessions.length} etkinlik üzerinden %80 ve üzeri katılım sağlayanlar Düzenli Katılımcı olarak işaretlenir.
             </p>
           </div>
           <select
@@ -153,7 +153,7 @@ export function AttendanceReport({
                   <span className="text-slate-500 ml-1">({item.player.age_group})</span>
                   {item.pct >= 80 && (
                     <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-200 text-amber-950 font-extrabold text-[10px]">
-                      Ödül Adayı
+                      Düzenli Katılımcı
                     </span>
                   )}
                 </div>

@@ -15,6 +15,20 @@ import { sendPushViaApi } from "@/lib/club-utils";
 
 const supabase = createClient();
 
+const MIMAR_SINAN_SAHASI = "Mimar Sinan Amatör Futbol Sahası (Mimar Sinan Mah., Merkez / Çorum)";
+const FACILITY_OPTIONS = [
+  {
+    label: "Nazmi Avluca Spor Tesisi (Varsayılan)",
+    location: NAZMI_AVLUCA,
+    address: "Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum",
+  },
+  {
+    label: "Mimar Sinan Amatör Futbol Sahası",
+    location: MIMAR_SINAN_SAHASI,
+    address: "Mimar Sinan Mah., Çorum Merkez",
+  },
+];
+
 function buildMapsUrl(location?: string | null): string {
   const q = (location || NAZMI_AVLUCA || "Çorum").trim();
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -243,12 +257,7 @@ export function TrainingsTab({
       trainingForm.notes ? `\nNot: ${trainingForm.notes}` : ""
     }`;
 
-    await supabase.from("club_messages").insert({
-      title: `${header} (${groupLabel})`,
-      body: fullMsg,
-      target_group: groupLabel,
-      sender_name: authorName,
-    });
+    const trCombined = `${header} (${groupLabel})\n${fullMsg}`; await supabase.from("club_messages").insert({ body: trCombined, message_text: trCombined, age_group: groupLabel, sender_name: authorName, created_at: new Date().toISOString() });
 
     const selectedGroupsOnly = trainingForm.age_groups.filter(
       (g) => g && g !== "Tümü"
@@ -298,8 +307,7 @@ export function TrainingsTab({
       extra_player_ids: tr.extra_player_ids || [],
       notes: tr.notes || "",
     });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
+}
 
   async function deleteTraining(tr: Training) {
     if (!confirm(`"${tr.title}" antrenmanını silmek istediğinize emin misiniz?`))
@@ -347,6 +355,43 @@ export function TrainingsTab({
           )}
         </div>
 
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-extrabold text-[#02274c]">
+              Hazır Tesis / Saha Seçimi (Varsayılan: Nazmi Avluca Spor Tesisi)
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {FACILITY_OPTIONS.map((fac) => {
+                const active = trainingForm.location === fac.location;
+                return (
+                  <button
+                    key={fac.label}
+                    type="button"
+                    onClick={() =>
+                      setTrainingForm({
+                        ...trainingForm,
+                        location: fac.location,
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border cursor-pointer transition ${
+                      active
+                        ? "bg-[#02274c] text-white border-[#02274c]"
+                        : "bg-white text-slate-800 border-slate-300 hover:bg-slate-100"
+                    }`}
+                  >
+                    {fac.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[11px] font-semibold text-slate-600">
+            Adres Bilgisi:{" "}
+            {trainingForm.location.toLowerCase().includes("mimar sinan")
+              ? "Mimar Sinan Amatör Futbol Sahası — Mimar Sinan Mah., Merkez / Çorum"
+              : "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum"}
+          </p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <select
             value={trainingForm.training_type}
