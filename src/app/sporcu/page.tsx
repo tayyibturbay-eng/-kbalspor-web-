@@ -80,6 +80,7 @@ export default function SporcuPortalPage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [restoringSession, setRestoringSession] = useState<boolean>(true);
   const [tab, setTab] = useState<SporcuTab>(() => getInitialSporcuTab());
+  const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
 
   const [dues, setDues] = useState<Due[]>([]);
   const [defaultFee, setDefaultFee] = useState<number>(500);
@@ -92,9 +93,6 @@ export default function SporcuPortalPage() {
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
   const [jerseySets, setJerseySets] = useState<JerseySetMini[]>([]);
   const [stockItems, setStockItems] = useState<StockItemMini[]>([]);
-
-  const now = new Date();
-  const currentIdx = now.getFullYear() * 12 + now.getMonth();
 
   function handleTabChange(nextTab: SporcuTab) {
     setTab(nextTab);
@@ -203,7 +201,11 @@ export default function SporcuPortalPage() {
 
     if (!savedId) {
       Promise.resolve().then(() => {
-        if (active) setRestoringSession(false);
+        if (active) {
+          const now = new Date();
+          setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
+          setRestoringSession(false);
+        }
       });
       return () => {
         active = false;
@@ -237,6 +239,10 @@ export default function SporcuPortalPage() {
 
         setPlayer(p);
         await loadPlayerData(p);
+        if (active) {
+          const now = new Date();
+          setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
+        }
       } finally {
         if (active) setRestoringSession(false);
       }
