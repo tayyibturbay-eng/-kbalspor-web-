@@ -15,10 +15,7 @@ import { PitchBoard } from "@/components/kadro/PitchBoard";
 const supabase = createClient();
 
 export default function SquadBuilderPage() {
-  
-  const [shareVisualMode, setShareVisualMode] = useState<"card" | "pitch">("card");
-  const [pitchImageUrl, setPitchImageUrl] = useState<string | null>(null);
-const [selectedCategory, setSelectedCategory] = useState(
+  const [selectedCategory, setSelectedCategory] = useState(
     "Çorum Süper Amatör Ligi-U19"
   );
   const [formation, setFormation] = useState("4-3-3");
@@ -41,6 +38,10 @@ const [selectedCategory, setSelectedCategory] = useState(
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null
   );
+  const [shareVisualMode, setShareVisualMode] = useState<"card" | "pitch">(
+    "card"
+  );
+  const [pitchImageUrl, setPitchImageUrl] = useState<string | null>(null);
 
   const squadCardRef = useRef<HTMLDivElement | null>(null);
 
@@ -338,6 +339,134 @@ const [selectedCategory, setSelectedCategory] = useState(
     setShareStatus("Kopyalama desteklenmedi; paylaşım penceresinden metni alabilirsiniz.");
   };
 
+  const renderPitchFormationCanvas = (): string | null => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = 1080;
+    canvas.height = 1350;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.fillStyle = "#06203a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#a60513";
+    ctx.fillRect(0, 0, canvas.width, 165);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 40px sans-serif";
+    ctx.fillText("ÇORUM İKBALSPOR — SAHA DİZİLİŞ PLANI", 48, 72);
+    ctx.fillStyle = "#fde68a";
+    ctx.font = "bold 26px sans-serif";
+    ctx.fillText(
+      `${activeCategoryLabel} • Diziliş: ${FORMATIONS[formation]?.label || formation} • ${currentLineup.length} Oyuncu`,
+      48,
+      124
+    );
+
+    const px = 54;
+    const py = 195;
+    const pw = canvas.width - 108;
+    const ph = 1085;
+
+    const grad = ctx.createLinearGradient(0, py, 0, py + ph);
+    grad.addColorStop(0, "#15803d");
+    grad.addColorStop(0.5, "#166534");
+    grad.addColorStop(1, "#14532d");
+    ctx.fillStyle = grad;
+    ctx.fillRect(px, py, pw, ph);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.72)";
+    ctx.lineWidth = 4;
+    ctx.strokeRect(px + 20, py + 20, pw - 40, ph - 40);
+
+    const midY = py + ph / 2;
+    ctx.beginPath();
+    ctx.moveTo(px + 20, midY);
+    ctx.lineTo(px + pw - 20, midY);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(px + pw / 2, midY, 115, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeRect(px + pw / 2 - 220, py + 20, 440, 155);
+    ctx.strokeRect(px + pw / 2 - 220, py + ph - 175, 440, 155);
+
+    const rowsSpec = FORMATIONS[formation]?.rows || [];
+    const totalSlots =
+      rowsSpec.reduce((acc, r) => acc + r.count, 0) || currentLineup.length;
+    const visualRows =
+      rowsSpec.length > 0
+        ? rowsSpec
+        : [{ label: "Kadro", count: currentLineup.length }];
+
+    let cursor = 0;
+    const rowCount = visualRows.length;
+    visualRows.forEach((r, rIdx) => {
+      const slice = currentLineup.slice(cursor, cursor + r.count);
+      cursor += r.count;
+      const countInRow = Math.max(1, slice.length);
+      const yPos = py + 145 + (rIdx * (ph - 270)) / Math.max(1, rowCount - 1);
+
+      slice.forEach((pl, idx) => {
+        const xPos = px + ((idx + 1) * pw) / (countInRow + 1);
+        const effNum = getEffectiveNumber(pl);
+        const numText =
+          effNum !== "" ? `#${effNum}` : `${cursor - slice.length + idx + 1}`;
+
+        ctx.fillStyle = "#02274c";
+        ctx.beginPath();
+        ctx.arc(xPos, yPos - 14, 34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#fbbf24";
+        ctx.stroke();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 22px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(numText, xPos, yPos - 6);
+
+        ctx.fillStyle = "rgba(2, 39, 76, 0.92)";
+        ctx.fillRect(xPos - 95, yPos + 26, 190, 34);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 19px sans-serif";
+        const shortName = (pl.full_name || "").slice(0, 18);
+        ctx.fillText(shortName, xPos, yPos + 50);
+      });
+    });
+
+    if (cursor < currentLineup.length) {
+      const extra = currentLineup.slice(cursor);
+      const extraY = py + ph - 75;
+      extra.forEach((pl, idx) => {
+        const xPos = px + ((idx + 1) * pw) / (extra.length + 1);
+        const effNum = getEffectiveNumber(pl);
+        ctx.fillStyle = "#02274c";
+        ctx.fillRect(xPos - 95, extraY - 18, 190, 34);
+        ctx.fillStyle = "#fde68a";
+        ctx.font = "bold 18px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          `${effNum !== "" ? `#${effNum} ` : ""}${pl.full_name}`.slice(0, 20),
+          xPos,
+          extraY + 5
+        );
+      });
+    }
+
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText(
+      `Kadro Sayısı: ${currentLineup.length}/${totalSlots} • ikbalspor.com`,
+      54,
+      1322
+    );
+
+    return canvas.toDataURL("image/png");
+  };
+
   const generateSquadPosterDataUrl = async (): Promise<string | null> => {
     setGeneratingImage(true);
     setShareStatus("");
@@ -448,6 +577,8 @@ const [selectedCategory, setSelectedCategory] = useState(
 
       const url = canvas.toDataURL("image/png");
       setGeneratedImageUrl(url);
+      setPitchImageUrl(renderPitchFormationCanvas());
+      setShareVisualMode("card");
       return url;
     } catch {
       setShareStatus("Görsel oluşturulurken bir hata oluştu.");
@@ -479,7 +610,6 @@ const [selectedCategory, setSelectedCategory] = useState(
             files: [file],
           });
           setShareStatus("Paylaşım menüsü açıldı.");
-          return;
         }
       } catch {
         // Kullanıcı paylaşımı iptal ettiyse veya desteklenmiyorsa modal açık kalır
@@ -488,13 +618,23 @@ const [selectedCategory, setSelectedCategory] = useState(
   };
 
   const downloadGeneratedImage = async () => {
-    const url = generatedImageUrl || (await generateSquadPosterDataUrl());
+    const url =
+      shareVisualMode === "pitch"
+        ? pitchImageUrl || renderPitchFormationCanvas()
+        : generatedImageUrl || (await generateSquadPosterDataUrl());
     if (!url) return;
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ikbalspor-kadro-${selectedCategory.toLowerCase()}.png`;
+    a.download =
+      shareVisualMode === "pitch"
+        ? `ikbalspor-saha-dizilisi-${selectedCategory.toLowerCase()}.png`
+        : `ikbalspor-kadro-${selectedCategory.toLowerCase()}.png`;
     a.click();
-    setShareStatus("Kadro görseli (PNG) indirildi.");
+    setShareStatus(
+      shareVisualMode === "pitch"
+        ? "Saha diziliş planı görseli (PNG) indirildi."
+        : "Kadro görseli (PNG) indirildi."
+    );
   };
 
   const assignedIds = new Set(currentLineup.map((p) => p.id));
@@ -842,10 +982,43 @@ const [selectedCategory, setSelectedCategory] = useState(
               </button>
             </div>
 
-            {generatedImageUrl && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShareVisualMode("card")}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold border cursor-pointer ${
+                  shareVisualMode === "card"
+                    ? "bg-[#02274c] text-white border-[#02274c]"
+                    : "bg-slate-50 text-slate-700 border-slate-200"
+                }`}
+              >
+                1. Görsel: Kadro Kartı
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const built = pitchImageUrl || renderPitchFormationCanvas();
+                  if (built) setPitchImageUrl(built);
+                  setShareVisualMode("pitch");
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold border cursor-pointer ${
+                  shareVisualMode === "pitch"
+                    ? "bg-[#a60513] text-white border-[#a60513]"
+                    : "bg-slate-50 text-slate-700 border-slate-200"
+                }`}
+              >
+                2. Görsel: Saha Diziliş Planı
+              </button>
+            </div>
+
+            {(shareVisualMode === "pitch" ? pitchImageUrl : generatedImageUrl) && (
               <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 max-h-64 flex items-center justify-center">
                 <img
-                  src={generatedImageUrl}
+                  src={
+                    (shareVisualMode === "pitch"
+                      ? pitchImageUrl
+                      : generatedImageUrl) || ""
+                  }
                   alt="Kadro Görseli Önizleme"
                   className="max-h-64 object-contain"
                 />
@@ -855,7 +1028,7 @@ const [selectedCategory, setSelectedCategory] = useState(
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => { const activeUrl = shareVisualMode === "pitch" ? (pitchImageUrl || renderPitchFormationCanvas()) : generatedImageUrl; if (!activeUrl) return; const link = document.createElement("a"); link.href = activeUrl; link.download = shareVisualMode === "pitch" ? "ikbalspor-saha-dizilisi.png" : "ikbalspor-kadro.png"; link.click(); }}
+                onClick={() => void downloadGeneratedImage()}
                 className="px-4 py-3 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold cursor-pointer text-center"
               >
                 ⬇️ Görsel Olarak İndir (PNG)
