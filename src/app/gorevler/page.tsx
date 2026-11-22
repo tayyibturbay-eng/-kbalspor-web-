@@ -14,11 +14,10 @@ import {
 
 const supabase = createClient();
 
-function getLocalTodayStr(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
+function formatLocalTodayStr(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -32,8 +31,8 @@ function formatDisplayDate(raw?: string | null): string {
   return clean;
 }
 
-function isTaskUpcoming(task: TaskAssignment): boolean {
-  if (!task.event_date) return false;
+function isTaskUpcoming(task: TaskAssignment, nowMs: number | null): boolean {
+  if (!task.event_date || nowMs === null) return true;
   const datePart = String(task.event_date).trim().slice(0, 10);
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
   if (!match) return false;
@@ -50,13 +49,13 @@ function isTaskUpcoming(task: TaskAssignment): boolean {
     const minutes = Number(timeMatch[2]);
     const eventDt = new Date(year, month, day, hours, minutes, 59, 999);
     if (!Number.isNaN(eventDt.getTime())) {
-      return eventDt.getTime() >= Date.now();
+      return eventDt.getTime() >= nowMs;
     }
   }
 
   const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
   if (Number.isNaN(endOfDay.getTime())) return false;
-  return endOfDay.getTime() >= Date.now();
+  return endOfDay.getTime() >= nowMs;
 }
 
 function buildMapsUrl(location?: string | null): string {
@@ -71,10 +70,19 @@ export default function GorevlerPage() {
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [selectedGroup, setSelectedGroup] = useState("Tümü");
   const [loading, setLoading] = useState(true);
-  const todayStr = getLocalTodayStr();
+  const [todayStr, setTodayStr] = useState("");
+  const [nowMs, setNowMs] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
+
+    Promise.resolve().then(() => {
+      if (!active) return;
+      const now = new Date();
+      setTodayStr(formatLocalTodayStr(now));
+      setNowMs(now.getTime());
+    });
+
     (async () => {
       const [trRes, taskRes] = await Promise.all([
         supabase
@@ -91,6 +99,7 @@ export default function GorevlerPage() {
       if (taskRes.data) setTasks(taskRes.data as TaskAssignment[]);
       setLoading(false);
     })();
+
     return () => {
       active = false;
     };
@@ -151,15 +160,18 @@ export default function GorevlerPage() {
             (t) => t.age_group === selectedGroup || t.age_group === "Tümü"
           );
 
-    const upcoming = byGroup.filter((t) => isTaskUpcoming(t));
-    const past = byGroup
-      .filter((t) => !isTaskUpcoming(t))
-      .sort((a, b) =>
-        String(b.event_date || "").localeCompare(String(a.event_date || ""))
-      );
+    const upcoming = byGroup.filter((t) => isTaskUpcoming(t, nowMs));
+    const past =
+      nowMs === null
+        ? []
+        : byGroup
+            .filter((t) => !isTaskUpcoming(t, nowMs))
+            .sort((a, b) =>
+              String(b.event_date || "").localeCompare(String(a.event_date || ""))
+            );
 
     return { upcomingTasks: upcoming, pastTasks: past };
-  }, [tasks, selectedGroup]);
+  }, [tasks, selectedGroup, nowMs]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
