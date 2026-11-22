@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
@@ -214,7 +214,7 @@ export default function IkbalHomePage() {
 
               <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-center md:justify-start gap-3 pt-2">
                 <a
-                  href="https://expo.dev/artifacts/eas/UokvnZfmYDWpRS9DqScSzc3-qPpNT5QKyDzf6N65S7s.apk"
+                  href="https://expo.dev/artifacts/eas/T1cdkoZpnh4X2LR_ZzMP2GPPIcVDLna2IB2QqE35jiw.apk"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-3 rounded-xl shadow-md transition text-xs sm:text-sm text-center"
