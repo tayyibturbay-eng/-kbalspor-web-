@@ -119,6 +119,7 @@ export type ActivityLog = {
 export const POSITIONS = ["Kaleci", "Defans", "Orta Saha", "Forvet"] as const;
 
 export const AGE_GROUPS = [
+  "Minikler",
   "U11",
   "U12",
   "U13",
@@ -126,6 +127,7 @@ export const AGE_GROUPS = [
   "U15",
   "U16",
   "U17",
+  "U18",
   "U19",
   "Çorum Süper Amatör Ligi",
 ] as const;

@@ -1,41 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-  if (!url || !key) {
-    throw new Error("Supabase ortam değişkenleri (URL veya KEY) tanımlı değil.");
-  }
-
-  return createClient(url, key);
-}
-
-function resolveAgeGroup(
-  birthDate: string | null,
-  explicitGroup?: string | null
-): string {
-  if (explicitGroup && explicitGroup.trim()) return explicitGroup.trim();
-  if (!birthDate) return "U15";
-  const year = parseInt(birthDate.slice(0, 4), 10);
-  if (isNaN(year)) return "U15";
-  if (year < 2007) return "Çorum Süper Amatör Ligi";
-  if (year >= 2015) return "U11";
-  if (year === 2014) return "U12";
-  if (year === 2013) return "U13";
-  if (year === 2012) return "U14";
-  if (year === 2011) return "U15";
-  if (year === 2010) return "U16";
-  if (year === 2009) return "U17";
-  return "U19";
-}
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { calcAgeGroupFromBirthDate } from "@/lib/club-utils";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = createServerSupabaseClient();
     const body = await req.json();
     const fullName = String(body.full_name || "").trim();
     const parentPhone = String(body.parent_phone || "").trim();
@@ -48,7 +17,12 @@ export async function POST(req: NextRequest) {
     }
 
     const birthDate = body.birth_date ? String(body.birth_date).trim() : null;
-    const ageGroup = resolveAgeGroup(birthDate, body.age_group);
+    const explicitGroup =
+      typeof body.age_group === "string" && body.age_group.trim()
+        ? body.age_group.trim()
+        : "";
+    const ageGroup =
+      explicitGroup || calcAgeGroupFromBirthDate(birthDate || "");
     const nowIso = body.created_at || new Date().toISOString();
 
     const notesParts: string[] = [];

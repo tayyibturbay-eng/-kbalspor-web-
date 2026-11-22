@@ -27,10 +27,34 @@ export function buildDueMonths(): string[] {
 
 export const DUE_MONTHS = buildDueMonths();
 
+export function calcAgeFromBirthDate(birthDate: string): number | null {
+  if (!birthDate) return null;
+  const parts = birthDate.slice(0, 10).split("-");
+  if (parts.length !== 3) return null;
+
+  const year = parseInt(parts[0], 10);
+  const month = parseInt(parts[1], 10);
+  const day = parseInt(parts[2], 10);
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const mDiff = today.getMonth() + 1 - month;
+  if (mDiff < 0 || (mDiff === 0 && today.getDate() < day)) {
+    age--;
+  }
+  return age;
+}
+
 export function calcAgeGroupFromBirthDate(birthDate: string): string {
-  if (!birthDate) return "U15";
+  if (!birthDate) return "Minikler";
+  const age = calcAgeFromBirthDate(birthDate);
+  if (age !== null && !isNaN(age) && age <= 10) {
+    return "Minikler";
+  }
+
   const year = parseInt(birthDate.split("-")[0], 10);
-  if (isNaN(year)) return "U15";
+  if (isNaN(year)) return "Minikler";
   if (year < 2007) return "Çorum Süper Amatör Ligi";
   if (year >= 2015) return "U11";
   if (year === 2014) return "U12";

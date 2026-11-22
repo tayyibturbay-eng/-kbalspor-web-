@@ -80,25 +80,6 @@ export default function IkbalHomePage() {
       <Navbar />
 
       <main className="flex-1 w-full max-w-full overflow-x-clip">
-        {/* Kurumsal Kulüp Üst Bandı */}
-        <div className="bg-[#011a33] text-slate-200 border-b border-white/10">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] sm:text-xs">
-            <div className="flex items-center gap-2 font-semibold tracking-wide">
-              <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
-              <span>ÇORUM İKBALSPOR KULÜBÜ • KURUMSAL SPORTİF YAPI</span>
-            </div>
-            <div className="flex items-center gap-4 text-slate-300">
-              <a href="#hakkimizda" className="hover:text-white transition">
-                Hakkımızda
-              </a>
-              <span className="hidden sm:inline text-white/25">|</span>
-              <span className="hidden sm:inline font-medium text-red-200">
-                U11–U19 Altyapı &amp; A Takım
-              </span>
-            </div>
-          </div>
-        </div>
-
         {/* Hero */}
         <section className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">
@@ -119,9 +100,9 @@ export default function IkbalHomePage() {
               </h1>
 
               <p className="text-sm sm:text-lg text-slate-100 leading-relaxed max-w-2xl break-words">
-                U11&apos;den U19&apos;a tüm yaş kategorilerinde antrenman ve maç
-                görevleri, aidat ve malzeme takibi, Cumartesi sabah namazı QR
-                yoklaması ve kendi kadronu kurma heyecanı tek platformda.
+                Minikler&apos;den U19&apos;a tüm yaş kategorilerinde antrenman
+                ve maç görevleri, aidat ve malzeme takibi, Cumartesi sabah namazı
+                QR yoklaması ve kendi kadronu kurma heyecanı tek platformda.
               </p>
 
               <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-1">
@@ -129,7 +110,7 @@ export default function IkbalHomePage() {
                   href="/kadro-kur"
                   className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center text-center shadow-lg transition"
                 >
-                  Kendi Kadronu Kur (U11–U19 &amp; SAL)
+                  Kendi Kadronu Kur (Minikler–U19 &amp; SAL)
                 </Link>
                 <Link
                   href="/gorevler"
@@ -257,31 +238,40 @@ export default function IkbalHomePage() {
           </div>
         </section>
 
-        {/* Üyelik Başvuru Açılır Pencere Tetikleyici Alanı */}
+        {/* Üyelik / İletişim Başvuru Alanı + Hakkımızda Butonu Yan Yana */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-          <div
-            onClick={() => setShowRegModal(true)}
-            className="cursor-pointer rounded-3xl bg-white border-2 border-dashed border-[#02274c]/30 hover:border-[#a60513] hover:shadow-lg transition p-5 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4"
-          >
-            <div className="space-y-1 text-center sm:text-left min-w-0">
+          <div className="rounded-3xl bg-white border-2 border-dashed border-[#02274c]/30 hover:border-[#a60513] hover:shadow-lg transition p-5 sm:p-8 flex flex-col lg:flex-row items-center justify-between gap-4">
+            <div
+              onClick={() => setShowRegModal(true)}
+              className="cursor-pointer space-y-1 text-center lg:text-left min-w-0 flex-1"
+            >
               <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-1">
-                Kulübe Katıl
+                Kulübe Katıl &amp; İletişim
               </span>
               <h2 className="text-lg sm:text-2xl font-extrabold text-[#02274c]">
-                Sporcu Üyelik Başvuru Formu
+                Sporcu Üyelik Başvuru &amp; İletişim Formu
               </h2>
               <p className="text-xs sm:text-sm text-slate-600">
-                Başvuru formunu açmak için tıklayın (18 yaş altı için velisi
-                doldurmalıdır).
+                Başvuru ve iletişim formunu açmak için tıklayın (18 yaş altı
+                için velisi doldurmalıdır).
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowRegModal(true)}
-              className="w-full sm:w-auto shrink-0 rounded-xl bg-[#02274c] hover:bg-[#a60513] text-white font-bold px-6 py-3.5 text-sm transition shadow cursor-pointer"
-            >
-              Başvuru Formunu Aç
-            </button>
+
+            <div className="w-full lg:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+              <a
+                href="#hakkimizda"
+                className="w-full sm:w-auto rounded-xl border border-[#02274c]/25 bg-slate-50 hover:bg-slate-100 text-[#02274c] font-bold px-5 py-3.5 text-sm transition text-center"
+              >
+                Hakkımızda
+              </a>
+              <button
+                type="button"
+                onClick={() => setShowRegModal(true)}
+                className="w-full sm:w-auto rounded-xl bg-[#02274c] hover:bg-[#a60513] text-white font-bold px-6 py-3.5 text-sm transition shadow cursor-pointer"
+              >
+                Başvuru Formunu Aç
+              </button>
+            </div>
           </div>
         </section>
 
@@ -304,10 +294,10 @@ export default function IkbalHomePage() {
                   Saha İçi Disiplin ve Kurumsal Kulüp Kültürü
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-100 leading-relaxed">
-                  Çorum İkbalspor; altyapıdan yetişen sporcuları çağdaş
-                  antrenman planlaması, takım ruhu ve kurumsal yönetim
-                  standartlarıyla buluşturarak Çorum futboluna kalıcı katkı
-                  sunan kulüptür.
+                  Çorum İkbalspor; Minikler (10 yaş ve altı) kategorisinden
+                  başlayarak altyapıdan yetişen sporcuları çağdaş antrenman
+                  planlaması, takım ruhu ve kurumsal yönetim standartlarıyla
+                  buluşturarak Çorum futboluna kalıcı katkı sunan kulüptür.
                 </p>
               </div>
 
@@ -325,7 +315,7 @@ export default function IkbalHomePage() {
                     Çorum İkbalspor
                   </div>
                   <div className="text-[11px] text-slate-200">
-                    Altyapı &amp; A Takım Organizasyonu
+                    Minikler–U19 Altyapı &amp; A Takım
                   </div>
                 </div>
               </div>
@@ -337,12 +327,12 @@ export default function IkbalHomePage() {
                   01 • Altyapı Gelişimi
                 </div>
                 <h3 className="text-base font-extrabold text-[#02274c]">
-                  Yaş Gruplarına Göre Planlı Eğitim
+                  Minikler&apos;den U19&apos;a Planlı Eğitim
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  U11&apos;den U19&apos;a kadar her kategoride teknik beceri,
-                  oyun görüşü ve fiziksel gelişimi kademeli ve ölçülebilir
-                  şekilde destekliyoruz.
+                  10 yaş ve altı Minikler kategorisinden U19&apos;a kadar her
+                  yaş grubunda temel koordinasyon, teknik beceri, oyun görüşü
+                  ve fiziksel gelişimi kademeli olarak destekliyoruz.
                 </p>
               </div>
 

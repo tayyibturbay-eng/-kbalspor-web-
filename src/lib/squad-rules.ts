@@ -1,4 +1,5 @@
 import { Player } from "@/types/club";
+import { calcAgeFromBirthDate } from "@/lib/club-utils";
 
 export type SquadPlayer = Pick<
   Player,
@@ -13,6 +14,7 @@ export type SquadPlayer = Pick<
 >;
 
 export const SQUAD_CATEGORIES = [
+  { key: "Minikler", label: "Minikler" },
   { key: "U11", label: "U11" },
   { key: "U12", label: "U12" },
   { key: "Çorum Süper Amatör Ligi-U13", label: "U13" },
@@ -143,7 +145,7 @@ export const FORMATIONS: Record<
     ],
   },
   "3-3-1": {
-    label: "3-3-1 (8'li U11/U12)",
+    label: "3-3-1 (8'li Minikler/U11/U12)",
     group: "altyapi",
     rows: [
       { role: "Forvet", count: 1 },
@@ -153,7 +155,7 @@ export const FORMATIONS: Record<
     ],
   },
   "2-3-2": {
-    label: "2-3-2 (8'li U11/U12)",
+    label: "2-3-2 (8'li Minikler/U11/U12)",
     group: "altyapi",
     rows: [
       { role: "Forvet", count: 2 },
@@ -232,6 +234,14 @@ export function checkPlayerEligibility(
   }
 
   switch (categoryKey) {
+    case "Minikler": {
+      const age = calcAgeFromBirthDate(d);
+      const isTenOrUnder =
+        (age !== null && !isNaN(age) && age <= 10) ||
+        player.age_group === "Minikler";
+      return { eligible: isTenOrUnder, isQuota: false };
+    }
+
     case "Çorum Süper Amatör Ligi-U13":
       if (d >= "2013-01-01") return { eligible: true, isQuota: false };
       if (d >= "2012-10-01" && d <= "2012-12-31") {
