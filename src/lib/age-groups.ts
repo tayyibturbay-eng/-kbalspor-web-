@@ -15,7 +15,7 @@ export const AGE_GROUPS = [
 export type AgeGroup = (typeof AGE_GROUPS)[number];
 
 /**
- * Yaş bilgisi 10 ve altıysa "Minikler" döndürür;
+ * Yaş bilgisi 10 ve altındaysa "Minikler" döndürür;
  * aksi halde metindeki yaş kategorisini algılar.
  */
 export function resolveAgeGroupByAgeOrText(
