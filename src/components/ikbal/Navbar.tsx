@@ -8,48 +8,41 @@ import { createClient } from "@/lib/supabase/client";
 const LINKS = [
   { href: "/", label: "Ana Sayfa", shortLabel: "Ana Sayfa", icon: "🏠" },
   { href: "/kadro-kur", label: "Kadro Kur", shortLabel: "Kadro", icon: "⚽" },
-  { href: "/gorevler", label: "Görevler & Maçlar", shortLabel: "Maçlar", icon: "📅" },
+  {
+    href: "/gorevler",
+    label: "Görevler & Maçlar",
+    shortLabel: "Maçlar",
+    icon: "📅",
+  },
   { href: "/iletisim", label: "İletişim", shortLabel: "İletişim", icon: "📞" },
 ];
 
-type AuthSession =
-  | {
-      role: "player";
-      name: string;
-      ageGroup: string | null;
-      secondaryAgeGroup: string | null;
-      photoUrl: string | null;
-      href: "/sporcu";
-    }
-  | {
-      role: "coach" | "admin";
-      name: string;
-      ageGroup: null;
-      secondaryAgeGroup: null;
-      photoUrl: null;
-      href: "/admin";
-    }
-  | null;
+type AuthSession = {
+  role: "player" | "coach" | "admin";
+  name: string;
+  ageGroup: string | null;
+  secondaryAgeGroup: string | null;
+  photoUrl: string | null;
+  href: string;
+} | null;
 
 const SESSION_CACHE_KEY = "ikbal_navbar_session_v1";
 
 function getCachedSession(): AuthSession {
   if (typeof window === "undefined") return null;
   try {
-    const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
-    if (cached) {
-      return JSON.parse(cached) as AuthSession;
-    }
+    const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as AuthSession;
   } catch {
-    // yoksay
+    return null;
   }
-  return null;
 }
 
 function isNotificationForGroup(
   targetGroup: string | null | undefined,
-  playerAgeGroup: string | null | undefined,
-  secondaryAgeGroup?: string | null
+  playerAgeGroup: string | null,
+  secondaryAgeGroup: string | null
 ): boolean {
   const tg = (targetGroup || "Tümü").trim();
   if (!playerAgeGroup) return true;

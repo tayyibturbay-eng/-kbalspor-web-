@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   AGE_GROUPS,
@@ -51,7 +51,7 @@ export function TrainingsTab({
     id: "",
     title: "",
     training_type: "duzenli" as "duzenli" | "ekstra",
-    age_groups: ["U15"] as string[],
+    age_groups: ["Minikler"] as string[],
     selected_days: ["Çarşamba"] as string[],
     training_date: "",
     start_time: "17:00",
@@ -67,8 +67,14 @@ export function TrainingsTab({
     message: string;
     targetPlayers: Player[];
   } | null>(null);
+  const [todayStr, setTodayStr] = useState("");
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setTodayStr(new Date().toISOString().slice(0, 10));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const { activeOrUpcomingTrainings, pastDatedTrainings } = useMemo(() => {
     const past: Training[] = [];
@@ -77,6 +83,7 @@ export function TrainingsTab({
       if (
         tr.training_type === "ekstra" &&
         tr.training_date &&
+        todayStr &&
         tr.training_date < todayStr
       ) {
         past.push(tr);
@@ -243,7 +250,6 @@ export function TrainingsTab({
       sender_name: authorName,
     });
 
-    // Antrenmanda yalnızca seçilen yaş gruplarına bildirim gönderilir ("Tümü" gönderilmez)
     const selectedGroupsOnly = trainingForm.age_groups.filter(
       (g) => g && g !== "Tümü"
     );
@@ -264,7 +270,7 @@ export function TrainingsTab({
       id: "",
       title: "",
       training_type: "duzenli",
-      age_groups: ["U15"],
+      age_groups: ["Minikler"],
       selected_days: ["Çarşamba"],
       training_date: "",
       start_time: "17:00",
@@ -296,6 +302,8 @@ export function TrainingsTab({
   }
 
   async function deleteTraining(tr: Training) {
+    if (!confirm(`"${tr.title}" antrenmanını silmek istediğinize emin misiniz?`))
+      return;
     await supabase.from("trainings").delete().eq("id", tr.id);
     await onLogActivity("Antrenman Silme", `${tr.title} silindi.`);
     await onRefreshTrainings();
@@ -321,7 +329,7 @@ export function TrainingsTab({
                   id: "",
                   title: "",
                   training_type: "duzenli",
-                  age_groups: ["U15"],
+                  age_groups: ["Minikler"],
                   selected_days: ["Çarşamba"],
                   training_date: "",
                   start_time: "17:00",
@@ -354,7 +362,7 @@ export function TrainingsTab({
             <option value="ekstra">Ekstra Antrenman / Özel Çalışma</option>
           </select>
           <input
-            placeholder="Başlık (Örn: U13-U14-U15 Taktik İdman)"
+            placeholder="Başlık (Örn: Minikler Taktik İdman)"
             value={trainingForm.title}
             onChange={(e) =>
               setTrainingForm({ ...trainingForm, title: e.target.value })
@@ -545,7 +553,7 @@ export function TrainingsTab({
           type="submit"
           className="bg-[#02274c] hover:bg-[#033669] text-white font-bold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
         >
-          Antrenmanı Kaydet & Seçili Gruba Bildir
+          Antrenmanı Kaydet &amp; Seçili Gruba Bildir
         </button>
       </form>
 
@@ -566,7 +574,7 @@ export function TrainingsTab({
 
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
         <h3 className="font-extrabold text-[#02274c] text-base">
-          Aktif & Yaklaşan Antrenmanlar ({activeOrUpcomingTrainings.length})
+          Aktif &amp; Yaklaşan Antrenmanlar ({activeOrUpcomingTrainings.length})
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {activeOrUpcomingTrainings.map((tr) => (

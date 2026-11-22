@@ -212,6 +212,22 @@ export function MatchResultsTab({
         return;
       }
 
+      for (const gEvent of goalEvents) {
+        if (!gEvent.player_id || gEvent.goals <= 0) continue;
+        const { data: scorerRow } = await supabase
+          .from("players")
+          .select("goals_scored")
+          .eq("id", gEvent.player_id)
+          .maybeSingle();
+        if (scorerRow && "goals_scored" in scorerRow) {
+          const prevGoals = Number(scorerRow.goals_scored ?? 0);
+          await supabase
+            .from("players")
+            .update({ goals_scored: prevGoals + gEvent.goals })
+            .eq("id", gEvent.player_id);
+        }
+      }
+
       const [byTitleRes, byIdRes] = await Promise.all([
         supabase
           .from("match_predictions")
@@ -318,7 +334,8 @@ export function MatchResultsTab({
           updatePayload.points = Number(freshPlayer.points ?? 0) + delta;
         }
         if ("skill_points" in freshPlayer) {
-          updatePayload.skill_points = Number(freshPlayer.skill_points ?? 20) + delta;
+          updatePayload.skill_points =
+            Number(freshPlayer.skill_points ?? 20) + delta;
         }
         if (Object.keys(updatePayload).length === 0) {
           updatePayload.points = delta;

@@ -62,7 +62,7 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
     <div className="bg-white text-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-lg font-extrabold text-[#02274c]">
-          Son İşlemler (Gün & Saat Kayıtları)
+          Son İşlemler (Gün &amp; Saat Kayıtları)
         </h2>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -99,44 +99,57 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
         <table className="w-full text-sm text-left text-slate-900">
           <thead className="bg-slate-100 text-[#02274c] text-xs font-extrabold">
             <tr>
-              <th className="p-2.5">Tarih & Saat</th>
+              <th className="p-2.5">Tarih &amp; Saat</th>
               <th className="p-2.5">Yapan</th>
               <th className="p-2.5">İşlem</th>
               <th className="p-2.5">Detay</th>
             </tr>
           </thead>
           <tbody>
-            {filteredLogs.map((l) => {
-              const cat = getLogCategory(l);
-              const badgeStyle =
-                cat === "Oyuncu Silme" || cat === "Silme İşlemi"
-                  ? "bg-red-100 text-red-900"
-                  : cat === "Üyelik İşlemleri"
-                  ? "bg-amber-100 text-amber-900"
-                  : "bg-blue-50 text-blue-900";
-
-              return (
-                <tr
-                  key={l.id}
-                  className="border-b border-slate-200 hover:bg-slate-50"
+            {filteredLogs.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="p-4 text-center text-xs text-slate-500"
                 >
-                  <td className="p-2.5 text-xs font-mono font-semibold text-slate-800 whitespace-nowrap">
-                    {formatDateTimeTR(l.created_at)}
-                  </td>
-                  <td className="p-2.5 text-xs font-bold text-[#02274c]">
-                    {l.actor}
-                  </td>
-                  <td className="p-2.5">
-                    <span
-                      className={`text-xs font-bold px-2 py-0.5 rounded ${badgeStyle}`}
-                    >
-                      {l.action}
-                    </span>
-                  </td>
-                  <td className="p-2.5 text-xs text-slate-800">{l.details}</td>
-                </tr>
-              );
-            })}
+                  Filtre kriterlerine uygun işlem kaydı bulunamadı.
+                </td>
+              </tr>
+            ) : (
+              filteredLogs.map((l) => {
+                const cat = getLogCategory(l);
+                const badgeStyle =
+                  cat === "Oyuncu Silme" || cat === "Silme İşlemi"
+                    ? "bg-red-100 text-red-900"
+                    : cat === "Üyelik İşlemleri"
+                    ? "bg-amber-100 text-amber-900"
+                    : "bg-blue-50 text-blue-900";
+
+                return (
+                  <tr
+                    key={l.id}
+                    className="border-b border-slate-200 hover:bg-slate-50"
+                  >
+                    <td className="p-2.5 text-xs font-mono font-semibold text-slate-800 whitespace-nowrap">
+                      {formatDateTimeTR(l.created_at)}
+                    </td>
+                    <td className="p-2.5 text-xs font-bold text-[#02274c]">
+                      {l.actor}
+                    </td>
+                    <td className="p-2.5">
+                      <span
+                        className={`text-xs font-bold px-2 py-0.5 rounded ${badgeStyle}`}
+                      >
+                        {l.action}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-xs text-slate-800">
+                      {l.details}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

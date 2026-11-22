@@ -7,8 +7,13 @@ import { QRCodeSVG } from "qrcode.react";
 
 const supabase = createClient();
 
+type RepPlayer = Player & {
+  representative_group?: string | null;
+  secondary_age_group?: string | null;
+};
+
 interface PlayerQrTabProps {
-  player: Player;
+  player: RepPlayer;
   allSessions: PrayerSession[];
   attendances: PrayerAttendance[];
   setAttendances: React.Dispatch<React.SetStateAction<PrayerAttendance[]>>;
@@ -32,10 +37,13 @@ export function PlayerQrTab({
   const scannerRef = useRef<{ stop: () => Promise<void>; clear: () => void } | null>(
     null
   );
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      stopScanner();
+      mountedRef.current = false;
+      void stopScanner();
     };
   }, []);
 
@@ -44,12 +52,41 @@ export function PlayerQrTab({
     [allSessions]
   );
 
+  const representativePlayers = useMemo(() => {
+    const repScope = player.representative_group || player.age_group;
+    if (!repScope || repScope === "Tümü") {
+      return teamPlayers;
+    }
+    return teamPlayers.filter((tp) => {
+      const ext = tp as RepPlayer;
+      return tp.age_group === repScope || ext.secondary_age_group === repScope;
+    });
+  }, [teamPlayers, player]);
+
+  async function stopScanner() {
+    if (scannerRef.current) {
+      const currentScanner = scannerRef.current;
+      scannerRef.current = null;
+      try {
+        await currentScanner.stop();
+        currentScanner.clear();
+      } catch {
+        // yoksay
+      }
+    }
+    if (mountedRef.current) {
+      setScanning(false);
+    }
+  }
+
   async function startScanner() {
     setQrStatus(null);
     setScanning(true);
     setTimeout(async () => {
+      if (!mountedRef.current) return;
       try {
         const { Html5Qrcode } = await import("html5-qrcode");
+        if (!mountedRef.current) return;
         const qr = new Html5Qrcode("qr-reader");
         scannerRef.current = qr;
         await qr.start(
@@ -62,26 +99,15 @@ export function PlayerQrTab({
           () => {}
         );
       } catch {
-        setScanning(false);
-        setQrStatus({
-          ok: false,
-          text: "Kamera açılamadı. Tarayıcı kamera iznini onaylayın veya aşağıdaki alana QR kod metnini yazın.",
-        });
+        if (mountedRef.current) {
+          setScanning(false);
+          setQrStatus({
+            ok: false,
+            text: "Kamera açılamadı. Tarayıcı kamera iznini onaylayın veya aşağıdaki alana QR kod metnini yazın.",
+          });
+        }
       }
     }, 100);
-  }
-
-  async function stopScanner() {
-    if (scannerRef.current) {
-      try {
-        await scannerRef.current.stop();
-        scannerRef.current.clear();
-      } catch {
-        // yoksay
-      }
-      scannerRef.current = null;
-    }
-    setScanning(false);
   }
 
   async function submitQrCheckIn(rawToken: string) {
@@ -147,11 +173,19 @@ export function PlayerQrTab({
     );
     if (exists) return;
 
-    const { data: inserted } = await supabase
+    const { data: inserted, error } = await supabase
       .from("prayer_attendance")
       .insert([{ session_id: sessionId, player_id: targetPlayerId }])
       .select()
       .single();
+
+    if (error) {
+      setQrStatus({
+        ok: false,
+        text: "Oyuncu yoklaması kaydedilemedi: " + error.message,
+      });
+      return;
+    }
 
     if (inserted) {
       setAttendances((prev) => [...prev, inserted as PrayerAttendance]);
@@ -170,6 +204,7 @@ export function PlayerQrTab({
 
         {!scanning ? (
           <button
+            type="button"
             onClick={startScanner}
             className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white font-extrabold cursor-pointer transition shadow-sm"
           >
@@ -182,6 +217,7 @@ export function PlayerQrTab({
               className="w-full max-w-sm mx-auto overflow-hidden rounded-2xl border border-slate-300"
             />
             <button
+              type="button"
               onClick={stopScanner}
               className="px-5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm font-bold cursor-pointer"
             >
@@ -203,6 +239,7 @@ export function PlayerQrTab({
               className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400"
             />
             <button
+              type="button"
               onClick={() => submitQrCheckIn(manualToken)}
               className="px-4 py-2.5 rounded-xl bg-[#a60513] text-white text-sm font-extrabold cursor-pointer"
             >
@@ -281,7 +318,7 @@ export function PlayerQrTab({
       {player.is_representative && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
           <h3 className="text-lg font-black text-[#a60513]">
-            Temsilci Yoklama Paneli
+            Temsilci Yoklama Paneli ({player.representative_group || "Tüm Takım"})
           </h3>
           {activeSessions.length === 0 ? (
             <p className="text-sm text-slate-500">
@@ -313,40 +350,38 @@ export function PlayerQrTab({
 
                   <div>
                     <div className="text-xs font-extrabold text-slate-600 mb-2">
-                      Manuel Geldi İşaretle ({player.age_group}):
+                      Manuel Geldi İşaretle (
+                      {player.representative_group || "Tüm Takım"}):
                     </div>
                     <div className="grid sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
-                      {teamPlayers
-                        .filter((tp) => tp.age_group === player.age_group)
-                        .map((tp) => {
-                          const ok = sessAtt.some(
-                            (a) => a.player_id === tp.id
-                          );
-                          return (
-                            <div
-                              key={tp.id}
-                              className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200 text-xs"
-                            >
-                              <span className="font-bold text-slate-800">
-                                {tp.full_name}
+                      {representativePlayers.map((tp) => {
+                        const ok = sessAtt.some((a) => a.player_id === tp.id);
+                        return (
+                          <div
+                            key={tp.id}
+                            className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200 text-xs"
+                          >
+                            <span className="font-bold text-slate-800">
+                              {tp.full_name} ({tp.age_group})
+                            </span>
+                            {ok ? (
+                              <span className="text-emerald-600 font-extrabold">
+                                Geldi ✓
                               </span>
-                              {ok ? (
-                                <span className="text-emerald-600 font-extrabold">
-                                  Geldi ✓
-                                </span>
-                              ) : (
-                                <button
-                                  onClick={() =>
-                                    markTeammatePresent(sess.id, tp.id)
-                                  }
-                                  className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white font-bold cursor-pointer"
-                                >
-                                  Geldi İşaretle
-                                </button>
-                              )}
-                            </div>
-                          );
-                        })}
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  markTeammatePresent(sess.id, tp.id)
+                                }
+                                className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white font-bold cursor-pointer"
+                              >
+                                Geldi İşaretle
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

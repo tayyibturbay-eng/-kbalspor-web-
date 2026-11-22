@@ -319,10 +319,20 @@ export default function SquadBuilderPage() {
     );
   };
 
-  const copySquadText = () => {
-    navigator.clipboard.writeText(buildSquadSummaryText());
-    setCopiedBanner(true);
-    setTimeout(() => setCopiedBanner(false), 2500);
+  const copySquadText = async () => {
+    const text = buildSquadSummaryText();
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopiedBanner(true);
+        setShareStatus("Kadro metni panoya kopyalandı.");
+        setTimeout(() => setCopiedBanner(false), 2500);
+        return;
+      }
+    } catch {
+      // fallback aşağıda
+    }
+    setShareStatus("Kopyalama desteklenmedi; paylaşım penceresinden metni alabilirsiniz.");
   };
 
   const generateSquadPosterDataUrl = async (): Promise<string | null> => {
@@ -492,7 +502,7 @@ export default function SquadBuilderPage() {
   const summaryText = buildSquadSummaryText();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-16">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24 lg:pb-16">
       <Navbar />
 
       <section className="bg-gradient-to-r from-[#02274c] via-[#04376b] to-[#a60513] text-white py-6 px-4 shadow-sm">
@@ -861,7 +871,7 @@ export default function SquadBuilderPage() {
                 href="https://www.instagram.com/"
                 target="_blank"
                 rel="noreferrer"
-                onClick={() => downloadGeneratedImage()}
+                onClick={() => void downloadGeneratedImage()}
                 className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold text-center"
               >
                 📸 Instagram (Görseli İndir &amp; Aç)
@@ -870,7 +880,7 @@ export default function SquadBuilderPage() {
               <button
                 type="button"
                 onClick={() => {
-                  copySquadText();
+                  void copySquadText();
                   setShowShareModal(false);
                 }}
                 className="px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#02274c] text-xs font-extrabold cursor-pointer text-center"

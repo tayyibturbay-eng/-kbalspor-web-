@@ -19,7 +19,6 @@ export function CoachesTab({
   onLogActivity,
   onRefreshCoaches,
 }: CoachesTabProps) {
-  // Önyüklü olarak bütün takım ("Tümü") temsilcisi/kapsamı
   const [newCoach, setNewCoach] = useState({
     full_name: "",
     coach_code: "",
@@ -59,7 +58,9 @@ export function CoachesTab({
       "Antrenör / Temsilci Grubu",
       `${coach.full_name} grubu "${groups.join(", ")}" yapıldı.`
     );
-    onFeedback(`✅ ${coach.full_name} grubu "${groups.join(", ")}" olarak güncellendi.`);
+    onFeedback(
+      `✅ ${coach.full_name} grubu "${groups.join(", ")}" olarak güncellendi.`
+    );
     await onRefreshCoaches();
   }
 

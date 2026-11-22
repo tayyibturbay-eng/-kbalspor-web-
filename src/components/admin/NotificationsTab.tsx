@@ -79,13 +79,18 @@ export function NotificationsTab({
       onSubmit={handleSendCustomPush}
       className="bg-white p-6 rounded-2xl shadow-sm border space-y-4 max-w-2xl"
     >
-      <div>
-        <h2 className="text-lg font-extrabold text-[#02274c]">
-          🔔 İsteğe Bağlı Anlık Bildirim Gönder
-        </h2>
-        <p className="text-xs text-slate-500 mt-0.5">
-          Seçtiğiniz yaş gruplarındaki sporcuların telefonuna anında bildirim gönderin.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-extrabold text-[#02274c]">
+            🔔 İsteğe Bağlı Anlık Bildirim Gönder
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Seçtiğiniz yaş gruplarındaki sporcuların telefonuna anında bildirim gönderin.
+          </p>
+        </div>
+        <span className="px-2.5 py-1 rounded-full bg-slate-100 text-[11px] font-extrabold text-[#02274c]">
+          Hedef: {notifTargetGroups.join(", ")}
+        </span>
       </div>
 
       <div>
@@ -151,7 +156,7 @@ export function NotificationsTab({
         />
       </div>
 
-      <label className="flex items-center gap-2 text-xs font-bold text-[#02274c]">
+      <label className="flex items-center gap-2 text-xs font-bold text-[#02274c] cursor-pointer">
         <input
           type="checkbox"
           checked={notifSaveAnnouncement}

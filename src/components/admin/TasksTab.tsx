@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   AGE_GROUPS,
@@ -24,7 +24,7 @@ function formatDisplayDate(raw?: string | null): string {
   return clean;
 }
 
-function isTaskUpcoming(task: TaskAssignment): boolean {
+function isTaskUpcoming(task: TaskAssignment, nowMs: number): boolean {
   if (!task.event_date) return false;
   const datePart = String(task.event_date).trim().slice(0, 10);
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
@@ -42,13 +42,13 @@ function isTaskUpcoming(task: TaskAssignment): boolean {
     const minutes = Number(timeMatch[2]);
     const eventDt = new Date(year, month, day, hours, minutes, 59, 999);
     if (!Number.isNaN(eventDt.getTime())) {
-      return eventDt.getTime() >= Date.now();
+      return eventDt.getTime() >= nowMs;
     }
   }
 
   const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
   if (Number.isNaN(endOfDay.getTime())) return false;
-  return endOfDay.getTime() >= Date.now();
+  return endOfDay.getTime() >= nowMs;
 }
 
 function buildMapsUrl(location?: string | null): string {
@@ -82,7 +82,7 @@ export function TasksTab({
   const [newTask, setNewTask] = useState({
     title: "",
     task_type: "mac",
-    age_group: "U15",
+    age_group: "Minikler",
     event_date: "",
     match_time: "14:00",
     field_choice: "Nazmi Avluca Spor Tesisi",
@@ -98,18 +98,29 @@ export function TasksTab({
   const [corumfitHtml, setCorumfitHtml] = useState("");
   const [syncingCorumfit, setSyncingCorumfit] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState<number>(0);
 
   const [matchWaPreview, setMatchWaPreview] = useState<{
     message: string;
     targets: Player[];
   } | null>(null);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setNowMs(Date.now());
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
   const { upcomingTasks, pastTasks } = useMemo(() => {
+    if (!nowMs) {
+      return { upcomingTasks: tasks, pastTasks: [] as TaskAssignment[] };
+    }
     return {
-      upcomingTasks: tasks.filter((t) => isTaskUpcoming(t)),
-      pastTasks: tasks.filter((t) => !isTaskUpcoming(t)),
+      upcomingTasks: tasks.filter((t) => isTaskUpcoming(t, nowMs)),
+      pastTasks: tasks.filter((t) => !isTaskUpcoming(t, nowMs)),
     };
-  }, [tasks]);
+  }, [tasks, nowMs]);
 
   async function handleSyncCorumfit() {
     setSyncingCorumfit(true);
@@ -208,7 +219,6 @@ export function TasksTab({
           : adminName || "Yönetici",
     });
 
-    // Maç ve etkinliklerde tüm oyunculara bildirim gönderilir
     const pushRes = await sendPushViaApi(
       ["Tümü"],
       `⚽ Yeni Maç / Etkinlik: ${newTask.title}`,
@@ -229,7 +239,7 @@ export function TasksTab({
     setNewTask({
       title: "",
       task_type: "mac",
-      age_group: "U15",
+      age_group: "Minikler",
       event_date: "",
       match_time: "14:00",
       field_choice: "Nazmi Avluca Spor Tesisi",
@@ -242,6 +252,8 @@ export function TasksTab({
   }
 
   async function deleteTask(task: TaskAssignment) {
+    if (!confirm(`"${task.title}" kaydını silmek istediğinize emin misiniz?`))
+      return;
     setDeletingId(task.id);
     const { error } = await supabase
       .from("tasks_assignments")
@@ -302,7 +314,6 @@ export function TasksTab({
 
   return (
     <div className="space-y-6 text-slate-900">
-      {/* Corumfit Haftalık Program Senkronizasyon Ajanı */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -463,7 +474,7 @@ export function TasksTab({
           type="submit"
           className="bg-[#a60513] hover:bg-[#8a0410] text-white font-bold rounded-lg px-6 py-2.5 text-sm cursor-pointer"
         >
-          Maçı / Etkinliği Kaydet & Tüm Oyunculara Bildirim Gönder
+          Maçı / Etkinliği Kaydet &amp; Tüm Oyunculara Bildirim Gönder
         </button>
       </form>
 
@@ -492,7 +503,7 @@ export function TasksTab({
 
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
         <h3 className="font-extrabold text-[#02274c] text-base">
-          Yaklaşan Maçlar & Etkinlikler ({upcomingTasks.length})
+          Yaklaşan Maçlar &amp; Etkinlikler ({upcomingTasks.length})
         </h3>
         {upcomingTasks.length === 0 ? (
           <p className="text-xs text-slate-500">Yaklaşan kayıt yok.</p>
@@ -528,7 +539,7 @@ export function TasksTab({
                   onClick={() => sendOneDayBeforeReminder(t)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
                 >
-                  ⏰ Bildirim & WP Gönder
+                  ⏰ Bildirim &amp; WP Gönder
                 </button>
                 <button
                   type="button"
@@ -547,7 +558,7 @@ export function TasksTab({
       {pastTasks.length > 0 && (
         <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2.5">
           <h3 className="font-extrabold text-slate-700 text-sm">
-            Geçmiş Maçlar & Etkinlikler ({pastTasks.length})
+            Geçmiş Maçlar &amp; Etkinlikler ({pastTasks.length})
           </h3>
           {pastTasks.slice(0, 20).map((t) => (
             <div

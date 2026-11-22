@@ -5,6 +5,13 @@ interface PlayerProgramTabProps {
   tasks: TaskAssignment[];
 }
 
+function buildMapsUrl(location?: string | null): string {
+  const q = (location || "Nazmi Avluca Spor Tesisi Çorum").trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    q
+  )}`;
+}
+
 export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
   return (
     <div className="grid md:grid-cols-2 gap-6">
@@ -30,7 +37,17 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
                 </div>
               )}
               {t.location && (
-                <div className="text-xs text-slate-500">Saha: {t.location}</div>
+                <div className="text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2">
+                  <span>Saha: {t.location}</span>
+                  <a
+                    href={buildMapsUrl(t.location)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#02274c] font-bold underline"
+                  >
+                    Haritada Aç
+                  </a>
+                </div>
               )}
             </div>
           ))
@@ -38,7 +55,7 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-3 shadow-xs">
-        <h2 className="text-lg font-black text-[#a60513]">Maç & Görev Takvimi</h2>
+        <h2 className="text-lg font-black text-[#a60513]">Maç &amp; Görev Takvimi</h2>
         {tasks.length === 0 ? (
           <p className="text-sm text-slate-500">Yaklaşan maç veya görev yok.</p>
         ) : (
@@ -51,7 +68,19 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
               <div className="text-xs text-slate-600">
                 {task.event_date} {task.match_time ? `• ${task.match_time}` : ""}
               </div>
-              <div className="text-xs text-slate-500">Yer: {task.location}</div>
+              <div className="text-xs text-slate-500 flex flex-wrap items-center justify-between gap-2">
+                <span>Yer: {task.location}</span>
+                {task.location && (
+                  <a
+                    href={buildMapsUrl(task.location)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#02274c] font-bold underline"
+                  >
+                    Haritada Aç
+                  </a>
+                )}
+              </div>
               {task.has_shuttle && (
                 <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold">
                   Servis Var

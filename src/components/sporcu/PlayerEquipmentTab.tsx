@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { EquipmentLog, JerseySetMini, StockItemMini } from "@/types/club";
 
 interface PlayerEquipmentTabProps {
@@ -18,6 +18,15 @@ export function PlayerEquipmentTab({
     url: string;
     title: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (!previewPhoto) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setPreviewPhoto(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewPhoto]);
 
   const activeEquipmentCount = equipmentLogs.filter(
     (e) => e.status === "teslim_edildi"
@@ -44,7 +53,7 @@ export function PlayerEquipmentTab({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black text-[#02274c]">
-              Malzemelerim & Zimmet Kayıtları
+              Malzemelerim &amp; Zimmet Kayıtları
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Kulüp tarafından size teslim edilen forma ve ekipmanları

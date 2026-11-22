@@ -300,7 +300,7 @@ export default function AdminPage() {
   }
 
   const pendingRequestsCount = requests.filter(
-    (r) => r.status === "bekliyor"
+    (r) => r.status === "bekliyor" || r.status === "beklemede"
   ).length;
 
   const availableTabs: Array<{ id: AdminTab; label: string }> =
@@ -386,7 +386,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm mb-6 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
           {availableTabs.map((item) => (
             <button
               key={item.id}

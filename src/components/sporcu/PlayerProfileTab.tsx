@@ -119,7 +119,7 @@ export function PlayerProfileTab({
   return (
     <div className="bg-white text-slate-900 rounded-3xl border border-slate-200 p-6 space-y-6 shadow-xs">
       <h2 className="text-lg font-black text-[#02274c]">
-        Bilgilerim, Profil Fotoğrafı & PIN
+        Bilgilerim, Profil Fotoğrafı &amp; PIN
       </h2>
 
       <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
@@ -242,7 +242,7 @@ export function PlayerProfileTab({
             </span>
           ) : (
             <span className="font-extrabold text-amber-800">
-              {currentMonthItem?.monthLabel}: Ödenmedi
+              {currentMonthItem?.monthLabel || "Güncel Dönem"}: Ödenmedi
             </span>
           )}
         </div>

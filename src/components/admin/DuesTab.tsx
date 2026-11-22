@@ -28,14 +28,15 @@ export function DuesTab({
   onFeedback,
   onLogActivity,
 }: DuesTabProps) {
-  const [selectedDueMonth, setSelectedDueMonth] = useState("Kasım 2026");
+  const defaultMonth = DUE_MONTHS[0] || "Kasım 2026";
+  const [selectedDueMonth, setSelectedDueMonth] = useState(defaultMonth);
   const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
   const [feeWaMsg, setFeeWaMsg] = useState<string | null>(null);
   const [manualPayGroup, setManualPayGroup] = useState("Tümü");
   const [manualPayPlayerId, setManualPayPlayerId] = useState("");
-  const [manualPayMonth, setManualPayMonth] = useState("Kasım 2026");
+  const [manualPayMonth, setManualPayMonth] = useState(defaultMonth);
   const [manualPayAmount, setManualPayAmount] = useState(monthlyFee);
-  const [pastDueMonth, setPastDueMonth] = useState("Kasım 2026");
+  const [pastDueMonth, setPastDueMonth] = useState(defaultMonth);
   const [pastDueCustomNote, setPastDueCustomNote] = useState("");
 
   const playersByGroupForSelect = useMemo(() => {
@@ -82,7 +83,8 @@ export function DuesTab({
           .sort((a, b) => Number(a.isPaid) - Number(b.isPaid));
         const paidCount = rows.filter((r) => r.isPaid).length;
         const paidTotal = rows.reduce(
-          (sum, r) => sum + (r.isPaid ? Number(r.due?.amount || monthlyFee) : 0),
+          (sum, r) =>
+            sum + (r.isPaid ? Number(r.due?.amount || monthlyFee) : 0),
           0
         );
         return { group: g, rows, paidCount, paidTotal };
@@ -111,7 +113,10 @@ export function DuesTab({
     }
     const { error: setErr } = await supabase
       .from("club_settings")
-      .upsert({ key: "monthly_fee", value: String(feeNum) }, { onConflict: "key" });
+      .upsert(
+        { key: "monthly_fee", value: String(feeNum) },
+        { onConflict: "key" }
+      );
 
     if (setErr) {
       onFeedback("Aidat ücreti kaydedilemedi: " + setErr.message);
@@ -132,7 +137,9 @@ export function DuesTab({
     );
     setFeeWaMsg(msg);
     setManualPayAmount(String(feeNum));
-    onFeedback(`✅ Aidat ücreti ${feeNum}₺ olarak güncellendi ve bildirim yayınlandı.`);
+    onFeedback(
+      `✅ Aidat ücreti ${feeNum}₺ olarak güncellendi ve bildirim yayınlandı.`
+    );
   }
 
   async function handleManualDuePayment(e: React.FormEvent) {
@@ -163,7 +170,9 @@ export function DuesTab({
       }
       setDues((prev) =>
         prev.map((d) =>
-          d.id === existing.id ? { ...d, status: "Ödendi", amount: amountNum } : d
+          d.id === existing.id
+            ? { ...d, status: "Ödendi", amount: amountNum }
+            : d
         )
       );
     } else {
@@ -221,9 +230,12 @@ export function DuesTab({
         "Aidat Tahsilatı",
         `${player.full_name} — ${selectedDueMonth} (${feeNum}₺) Ödendi`
       );
-      onFeedback(`✅ ${player.full_name} (${selectedDueMonth}) Ödendi olarak işaretlendi.`);
+      onFeedback(
+        `✅ ${player.full_name} (${selectedDueMonth}) Ödendi olarak işaretlendi.`
+      );
     } else {
-      const isPaid = existingDue.status === "Ödendi" || existingDue.status === "paid";
+      const isPaid =
+        existingDue.status === "Ödendi" || existingDue.status === "paid";
       const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
       const nextAmount = existingDue.amount || feeNum;
 
@@ -251,7 +263,9 @@ export function DuesTab({
         "Aidat Güncelleme",
         `${player.full_name} — ${selectedDueMonth} → ${nextStatus}`
       );
-      onFeedback(`✅ ${player.full_name} (${selectedDueMonth}) durumu: ${nextStatus}`);
+      onFeedback(
+        `✅ ${player.full_name} (${selectedDueMonth}) durumu: ${nextStatus}`
+      );
     }
   }
 
@@ -276,13 +290,17 @@ export function DuesTab({
       return;
     }
 
-    await sendPushViaApi(["Tümü"], `⚠️ ${pastDueMonth} Aidat Hatırlatması`, bodyText);
+    const pushRes = await sendPushViaApi(
+      ["Tümü"],
+      `⚠️ ${pastDueMonth} Aidat Hatırlatması`,
+      bodyText
+    );
     await onLogActivity(
       "Toplu Aidat Hatırlatma",
-      `${pastDueMonth} dönemi için ödemesi kalan ${pastUnpaidPlayers.length} sporcuya kulüp bildirimi gönderildi.`
+      `${pastDueMonth} dönemi için ödemesi kalan ${pastUnpaidPlayers.length} sporcuya kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz).`
     );
     onFeedback(
-      `✅ ${pastDueMonth} ödemesi kalan ${pastUnpaidPlayers.length} sporcu için toplu kulüp bildirimi gönderildi!`
+      `✅ ${pastDueMonth} ödemesi kalan ${pastUnpaidPlayers.length} sporcu için toplu kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz)!`
     );
   }
 
@@ -291,7 +309,7 @@ export function DuesTab({
       <div className="bg-white p-5 rounded-2xl shadow-sm border flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-extrabold text-[#02274c]">
-            Aylık Aidat Ücreti & Dönem Seçimi
+            Aylık Aidat Ücreti &amp; Dönem Seçimi
           </h2>
           <p className="text-xs text-slate-500">
             Kasım 2026 itibarıyla her yeni ayda 3 ay sonrası otomatik açılır;
@@ -299,7 +317,9 @@ export function DuesTab({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-600">Güncel Ücret (₺):</span>
+          <span className="text-xs font-bold text-slate-600">
+            Güncel Ücret (₺):
+          </span>
           <input
             type="number"
             value={monthlyFee}
@@ -309,9 +329,9 @@ export function DuesTab({
           <button
             type="button"
             onClick={updateMonthlyFee}
-            className="bg-[#a60513] text-white text-xs font-bold px-4 py-2 rounded-lg"
+            className="bg-[#a60513] text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer"
           >
-            Ücreti Güncelle & Bildir
+            Ücreti Güncelle &amp; Bildir
           </button>
         </div>
       </div>
@@ -407,7 +427,7 @@ export function DuesTab({
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
             <h3 className="font-extrabold text-amber-950 text-sm">
-              📢 Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim & Mesaj
+              📢 Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim &amp; Mesaj
             </h3>
             <p className="text-xs text-amber-800 mt-0.5">
               <strong>{pastDueMonth}</strong> döneminde ödemesi henüz alınmamış{" "}
@@ -439,9 +459,10 @@ export function DuesTab({
           <button
             type="button"
             onClick={sendBulkPastDueNotification}
-            className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-4 py-2.5 rounded-xl"
+            className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer"
           >
-            🔔 Ödemeyenlere Toplu Kulüp Bildirimi Gönder ({pastUnpaidPlayers.length})
+            🔔 Ödemeyenlere Toplu Kulüp Bildirimi Gönder (
+            {pastUnpaidPlayers.length})
           </button>
           <a
             href={`https://wa.me/?text=${encodeURIComponent(
@@ -463,8 +484,9 @@ export function DuesTab({
             {DUE_MONTHS.map((m) => (
               <button
                 key={m}
+                type="button"
                 onClick={() => setSelectedDueMonth(m)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold border ${
+                className={`px-4 py-2 rounded-xl text-xs font-bold border cursor-pointer ${
                   selectedDueMonth === m
                     ? "bg-[#a60513] text-white"
                     : "bg-slate-50 text-[#02274c]"
@@ -479,8 +501,9 @@ export function DuesTab({
             {["Tümü", ...AGE_GROUPS].map((g) => (
               <button
                 key={g}
+                type="button"
                 onClick={() => setDueGroupFilter(g)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
                   dueGroupFilter === g
                     ? "bg-[#02274c] text-white"
                     : "bg-white text-slate-700"
@@ -513,7 +536,9 @@ export function DuesTab({
                     }`}
                   >
                     <div>
-                      <strong className="text-[#02274c]">{player.full_name}</strong>{" "}
+                      <strong className="text-[#02274c]">
+                        {player.full_name}
+                      </strong>{" "}
                       <span className="text-xs text-slate-500">
                         ({due?.amount || monthlyFee}₺)
                       </span>
@@ -534,7 +559,7 @@ export function DuesTab({
                       <button
                         type="button"
                         onClick={() => togglePlayerMonthDue(player, due)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
                           isPaid
                             ? "bg-emerald-600 text-white"
                             : "bg-amber-200 text-amber-950"

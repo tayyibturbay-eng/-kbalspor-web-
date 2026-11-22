@@ -142,6 +142,7 @@ export function PlayerHeader({
           </div>
         </div>
         <button
+          type="button"
           onClick={onLogout}
           className="self-start sm:self-auto px-4 py-2.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 text-xs font-extrabold cursor-pointer transition backdrop-blur-xs"
         >
@@ -155,6 +156,7 @@ export function PlayerHeader({
             const active = tab === item.key;
             return (
               <button
+                type="button"
                 key={item.key}
                 onClick={() => onTabChange(item.key)}
                 className={`group relative flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs sm:text-sm font-extrabold transition-all duration-200 cursor-pointer ${
