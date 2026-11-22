@@ -25,7 +25,10 @@ function getPlayerMultiplier(p: Player, allPlayers: Player[]): 1 | 2 | 3 {
   const maxGoals = Math.max(
     0,
     ...allPlayers.map((item) =>
-      Math.max(0, Number((item as Player & { goals_scored?: number | null }).goals_scored ?? 0))
+      Math.max(
+        0,
+        Number((item as Player & { goals_scored?: number | null }).goals_scored ?? 0)
+      )
     )
   );
   if (goals <= 0) return 3;
@@ -40,7 +43,9 @@ export function MatchResultsTab({
   onLogActivity,
 }: MatchResultsTabProps) {
   const matchList = useMemo(() => {
-    const onlyMatches = tasks.filter((t) => t.task_type === "mac");
+    const onlyMatches = tasks.filter(
+      (t) => String(t.task_type || "").toLowerCase() === "mac"
+    );
     return onlyMatches.length > 0 ? onlyMatches : tasks;
   }, [tasks]);
 
@@ -211,84 +216,119 @@ export function MatchResultsTab({
         return;
       }
 
-      const { data: preds } = await supabase
-        .from("match_predictions")
-        .select("*")
-        .eq("match_title", activeMatch.title);
+      const [byTitleRes, byIdRes] = await Promise.all([
+        supabase
+          .from("match_predictions")
+          .select("*")
+          .eq("match_title", activeMatch.title),
+        supabase
+          .from("match_predictions")
+          .select("*")
+          .eq("match_id", activeMatch.id),
+      ]);
+
+      const mergedPredsMap = new Map<string, Record<string, unknown>>();
+      for (const row of [...(byTitleRes.data || []), ...(byIdRes.data || [])]) {
+        if (row && typeof row.id === "string") {
+          mergedPredsMap.set(row.id, row as Record<string, unknown>);
+        }
+      }
+      const preds = Array.from(mergedPredsMap.values());
 
       const addedPointsByPlayer = new Map<string, number>();
 
-      if (preds && preds.length > 0) {
-        for (const pred of preds) {
-          let earned = 0;
+      for (const pred of preds) {
+        let earned = 0;
 
-          const predHome = Number(pred.home_score ?? pred.predicted_home_goals ?? -1);
-          const predAway = Number(pred.away_score ?? pred.predicted_away_goals ?? -1);
+        const predHome = Number(
+          pred.home_score ?? pred.predicted_home_goals ?? -1
+        );
+        const predAway = Number(
+          pred.away_score ?? pred.predicted_away_goals ?? -1
+        );
 
-          if (predHome === Number(homeGoals)) earned += 1;
-          if (predAway === Number(awayGoals)) earned += 1;
+        if (predHome === Number(homeGoals)) earned += 1;
+        if (predAway === Number(awayGoals)) earned += 1;
 
-          const predScorerName = String(pred.first_scorer_name || "").trim();
-          const matchedScorerPlayer = predScorerName
-            ? players.find(
-                (p) => p.full_name.trim().toLowerCase() === predScorerName.toLowerCase()
-              )
-            : null;
+        const predScorerName = String(pred.first_scorer_name || "").trim();
+        const matchedScorerPlayer = predScorerName
+          ? players.find(
+              (p) =>
+                p.full_name.trim().toLocaleLowerCase("tr-TR") ===
+                predScorerName.toLocaleLowerCase("tr-TR")
+            )
+          : null;
 
-          const scorerHit = Boolean(
-            (pred.predicted_scorer_id && scorerIds.includes(pred.predicted_scorer_id)) ||
-              (predScorerName &&
-                scorerNames.some(
-                  (sn) => sn.trim().toLowerCase() === predScorerName.toLowerCase()
-                ))
+        const scorerHit = Boolean(
+          (pred.predicted_scorer_id &&
+            scorerIds.includes(String(pred.predicted_scorer_id))) ||
+            (predScorerName &&
+              scorerNames.some(
+                (sn) =>
+                  sn.trim().toLocaleLowerCase("tr-TR") ===
+                  predScorerName.toLocaleLowerCase("tr-TR")
+              ))
+        );
+
+        const mult: 1 | 2 | 3 =
+          pred.scorer_multiplier === 1 ||
+          pred.scorer_multiplier === 2 ||
+          pred.scorer_multiplier === 3
+            ? pred.scorer_multiplier
+            : matchedScorerPlayer
+            ? getPlayerMultiplier(matchedScorerPlayer, players)
+            : 1;
+
+        if (scorerHit) earned += mult;
+
+        const prevAwarded = Number(
+          pred.awarded_points ?? pred.points_earned ?? 0
+        );
+        const deltaPoints = Math.max(0, earned - prevAwarded);
+
+        await supabase
+          .from("match_predictions")
+          .update({
+            actual_home_score: homeGoals,
+            actual_away_score: awayGoals,
+            actual_scorer_name: actualScorerText || null,
+            awarded_points: earned,
+            points_earned: earned,
+          })
+          .eq("id", pred.id);
+
+        const targetPlayerId = String(pred.player_id || "").trim();
+        if (deltaPoints > 0 && targetPlayerId) {
+          addedPointsByPlayer.set(
+            targetPlayerId,
+            (addedPointsByPlayer.get(targetPlayerId) || 0) + deltaPoints
           );
-
-          const mult: 1 | 2 | 3 =
-            pred.scorer_multiplier === 1 ||
-            pred.scorer_multiplier === 2 ||
-            pred.scorer_multiplier === 3
-              ? pred.scorer_multiplier
-              : matchedScorerPlayer
-              ? getPlayerMultiplier(matchedScorerPlayer, players)
-              : 1;
-
-          if (scorerHit) earned += mult;
-
-          const prevAwarded = Number(pred.awarded_points ?? 0);
-          const deltaPoints = Math.max(0, earned - prevAwarded);
-
-          await supabase
-            .from("match_predictions")
-            .update({
-              actual_home_score: homeGoals,
-              actual_away_score: awayGoals,
-              actual_scorer_name: actualScorerText || null,
-              awarded_points: earned,
-              points_earned: earned,
-            })
-            .eq("id", pred.id);
-
-          if (deltaPoints > 0 && pred.player_id) {
-            addedPointsByPlayer.set(
-              pred.player_id,
-              (addedPointsByPlayer.get(pred.player_id) || 0) + deltaPoints
-            );
-          }
         }
       }
 
+      let totalAwardedPlayers = 0;
       for (const [playerId, delta] of addedPointsByPlayer.entries()) {
         const { data: freshPlayer } = await supabase
           .from("players")
-          .select("skill_points")
+          .select("*")
           .eq("id", playerId)
           .maybeSingle();
 
-        const currentPts = Number(freshPlayer?.skill_points ?? 20);
-        await supabase
-          .from("players")
-          .update({ skill_points: currentPts + delta })
-          .eq("id", playerId);
+        if (!freshPlayer) continue;
+        totalAwardedPlayers += 1;
+
+        const updatePayload: Record<string, number> = {};
+        if ("points" in freshPlayer) {
+          updatePayload.points = Number(freshPlayer.points ?? 0) + delta;
+        }
+        if ("skill_points" in freshPlayer) {
+          updatePayload.skill_points = Number(freshPlayer.skill_points ?? 20) + delta;
+        }
+        if (Object.keys(updatePayload).length === 0) {
+          updatePayload.points = delta;
+        }
+
+        await supabase.from("players").update(updatePayload).eq("id", playerId);
       }
 
       await onLogActivity(
@@ -296,10 +336,12 @@ export function MatchResultsTab({
         `${activeMatch.title}: ${homeGoals} - ${awayGoals} | Gol atanlar: ${
           goalEvents.map((g) => `${g.player_name} (${g.goals})`).join(", ") ||
           "Yok"
-        }`
+        } | Puan işlenen oyuncu: ${totalAwardedPlayers}`
       );
 
-      onFeedback("Maç skoru, gol atanlar ve tahmin puanları kaydedildi.");
+      onFeedback(
+        `✅ Maç skoru, gol atanlar ve tahmin puanları kaydedildi (${totalAwardedPlayers} oyuncuya puan aktarıldı).`
+      );
     } finally {
       setSaving(false);
     }

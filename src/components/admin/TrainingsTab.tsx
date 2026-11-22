@@ -119,6 +119,11 @@ export function TrainingsTab({
     const assignedCoachName = selectedCoachObj ? selectedCoachObj.full_name : null;
     const mapsLink = buildMapsUrl(trainingForm.location);
 
+    const groupLabel =
+      trainingForm.age_groups.length > 0
+        ? trainingForm.age_groups.join(", ")
+        : "Özel Grup";
+
     if (isEdit) {
       const { error } = await supabase
         .from("trainings")
@@ -148,9 +153,9 @@ export function TrainingsTab({
 
       await onLogActivity(
         "Antrenman Güncelleme",
-        `${trainingForm.age_groups.join(", ")} — ${daysToSave[0]} ${
-          trainingForm.start_time
-        }${assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""}`
+        `${groupLabel} — ${daysToSave[0]} ${trainingForm.start_time}${
+          assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""
+        }`
       );
     } else {
       const rows = daysToSave.map((day) => ({
@@ -181,9 +186,9 @@ export function TrainingsTab({
 
       await onLogActivity(
         "Antrenman Ekleme",
-        `${trainingForm.age_groups.join(", ")} — ${daysToSave.join(", ")} ${
-          trainingForm.start_time
-        }${assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""}`
+        `${groupLabel} — ${daysToSave.join(", ")} ${trainingForm.start_time}${
+          assignedCoachName ? ` (Antrenör: ${assignedCoachName})` : ""
+        }`
       );
     }
 
@@ -232,21 +237,28 @@ export function TrainingsTab({
     }`;
 
     await supabase.from("club_messages").insert({
-      title: `${header} (${trainingForm.age_groups.join(", ")})`,
+      title: `${header} (${groupLabel})`,
       body: fullMsg,
-      target_group: trainingForm.age_groups.join(", ") || "Özel Grup",
+      target_group: groupLabel,
       sender_name: authorName,
     });
 
-    const pushRes = await sendPushViaApi(
-      trainingForm.age_groups,
-      "⚽ Antrenman Programı Güncellendi",
-      `${trainingForm.age_groups.join(", ")} • ${whenText}`
+    // Antrenmanda yalnızca seçilen yaş gruplarına bildirim gönderilir ("Tümü" gönderilmez)
+    const selectedGroupsOnly = trainingForm.age_groups.filter(
+      (g) => g && g !== "Tümü"
     );
+    const pushRes =
+      selectedGroupsOnly.length > 0
+        ? await sendPushViaApi(
+            selectedGroupsOnly,
+            "⚽ Antrenman Programı Güncellendi",
+            `${groupLabel} • ${whenText}`
+          )
+        : { sentCount: 0, error: undefined };
 
     setLastWaBroadcast({ message: fullMsg, targetPlayers });
     onFeedback(
-      `✅ Antrenman kaydedildi (${pushRes.sentCount} telefona bildirim gönderildi).`
+      `✅ Antrenman kaydedildi ve yalnızca seçili gruba (${groupLabel}) bildirim gönderildi (${pushRes.sentCount} telefon).`
     );
     setTrainingForm({
       id: "",
@@ -533,7 +545,7 @@ export function TrainingsTab({
           type="submit"
           className="bg-[#02274c] hover:bg-[#033669] text-white font-bold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
         >
-          Antrenmanı Kaydet & Gruba Bildir
+          Antrenmanı Kaydet & Seçili Gruba Bildir
         </button>
       </form>
 

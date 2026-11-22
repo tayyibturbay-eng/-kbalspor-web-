@@ -14,6 +14,51 @@ import {
 
 const supabase = createClient();
 
+function getLocalTodayStr(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function formatDisplayDate(raw?: string | null): string {
+  if (!raw) return "";
+  const clean = String(raw).trim().slice(0, 10);
+  const parts = clean.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}.${parts[1]}.${parts[0]}`;
+  }
+  return clean;
+}
+
+function isTaskUpcoming(task: TaskAssignment): boolean {
+  if (!task.event_date) return false;
+  const datePart = String(task.event_date).trim().slice(0, 10);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const day = Number(match[3]);
+
+  const timeStr = String(task.match_time || "").trim();
+  const timeMatch = /^(\d{1,2}):(\d{2})/.exec(timeStr);
+
+  if (timeMatch) {
+    const hours = Number(timeMatch[1]);
+    const minutes = Number(timeMatch[2]);
+    const eventDt = new Date(year, month, day, hours, minutes, 59, 999);
+    if (!Number.isNaN(eventDt.getTime())) {
+      return eventDt.getTime() >= Date.now();
+    }
+  }
+
+  const endOfDay = new Date(year, month, day, 23, 59, 59, 999);
+  if (Number.isNaN(endOfDay.getTime())) return false;
+  return endOfDay.getTime() >= Date.now();
+}
+
 function buildMapsUrl(location?: string | null): string {
   const q = (location || NAZMI_AVLUCA || "Çorum").trim();
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -29,7 +74,7 @@ export default function GorevlerPage() {
   const [todayStr, setTodayStr] = useState("");
 
   useEffect(() => {
-    setTodayStr(new Date().toISOString().slice(0, 10));
+    setTodayStr(getLocalTodayStr());
 
     (async () => {
       setLoading(true);
@@ -61,11 +106,12 @@ export default function GorevlerPage() {
     const pastList: Training[] = [];
 
     for (const tr of list) {
+      const trDateClean = String(tr.training_date || "").slice(0, 10);
       if (
         tr.training_type === "ekstra" &&
-        tr.training_date &&
+        trDateClean &&
         todayStr &&
-        tr.training_date < todayStr
+        trDateClean < todayStr
       ) {
         pastList.push(tr);
       } else {
@@ -89,7 +135,7 @@ export default function GorevlerPage() {
     });
 
     pastList.sort((a, b) =>
-      (b.training_date || "").localeCompare(a.training_date || "")
+      String(b.training_date || "").localeCompare(String(a.training_date || ""))
     );
 
     return { filteredTrainings: activeList, pastTrainings: pastList };
@@ -103,17 +149,15 @@ export default function GorevlerPage() {
             (t) => t.age_group === selectedGroup || t.age_group === "Tümü"
           );
 
-    if (!todayStr) {
-      return { upcomingTasks: byGroup, pastTasks: [] as TaskAssignment[] };
-    }
+    const upcoming = byGroup.filter((t) => isTaskUpcoming(t));
+    const past = byGroup
+      .filter((t) => !isTaskUpcoming(t))
+      .sort((a, b) =>
+        String(b.event_date || "").localeCompare(String(a.event_date || ""))
+      );
 
-    return {
-      upcomingTasks: byGroup.filter((t) => (t.event_date || "") >= todayStr),
-      pastTasks: byGroup
-        .filter((t) => (t.event_date || "") < todayStr)
-        .sort((a, b) => (b.event_date || "").localeCompare(a.event_date || "")),
-    };
-  }, [tasks, selectedGroup, todayStr]);
+    return { upcomingTasks: upcoming, pastTasks: past };
+  }, [tasks, selectedGroup]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
@@ -178,7 +222,9 @@ export default function GorevlerPage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-extrabold">
-                      {tr.day_of_week || tr.training_date || "Program"}
+                      {tr.day_of_week ||
+                        formatDisplayDate(tr.training_date) ||
+                        "Program"}
                     </span>
                     <span className="text-sm font-black text-[#a60513]">
                       {tr.start_time}
@@ -259,7 +305,7 @@ export default function GorevlerPage() {
                   </div>
                   <div className="text-right shrink-0">
                     <div className="text-sm font-black text-[#02274c]">
-                      {task.event_date}
+                      {formatDisplayDate(task.event_date)}
                     </div>
                     {task.match_time && (
                       <div className="text-xs font-bold text-slate-500">
@@ -299,7 +345,7 @@ export default function GorevlerPage() {
                     )}
                   </div>
                   <span className="text-xs font-bold text-slate-500">
-                    {task.event_date}
+                    {formatDisplayDate(task.event_date)}
                   </span>
                 </div>
               ))}
@@ -317,7 +363,7 @@ export default function GorevlerPage() {
                     </div>
                   </div>
                   <span className="text-xs font-bold text-slate-500">
-                    {tr.training_date}
+                    {formatDisplayDate(tr.training_date)}
                   </span>
                 </div>
               ))}

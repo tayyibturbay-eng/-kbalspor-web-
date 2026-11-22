@@ -31,11 +31,34 @@ export function DuesTab({
   const [selectedDueMonth, setSelectedDueMonth] = useState("Kasım 2026");
   const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
   const [feeWaMsg, setFeeWaMsg] = useState<string | null>(null);
+  const [manualPayGroup, setManualPayGroup] = useState("Tümü");
   const [manualPayPlayerId, setManualPayPlayerId] = useState("");
   const [manualPayMonth, setManualPayMonth] = useState("Kasım 2026");
   const [manualPayAmount, setManualPayAmount] = useState(monthlyFee);
   const [pastDueMonth, setPastDueMonth] = useState("Kasım 2026");
   const [pastDueCustomNote, setPastDueCustomNote] = useState("");
+
+  const playersByGroupForSelect = useMemo(() => {
+    const groups =
+      manualPayGroup === "Tümü"
+        ? AGE_GROUPS
+        : AGE_GROUPS.filter((g) => g === manualPayGroup);
+
+    const grouped: Array<{ group: string; items: Player[] }> = groups
+      .map((g) => ({
+        group: String(g),
+        items: players.filter((p) => p.age_group === g),
+      }))
+      .filter((x) => x.items.length > 0);
+
+    const knownGroups = new Set<string>(AGE_GROUPS as unknown as string[]);
+    const otherPlayers = players.filter((p) => !knownGroups.has(p.age_group));
+    if (manualPayGroup === "Tümü" && otherPlayers.length > 0) {
+      grouped.push({ group: "Diğer", items: otherPlayers });
+    }
+
+    return grouped;
+  }, [players, manualPayGroup]);
 
   const groupedMonthlyDues = useMemo(() => {
     const monthDuesMap = new Map<string, Due>();
@@ -312,20 +335,42 @@ export function DuesTab({
         className="bg-white p-5 rounded-2xl shadow-sm border space-y-3"
       >
         <h3 className="font-extrabold text-[#02274c] text-sm">
-          Ödeme Ekle (Kişi, Ay ve Verilen Tutarı Seç)
+          Ödeme Ekle (Grup, Kişi, Ay ve Verilen Tutarı Seç)
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <select
+            value={manualPayGroup}
+            onChange={(e) => {
+              setManualPayGroup(e.target.value);
+              setManualPayPlayerId("");
+            }}
+            className="border rounded-lg px-3 py-2 text-sm font-bold text-[#02274c] bg-slate-50"
+          >
+            <option value="Tümü">Tüm Gruplar</option>
+            {AGE_GROUPS.map((g) => (
+              <option key={g} value={g}>
+                {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
+              </option>
+            ))}
+          </select>
           <select
             required
             value={manualPayPlayerId}
             onChange={(e) => setManualPayPlayerId(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border rounded-lg px-3 py-2 text-sm md:col-span-2"
           >
             <option value="">-- Ödeme Yapan Oyuncuyu Seç --</option>
-            {players.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name} ({p.age_group})
-              </option>
+            {playersByGroupForSelect.map(({ group, items }) => (
+              <optgroup
+                key={group}
+                label={group === "Çorum Süper Amatör Ligi" ? "SAL" : group}
+              >
+                {items.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name} ({p.age_group})
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
           <select
@@ -339,20 +384,22 @@ export function DuesTab({
               </option>
             ))}
           </select>
-          <input
-            type="number"
-            required
-            placeholder="Verilen Tutar (₺)"
-            value={manualPayAmount}
-            onChange={(e) => setManualPayAmount(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm font-bold"
-          />
-          <button
-            type="submit"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-4 py-2 text-sm"
-          >
-            ✓ Ödendi Olarak Kaydet
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              required
+              placeholder="Tutar (₺)"
+              value={manualPayAmount}
+              onChange={(e) => setManualPayAmount(e.target.value)}
+              className="w-24 border rounded-lg px-2.5 py-2 text-sm font-bold"
+            />
+            <button
+              type="submit"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-3 py-2 text-xs sm:text-sm cursor-pointer"
+            >
+              ✓ Kaydet
+            </button>
+          </div>
         </div>
       </form>
 
