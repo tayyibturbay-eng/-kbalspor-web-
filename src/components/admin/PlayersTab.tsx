@@ -1,4 +1,3 @@
-// PlayersTab.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -56,6 +55,8 @@ export function PlayersTab({
   const [editingPlayer, setEditingPlayer] = useState<ExtendedPlayer | null>(
     null
   );
+  const [editPointSign, setEditPointSign] = useState<"+" | "-">("+");
+  const [editPointAmount, setEditPointAmount] = useState<string>("5");
 
   const canManageCategories = role === "admin" || role === "coach";
 
@@ -100,6 +101,12 @@ export function PlayersTab({
       })).filter((x) => x.items.length > 0),
     [filteredPlayers]
   );
+
+  function openPlayerEditor(p: ExtendedPlayer) {
+    setEditingPlayer(p);
+    setEditPointSign("+");
+    setEditPointAmount("5");
+  }
 
   async function adjustPlayerPoints(p: ExtendedPlayer, delta: number) {
     const currentPts = p.skill_points ?? 20;
@@ -307,6 +314,14 @@ export function PlayersTab({
     const repGroup = isRep ? editingPlayer.representative_group || "Tümü" : "Tümü";
     const cleanLicense = editingPlayer.license_no?.trim() || null;
 
+    const rawAmount = Math.max(
+      1,
+      Math.min(99, parseInt(editPointAmount, 10) || 0)
+    );
+    const signedDelta = editPointSign === "+" ? rawAmount : -rawAmount;
+    const basePoints = Number(editingPlayer.skill_points ?? 20);
+    const nextSkillPoints = Math.max(0, basePoints + signedDelta);
+
     const { error } = await supabase
       .from("players")
       .update({
@@ -325,6 +340,7 @@ export function PlayersTab({
         is_representative: isRep,
         license_no: cleanLicense,
         bound_device_id: editingPlayer.bound_device_id,
+        skill_points: nextSkillPoints,
       })
       .eq("id", editingPlayer.id);
 
@@ -337,12 +353,10 @@ export function PlayersTab({
       "Oyuncu Düzenleme",
       `${editingPlayer.full_name} (${updatedAgeGroup}${
         cleanSecondGroup ? ` + ${cleanSecondGroup}` : ""
-      }) bilgileri güncellendi.`
+      }) güncellendi (${editPointSign}${rawAmount}p -> ${nextSkillPoints}p).`
     );
     onFeedback(
-      `${editingPlayer.full_name} bilgileri güncellendi (${updatedAgeGroup}${
-        cleanSecondGroup ? ` / ${cleanSecondGroup}` : ""
-      }).`
+      `${editingPlayer.full_name} bilgileri güncellendi (${editPointSign}${rawAmount}p • Yeni Puan: ${nextSkillPoints}).`
     );
     setEditingPlayer(null);
     await onRefreshPlayers();
@@ -542,6 +556,67 @@ export function PlayersTab({
               />
             </div>
           </div>
+
+          {role === "admin" && (
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-xs font-black text-[var(--text-primary)]">
+                  Oyuncu Puan Düzenle (Mevcut: {editingPlayer.skill_points ?? 20}p)
+                </div>
+                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                  + veya - işaretini seçin ve 1–99 arası puan girin (Varsayılan: +5)
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditPointSign("+")}
+                    aria-label="Puan Ekle (+)"
+                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-black transition cursor-pointer ${
+                      editPointSign === "+"
+                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-400 ring-2 ring-emerald-400 scale-105"
+                        : "border-emerald-600/60 bg-[var(--bg-surface)] text-emerald-500 opacity-75 hover:opacity-100"
+                    }`}
+                  >
+                    +
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setEditPointSign("-")}
+                    aria-label="Puan Düş (-)"
+                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-2xl font-black transition cursor-pointer ${
+                      editPointSign === "-"
+                        ? "border-red-500 bg-red-500/20 text-red-400 ring-2 ring-red-400 scale-105"
+                        : "border-red-600/60 bg-[var(--bg-surface)] text-red-500 opacity-75 hover:opacity-100"
+                    }`}
+                  >
+                    -
+                  </button>
+                </div>
+
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={editPointAmount}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/[^0-9]/g, "");
+                    if (!digits) {
+                      setEditPointAmount("");
+                      return;
+                    }
+                    const n = Math.min(99, parseInt(digits, 10));
+                    setEditPointAmount(String(n));
+                  }}
+                  aria-label="Puan Miktarı"
+                  className="w-20 border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-center text-sm font-black"
+                />
+              </div>
+            </div>
+          )}
 
           {role === "admin" && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -960,7 +1035,7 @@ export function PlayersTab({
                             )}
                             <button
                               type="button"
-                              onClick={() => setEditingPlayer(p)}
+                              onClick={() => openPlayerEditor(p)}
                               className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
                             >
                               Düzenle
