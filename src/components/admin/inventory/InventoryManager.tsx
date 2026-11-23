@@ -341,24 +341,21 @@ export function InventoryManager({
     setRow: JerseySetRow,
     unit: UnitDetail
   ) {
-    const nextTotal = Math.max(0, Number(setRow.total_count || 0) - 1);
+    const fixedTotal = Number(setRow.total_count || 0);
     const nextAvail = Math.max(
       0,
-      Math.min(nextTotal, Number(setRow.available_count || 0) - 1)
+      Math.min(fixedTotal, Number(setRow.available_count || 0) - 1)
     );
 
     setJerseySets((prev) =>
       prev.map((item) =>
-        item.id === setRow.id
-          ? { ...item, total_count: nextTotal, available_count: nextAvail }
-          : item
+        item.id === setRow.id ? { ...item, available_count: nextAvail } : item
       )
     );
 
     await supabase
       .from("jersey_sets")
       .update({
-        total_count: nextTotal,
         available_count: nextAvail,
       })
       .eq("id", setRow.id);
@@ -371,17 +368,17 @@ export function InventoryManager({
       size_label: unit.size,
       condition_status: "Kayıp / Hasarlı",
       status: "kayip",
-      notes: `Beden/Numara/Durum panelinden #${unit.number} kayıp işaretlendi (-1 stok).`,
+      notes: `Beden/Numara/Durum panelinden #${unit.number} kayıp işaretlendi (${nextAvail}/${fixedTotal}).`,
       created_at: new Date().toISOString(),
     });
 
     await onLogActivity?.(
       "Forma Kayıp Stok Düşümü",
-      `${setRow.set_name} #${unit.number} (${unit.size}) Kayıp seçildi -> Stok -1 (${nextAvail}/${nextTotal})`
+      `${setRow.set_name} #${unit.number} (${unit.size}) Kayıp seçildi -> Stok ${nextAvail}/${fixedTotal}`
     );
     notify(
       true,
-      `${setRow.set_name} #${unit.number} Kayıp olarak işaretlendi ve stoktan 1 adet düşüldü.`
+      `${setRow.set_name} #${unit.number} Kayıp olarak işaretlendi (${nextAvail}/${fixedTotal}).`
     );
   }
 
@@ -389,16 +386,16 @@ export function InventoryManager({
     stockRow: StockItemRow,
     unit: UnitDetail
   ) {
-    const nextTotal = Math.max(0, Number(stockRow.total_count || 0) - 1);
+    const fixedTotal = Number(stockRow.total_count || 0);
     const nextAvail = Math.max(
       0,
-      Math.min(nextTotal, Number(stockRow.available_count || 0) - 1)
+      Math.min(fixedTotal, Number(stockRow.available_count || 0) - 1)
     );
 
     setStockItems((prev) =>
       prev.map((item) =>
         item.id === stockRow.id
-          ? { ...item, total_count: nextTotal, available_count: nextAvail }
+          ? { ...item, available_count: nextAvail }
           : item
       )
     );
@@ -406,7 +403,6 @@ export function InventoryManager({
     await supabase
       .from("equipment_stock")
       .update({
-        total_count: nextTotal,
         available_count: nextAvail,
       })
       .eq("id", stockRow.id);
@@ -419,17 +415,17 @@ export function InventoryManager({
       size_label: unit.size,
       condition_status: "Kayıp / Hasarlı",
       status: "kayip",
-      notes: `Beden/Numara/Durum panelinden #${unit.number} kayıp işaretlendi (-1 stok).`,
+      notes: `Beden/Numara/Durum panelinden #${unit.number} kayıp işaretlendi (${nextAvail}/${fixedTotal}).`,
       created_at: new Date().toISOString(),
     });
 
     await onLogActivity?.(
       "Malzeme Kayıp Stok Düşümü",
-      `${stockRow.product_name} #${unit.number} (${unit.size}) Kayıp seçildi -> Stok -1 (${nextAvail}/${nextTotal})`
+      `${stockRow.product_name} #${unit.number} (${unit.size}) Kayıp seçildi -> Stok ${nextAvail}/${fixedTotal}`
     );
     notify(
       true,
-      `${stockRow.product_name} #${unit.number} Kayıp olarak işaretlendi ve stoktan 1 adet düşüldü.`
+      `${stockRow.product_name} #${unit.number} Kayıp olarak işaretlendi (${nextAvail}/${fixedTotal}).`
     );
   }
 
@@ -1346,7 +1342,7 @@ export function InventoryManager({
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
-                Kayıp (Stoktan -1 Düşer)
+                Kayıp (Müsait Stoktan -1 Düşer)
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
@@ -1673,7 +1669,7 @@ export function InventoryManager({
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
-                Kayıp (Stoktan -1 Düşer)
+                Kayıp (Müsait Stoktan -1 Düşer)
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
@@ -1843,7 +1839,6 @@ export function InventoryManager({
         </div>
       )}
 
-      {/* Sadece Emanet Etme ve İade İşlemleri */}
       <form
         onSubmit={handleAssignOrReturn}
         className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs"
@@ -1856,7 +1851,7 @@ export function InventoryManager({
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
               Bu alan yalnızca emanet teslim ve iade işlemleri içindir. Kayıp
               veya hasarlı ürünleri yukarıdaki Beden / Numara / Durum panelinden
-              Kayıp seçerek stoktan düşebilirsiniz.
+              Kayıp seçerek müsait stoktan düşebilirsiniz.
             </p>
           </div>
 
