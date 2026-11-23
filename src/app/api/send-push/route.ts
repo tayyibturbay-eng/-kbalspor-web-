@@ -16,6 +16,8 @@ type ExpoPushTicket = {
   details?: { error?: string };
 };
 
+const DEFAULT_LOGO_URL = "https://ikbalspor.com/logo.png";
+
 export async function POST(req: Request) {
   try {
     const { ageGroups, title, body, imageUrl, sound } = (await req.json()) as {
@@ -67,10 +69,13 @@ export async function POST(req: Request) {
 
     const cleanSound =
       typeof sound === "string" && sound.trim() ? sound.trim() : "default";
-    const cleanImage =
+    const rawImg =
       typeof imageUrl === "string" && imageUrl.trim()
         ? imageUrl.trim()
-        : undefined;
+        : DEFAULT_LOGO_URL;
+    const cleanImage = rawImg.startsWith("/")
+      ? `https://ikbalspor.com${rawImg}`
+      : rawImg;
 
     const tokenChunks = chunkArray(uniqueTokens, 100);
     let totalSent = 0;
@@ -80,12 +85,18 @@ export async function POST(req: Request) {
       const messages = chunk.map((token) => ({
         to: token,
         sound: cleanSound,
+        channelId: "ikbalspor-alerts",
+        priority: "high",
         title: title.trim(),
         body: body.trim(),
-        ...(cleanImage ? { image: cleanImage } : {}),
+        image: cleanImage,
+        richContent: {
+          image: cleanImage,
+        },
         data: {
-          ...(cleanImage ? { imageUrl: cleanImage } : {}),
+          imageUrl: cleanImage,
           sound: cleanSound,
+          channelId: "ikbalspor-alerts",
           title: title.trim(),
           body: body.trim(),
         },

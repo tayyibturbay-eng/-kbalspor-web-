@@ -2,8 +2,6 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { calculateGoalPointsForScorer } from "@/lib/goal-scoring";
-import { claimPredictionRewardSafely } from "@/lib/prediction-rpc";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 
 const supabase = createClient();
@@ -14,714 +12,501 @@ interface MatchTaskRow {
   age_group?: string | null;
   task_type?: string | null;
   event_date?: string | null;
-  due_date?: string | null;
   match_time?: string | null;
-  created_at?: string;
+  location?: string | null;
+  created_at?: string | null;
 }
 
-interface CategoryPlayerRow {
-  id: string;
-  full_name: string;
-  age_group: string;
-  jersey_number?: number | null;
-  skill_points?: number | null;
-}
-
-interface PredictionRow {
+interface PredictionRecord {
   id: string;
   player_id: string;
   age_group: string;
   match_title: string;
   home_score: number;
   away_score: number;
+  first_scorer_name?: string | null;
+  scorer_multiplier?: number | null;
   actual_home_score?: number | null;
   actual_away_score?: number | null;
+  actual_scorer_name?: string | null;
   awarded_points?: number | null;
   reward_claimed?: boolean | null;
-  first_scorer_name: string | null;
-  scorer_multiplier?: number | null;
-  created_at: string;
-  players?: {
-    full_name?: string | null;
-    jersey_number?: number | null;
-    skill_points?: number | null;
-  } | null;
+  created_at?: string | null;
 }
 
 interface MatchPredictionCardProps {
-  playerId: string;
-  ageGroup: string;
-  onPointsClaimed?: (newTotalPoints: number) => void;
+  playerId?: string | null;
+  playerAgeGroup?: string | null;
+  onRewardClaimed?: (pointsAdded: number) => void;
 }
 
-function calcPredictionPoints(
-  predHome: number,
-  predAway: number,
-  actualHome: number,
-  actualAway: number
-): number {
-  let pts = 0;
-  if (predHome === actualHome) pts += 1;
-  if (predAway === actualAway) pts += 1;
-
-  const predOutcome = predHome > predAway ? "H" : predHome < predAway ? "A" : "D";
-  const actualOutcome =
-    actualHome > actualAway ? "H" : actualHome < actualAway ? "A" : "D";
-  if (predOutcome === actualOutcome) pts += 3;
-
-  if (predHome === actualHome && predAway === actualAway) pts += 5;
-  return pts;
+function getMatchStartDate(match: MatchTaskRow): Date | null {
+  if (!match.event_date) return null;
+  const datePart = match.event_date.slice(0, 10);
+  const timePart = (match.match_time || "23:59").slice(0, 5);
+  const parsed = new Date(`${datePart}T${timePart}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function formatMatchScheduleLabel(
-  eventDate?: string | null,
-  dueDate?: string | null,
-  matchTime?: string | null
-): string {
-  const rawDate = String(eventDate || dueDate || "").trim();
-  const rawTime = String(matchTime || "").trim();
-
-  let datePart = "";
-  const isoMatch = rawDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) {
-    datePart = `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}`;
-  } else if (rawDate) {
-    datePart = rawDate.slice(0, 10);
-  }
-
-  let timePart = "";
-  const explicitTime = rawTime.match(/(\d{1,2}):(\d{2})/);
-  if (explicitTime) {
-    timePart = `${explicitTime[1].padStart(2, "0")}:${explicitTime[2]}`;
-  } else {
-    const isoTime = rawDate.match(/T(\d{2}):(\d{2})/);
-    if (isoTime && !(isoTime[1] === "00" && isoTime[2] === "00")) {
-      timePart = `${isoTime[1]}:${isoTime[2]}`;
-    }
-  }
-
-  if (datePart && timePart) return `${datePart} • ${timePart}`;
-  return datePart || timePart;
+function isWithin24Hours(match: MatchTaskRow, nowMs: number): boolean {
+  const start = getMatchStartDate(match);
+  if (!start) return true;
+  const diffMs = nowMs - start.getTime();
+  // Maç saati henüz gelmemişse veya maç saatinden itibaren 24 saat (1 gün) geçmemişse aktif
+  return diffMs <= 24 * 60 * 60 * 1000;
 }
 
-function isMatchRecord(t: MatchTaskRow): boolean {
-  const titleLower = (t.title || "").toLowerCase();
-  return (
-    t.task_type === "mac" ||
-    titleLower.includes("maç") ||
-    titleLower.includes("mac")
-  );
-}
-
-function normalizeScoreInput(raw: string): { str: string; num: number } {
-  const digitsOnly = raw.replace(/[^0-9]/g, "");
-  if (!digitsOnly) return { str: "", num: 0 };
-  const stripped = digitsOnly.replace(/^0+(?=\d)/, "");
-  const num = Math.max(0, Math.min(30, Number(stripped) || 0));
-  return { str: String(num), num };
+function isMatchStarted(match: MatchTaskRow, nowMs: number): boolean {
+  const start = getMatchStartDate(match);
+  if (!start) return false;
+  return nowMs >= start.getTime();
 }
 
 export function MatchPredictionCard({
   playerId,
-  ageGroup,
-  onPointsClaimed,
+  playerAgeGroup,
+  onRewardClaimed,
 }: MatchPredictionCardProps) {
   const [matches, setMatches] = useState<MatchTaskRow[]>([]);
+  const [predictions, setPredictions] = useState<PredictionRecord[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string>("");
-  const [categoryPlayers, setCategoryPlayers] = useState<CategoryPlayerRow[]>([]);
-  const [homeScore, setHomeScore] = useState<number>(2);
-  const [homeScoreInput, setHomeScoreInput] = useState<string>("2");
-  const [awayScore, setAwayScore] = useState<number>(1);
-  const [awayScoreInput, setAwayScoreInput] = useState<string>("1");
+  const [homeScore, setHomeScore] = useState<string>("1");
+  const [awayScore, setAwayScore] = useState<string>("0");
   const [firstScorer, setFirstScorer] = useState<string>("");
-  const [showOtherAgePlayers, setShowOtherAgePlayers] = useState<boolean>(false);
-  const [predictions, setPredictions] = useState<PredictionRow[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [saving, setSaving] = useState<boolean>(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(
-    null
-  );
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [feedback, setFeedback] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
 
-  const selectedMatch = useMemo(() => {
-    if (!matches.length) return null;
-    return matches.find((m) => m.id === selectedMatchId) || matches[0];
-  }, [matches, selectedMatchId]);
-
-  const activeMatchTitle = useMemo(() => {
-    return (selectedMatch?.title || "").trim();
-  }, [selectedMatch]);
-
-  const effectiveCategory = useMemo(() => {
-    return (selectedMatch?.age_group || ageGroup || "Tümü").trim();
-  }, [selectedMatch, ageGroup]);
-
-  const groupPlayers = useMemo(() => {
-    if (!effectiveCategory || effectiveCategory === "Tümü") {
-      return categoryPlayers;
-    }
-    const exact = categoryPlayers.filter(
-      (p) => (p.age_group || "").trim() === effectiveCategory
-    );
-    return exact.length > 0 ? exact : categoryPlayers;
-  }, [categoryPlayers, effectiveCategory]);
-
-  const otherPlayers = useMemo(() => {
-    const groupIds = new Set(groupPlayers.map((p) => p.id));
-    return categoryPlayers.filter((p) => !groupIds.has(p.id));
-  }, [categoryPlayers, groupPlayers]);
-
-  const selectableScorers = useMemo(() => {
-    return showOtherAgePlayers ? categoryPlayers : groupPlayers;
-  }, [showOtherAgePlayers, categoryPlayers, groupPlayers]);
-
-  const effectiveFirstScorer = useMemo(() => {
-    if (firstScorer && categoryPlayers.some((p) => p.full_name === firstScorer)) {
-      return firstScorer;
-    }
-    return groupPlayers[0]?.full_name || "";
-  }, [firstScorer, categoryPlayers, groupPlayers]);
-
-  const playerMultipliers = useMemo(() => {
-    const goalCounts = new Map<string, number>();
-    for (const pred of predictions) {
-      if (
-        typeof pred.actual_home_score === "number" &&
-        typeof pred.actual_away_score === "number" &&
-        pred.first_scorer_name
-      ) {
-        const key = pred.first_scorer_name.trim().toLowerCase();
-        goalCounts.set(key, (goalCounts.get(key) || 0) + 1);
-      }
-    }
-
-    const map = new Map<string, number>();
-    for (const p of categoryPlayers) {
-      const prevGoals = goalCounts.get(p.full_name.trim().toLowerCase()) || 0;
-      map.set(p.id, calculateGoalPointsForScorer(prevGoals, false));
-    }
-    return map;
-  }, [categoryPlayers, predictions]);
-
-  const fetchPredictionData = useCallback(async () => {
-    const [taskRes, predRes, playersRes] = await Promise.all([
+  const loadData = useCallback(async () => {
+    const [mRes, pRes] = await Promise.all([
       supabase
         .from("tasks_assignments")
-        .select("*")
+        .select(
+          "id, title, age_group, task_type, event_date, match_time, location, created_at"
+        )
         .order("event_date", { ascending: true })
-        .limit(40),
+        .limit(60),
       supabase
         .from("match_predictions")
-        .select("*, players(full_name, jersey_number, skill_points)")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(80),
-      supabase
-        .from("players")
-        .select("id, full_name, age_group, jersey_number, skill_points")
-        .order("full_name", { ascending: true }),
     ]);
 
-    return {
-      taskData: (taskRes.data as MatchTaskRow[] | null) || [],
-      predData: (predRes.data as PredictionRow[] | null) || [],
-      playersData: (playersRes.data as CategoryPlayerRow[] | null) || [],
-    };
+    const matchRows = ((mRes.data as MatchTaskRow[] | null) || []).filter(
+      (m) => {
+        const t = (m.task_type || "").toLowerCase();
+        const title = (m.title || "").toLowerCase();
+        return (
+          t.includes("maç") ||
+          t.includes("match") ||
+          title.includes("maç") ||
+          title.includes("vs") ||
+          title.includes("-") ||
+          !m.task_type
+        );
+      }
+    );
+
+    setMatches(matchRows);
+    setPredictions((pRes.data as PredictionRecord[] | null) || []);
+    setSelectedMatchId((prev) => {
+      if (prev && matchRows.some((x) => x.id === prev)) return prev;
+      return matchRows[0]?.id || "";
+    });
   }, []);
 
-  const applyFetchedData = useCallback(
-    (
-      taskData: MatchTaskRow[],
-      predData: PredictionRow[],
-      playersData: CategoryPlayerRow[],
-      syncMine = false
-    ) => {
-      const todayIso = new Date().toISOString().slice(0, 10);
-      const matchRows = taskData.filter((t) => {
-        if (!isMatchRecord(t)) return false;
-        const dateVal = String(t.event_date || t.due_date || "").slice(0, 10);
-        return !dateVal || dateVal >= todayIso;
-      });
-      const finalMatches =
-        matchRows.length > 0
-          ? matchRows
-          : taskData.filter((t) => isMatchRecord(t));
-
-      setMatches(finalMatches);
-      setCategoryPlayers(playersData);
-      setPredictions(predData);
-
-      setSelectedMatchId((prev) => {
-        if (prev && finalMatches.some((m) => m.id === prev)) return prev;
-        const groupFirst = finalMatches.find(
-          (m) => !m.age_group || m.age_group === ageGroup
-        );
-        return groupFirst?.id || finalMatches[0]?.id || "";
-      });
-
-      if (syncMine) {
-        const mine = predData.find((r) => r.player_id === playerId);
-        if (mine) {
-          setHomeScore(mine.home_score);
-          setHomeScoreInput(String(mine.home_score));
-          setAwayScore(mine.away_score);
-          setAwayScoreInput(String(mine.away_score));
-          setFirstScorer(mine.first_scorer_name || "");
-        }
-      }
-    },
-    [ageGroup, playerId]
-  );
-
   useEffect(() => {
-    if (!playerId) return;
-    let active = true;
+    const timer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
 
-    const loadInitial = async () => {
-      const { taskData, predData, playersData } = await fetchPredictionData();
-      if (!active) return;
-      applyFetchedData(taskData, predData, playersData, true);
-    };
-
-    void loadInitial();
+    const clockInterval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 15000);
 
     const unsubscribe = subscribeClubLiveUpdates(
       supabase,
       () => {
-        void (async () => {
-          const { taskData, predData, playersData } = await fetchPredictionData();
-          if (!active) return;
-          applyFetchedData(taskData, predData, playersData, false);
-        })();
+        void loadData();
       },
-      `prediction-card-${playerId}`
+      "web-match-predictions-live"
     );
 
     return () => {
-      active = false;
+      window.clearTimeout(timer);
+      window.clearInterval(clockInterval);
       unsubscribe();
     };
-  }, [playerId, fetchPredictionData, applyFetchedData]);
+  }, [loadData]);
 
-  const claimablePredictions = useMemo(() => {
-    return predictions
-      .filter((pred) => {
-        if (pred.player_id !== playerId) return false;
-        if (pred.reward_claimed === true) return false;
-        const hasActual =
-          typeof pred.actual_home_score === "number" &&
-          typeof pred.actual_away_score === "number";
-        if (!hasActual) return false;
-        const pts =
-          typeof pred.awarded_points === "number"
-            ? pred.awarded_points
-            : calcPredictionPoints(
-                pred.home_score,
-                pred.away_score,
-                pred.actual_home_score!,
-                pred.actual_away_score!
-              );
-        return pts > 0;
-      })
-      .map((pred) => {
-        const pts =
-          typeof pred.awarded_points === "number"
-            ? pred.awarded_points
-            : calcPredictionPoints(
-                pred.home_score,
-                pred.away_score,
-                pred.actual_home_score!,
-                pred.actual_away_score!
-              );
-        return { ...pred, earnedPts: pts };
-      });
-  }, [predictions, playerId]);
+  // Yaş grubu kısıtı kaldırıldı: tüm yaş gruplarındaki maçlar gösterilir.
+  // Maç saati + 1 gün (24 saat) dolduğunda geçmiş maçlara taşınır.
+  const activeMatches = useMemo(
+    () => matches.filter((m) => isWithin24Hours(m, nowMs)),
+    [matches, nowMs]
+  );
 
-  async function handleClaimReward(predId: string, earnedPts: number) {
-    if (!playerId || earnedPts <= 0) return;
-    setClaimingId(predId);
-    setStatusMsg(null);
+  const pastMatches = useMemo(
+    () => matches.filter((m) => !isWithin24Hours(m, nowMs)),
+    [matches, nowMs]
+  );
 
-    const currentPlayer = categoryPlayers.find((p) => p.id === playerId);
-    const currentPts = Number(currentPlayer?.skill_points ?? 0);
+  const selectedMatch = useMemo(
+    () =>
+      activeMatches.find((m) => m.id === selectedMatchId) ||
+      activeMatches[0] ||
+      null,
+    [activeMatches, selectedMatchId]
+  );
 
-    const result = await claimPredictionRewardSafely(supabase, {
-      predictionId: predId,
-      playerId,
-      points: earnedPts,
-      currentPlayerPoints: currentPts,
-    });
+  const lockedByTime = useMemo(
+    () => (selectedMatch ? isMatchStarted(selectedMatch, nowMs) : false),
+    [selectedMatch, nowMs]
+  );
 
-    setClaimingId(null);
-    if (!result.ok || typeof result.newPoints !== "number") {
-      setStatusMsg({
-        ok: false,
-        text: result.error || "Ödül toplanamadı.",
-      });
-      return;
+  const effectivePlayerId = useMemo(() => {
+    if (playerId) return playerId;
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("ikbal_logged_player_id") || "guest";
     }
+    return "guest";
+  }, [playerId]);
 
-    const nextTotalPts = result.newPoints;
-    setCategoryPlayers((prev) =>
-      prev.map((p) =>
-        p.id === playerId ? { ...p, skill_points: nextTotalPts } : p
-      )
-    );
-    setPredictions((prev) =>
-      prev.map((r) =>
-        r.id === predId
-          ? { ...r, reward_claimed: true, awarded_points: earnedPts }
-          : r
-      )
-    );
-    onPointsClaimed?.(nextTotalPts);
-    setStatusMsg({
-      ok: true,
-      text: `+${earnedPts} tahmin puanı toplandı. Yeni toplam puanın: ${nextTotalPts}p`,
-    });
-  }
-
-  async function handleSave(e: React.FormEvent) {
+  async function handleSavePrediction(e: React.FormEvent) {
     e.preventDefault();
-    setStatusMsg(null);
+    setFeedback(null);
 
-    if (!activeMatchTitle) {
-      setStatusMsg({
+    if (!selectedMatch) {
+      setFeedback({
         ok: false,
-        text: "Şu anda seçilebilir aktif maç bulunmuyor.",
+        text: "Tahmin yapılacak aktif bir maç bulunamadı.",
       });
       return;
     }
 
-    const chosenScorer = effectiveFirstScorer.trim() || null;
-    const matchedPlayer = chosenScorer
-      ? categoryPlayers.find((p) => p.full_name === chosenScorer)
-      : null;
-    const multiplier = matchedPlayer
-      ? playerMultipliers.get(matchedPlayer.id) ?? 1
-      : 1;
+    if (lockedByTime) {
+      setFeedback({
+        ok: false,
+        text: "Maç saati geldiği için bu maçın tahmin ekranı kilitlendi.",
+      });
+      return;
+    }
+
+    const hNum = Math.max(0, Math.min(30, parseInt(homeScore, 10) || 0));
+    const aNum = Math.max(0, Math.min(30, parseInt(awayScore, 10) || 0));
 
     setSaving(true);
-    const { error } = await supabase.from("match_predictions").upsert(
-      {
-        player_id: playerId,
-        age_group: effectiveCategory,
-        match_title: activeMatchTitle,
-        home_score: Math.max(0, Math.min(30, Number(homeScore) || 0)),
-        away_score: Math.max(0, Math.min(30, Number(awayScore) || 0)),
-        first_scorer_name: chosenScorer,
-        scorer_multiplier: multiplier,
-      },
-      { onConflict: "player_id,match_title" }
-    );
+    const { error } = await supabase.from("match_predictions").insert({
+      player_id: effectivePlayerId,
+      age_group: selectedMatch.age_group || playerAgeGroup || "Genel",
+      match_title: selectedMatch.title,
+      home_score: hNum,
+      away_score: aNum,
+      first_scorer_name: firstScorer.trim() || null,
+      scorer_multiplier: firstScorer.trim() ? 1.5 : 1,
+      awarded_points: 10,
+      reward_claimed: false,
+      created_at: new Date().toISOString(),
+    });
     setSaving(false);
 
     if (error) {
-      setStatusMsg({
+      setFeedback({
         ok: false,
         text: "Tahmin kaydedilemedi: " + error.message,
       });
       return;
     }
 
-    setStatusMsg({
+    setFeedback({
       ok: true,
-      text: `Maç günü tahminin kaydedildi. (Gol çarpanı: x${multiplier.toFixed(2)})`,
+      text: `"${selectedMatch.title}" için ${hNum}-${aNum} skor tahmininiz kaydedildi.`,
     });
-
-    const { taskData, predData, playersData } = await fetchPredictionData();
-    applyFetchedData(taskData, predData, playersData, false);
+    setFirstScorer("");
+    await loadData();
   }
 
-  const visiblePredictions = useMemo(() => {
-    if (!activeMatchTitle) return predictions;
-    const exact = predictions.filter((p) => p.match_title === activeMatchTitle);
-    return exact.length > 0 ? exact : predictions;
-  }, [predictions, activeMatchTitle]);
+  async function handleClaimReward(pred: PredictionRecord) {
+    if (pred.reward_claimed) return;
+    const rewardPts = Number(pred.awarded_points ?? 10);
+    setClaimingId(pred.id);
+    setFeedback(null);
+
+    const { error: updPredErr } = await supabase
+      .from("match_predictions")
+      .update({ reward_claimed: true })
+      .eq("id", pred.id);
+
+    if (updPredErr) {
+      setClaimingId(null);
+      setFeedback({
+        ok: false,
+        text: "Ödül güncellenemedi: " + updPredErr.message,
+      });
+      return;
+    }
+
+    // Oyuncu kart puanına aktar
+    if (pred.player_id && pred.player_id !== "guest") {
+      try {
+        const localKey = `ikbal_player_card_${pred.player_id}`;
+        const rawLocal = localStorage.getItem(localKey);
+        const parsedLocal = rawLocal
+          ? (JSON.parse(rawLocal) as { skill_points?: number })
+          : {};
+        const nextLocalPts = Number(parsedLocal.skill_points ?? 0) + rewardPts;
+        localStorage.setItem(
+          localKey,
+          JSON.stringify({ ...parsedLocal, skill_points: nextLocalPts })
+        );
+      } catch {
+        // yoksay
+      }
+
+      const { data: pRow } = await supabase
+        .from("players")
+        .select("skill_points")
+        .eq("id", pred.player_id)
+        .maybeSingle();
+
+      const currentPts = Number(
+        (pRow as { skill_points?: number | null } | null)?.skill_points ?? 0
+      );
+      await supabase
+        .from("players")
+        .update({ skill_points: currentPts + rewardPts })
+        .eq("id", pred.player_id);
+    }
+
+    setClaimingId(null);
+    onRewardClaimed?.(rewardPts);
+    setFeedback({
+      ok: true,
+      text: `+${rewardPts} puan oyuncu kartınıza aktarıldı!`,
+    });
+    await loadData();
+  }
 
   return (
-    <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] shadow-xs p-6 space-y-5 text-[var(--text-primary)] tabular-nums">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
+    <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-5 sm:p-6 shadow-xs space-y-5 text-[var(--text-primary)] tabular-nums">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <span className="inline-block bg-[var(--brand-navy)] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
-            {effectiveCategory} • Maç Günü Tahmini
+          <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
+            Çorum İkbalspor • Tüm Yaş Grupları Açık
           </span>
-          <h2 className="text-lg font-black text-[var(--text-primary)] mt-1">
-            Skor &amp; Golcü Tahmini
+          <h2 className="text-lg font-black text-[var(--text-primary)]">
+            Maç Skor &amp; Golcü Tahmini
           </h2>
-          <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">
-            Her doğru skor: +1 puan • Kazananı bilme: +3 puan • Tam doğru maç:
-            +5 puan
+          <p className="text-xs text-[var(--text-secondary)]">
+            Tüm maçlara tahmin yapabilir, maç saati geldiğinde kilitlenen
+            ekrandan sonra ödül puanınızı kartınıza aktarabilirsiniz.
           </p>
         </div>
-        <span className="text-xs font-bold text-[var(--text-muted)]">
-          {visiblePredictions.length} tahmin yapıldı
+        <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold">
+          Aktif Maç: {activeMatches.length} • Geçmiş: {pastMatches.length}
         </span>
       </div>
 
-      {claimablePredictions.length > 0 && (
-        <div className="rounded-2xl border-2 border-amber-400/70 bg-[var(--status-warning-bg)]/50 p-4 space-y-2.5">
-          <div className="text-xs font-black text-[var(--status-warning-text)] uppercase">
-            Toplanabilir Tahmin Ödüllerin Var
-          </div>
-          {claimablePredictions.map((item) => (
-            <div
-              key={item.id}
-              className="flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl px-3.5 py-2.5"
-            >
-              <div>
-                <p className="text-xs font-extrabold text-[var(--text-primary)]">
-                  {item.match_title} ({item.home_score} - {item.away_score})
-                </p>
-                <p className="text-xs font-bold text-[var(--status-success-text)]">
-                  Kazanılan Ödül: +{item.earnedPts} Puan
-                </p>
-              </div>
-              <button
-                type="button"
-                disabled={claimingId === item.id}
-                onClick={() => handleClaimReward(item.id, item.earnedPts)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer disabled:opacity-50"
-              >
-                {claimingId === item.id
-                  ? "Toplanıyor..."
-                  : `Ödülü Topla (+${item.earnedPts}p)`}
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <form onSubmit={handleSave} className="space-y-4">
-        <div>
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-            Aktif Maç Seçimi
-          </label>
-          {matches.length > 0 ? (
+      <form onSubmit={handleSavePrediction} className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-2">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Maç Seçimi (Tüm Yaş Grupları)
+            </label>
             <select
               value={selectedMatch?.id || ""}
               onChange={(e) => setSelectedMatchId(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
             >
-              {matches.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.title}
-                  {m.age_group ? ` [${m.age_group}]` : ""}
-                  {formatMatchScheduleLabel(
-                    m.event_date,
-                    m.due_date,
-                    m.match_time
-                  )
-                    ? ` (${formatMatchScheduleLabel(
-                        m.event_date,
-                        m.due_date,
-                        m.match_time
-                      )})`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="w-full rounded-xl border border-amber-400/60 bg-[var(--status-warning-bg)]/50 text-[var(--status-warning-text)] px-3.5 py-2.5 text-xs font-bold">
-              Şu anda aktif maç kaydı bulunmuyor.
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 items-end">
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              İkbalspor Gol
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={homeScoreInput}
-              onFocus={() => setHomeScoreInput("")}
-              onBlur={() => {
-                if (homeScoreInput.trim() === "") {
-                  setHomeScore(0);
-                  setHomeScoreInput("0");
-                }
-              }}
-              onChange={(e) => {
-                const { str, num } = normalizeScoreInput(e.target.value);
-                setHomeScoreInput(str);
-                setHomeScore(num);
-              }}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Rakip Gol
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={awayScoreInput}
-              onFocus={() => setAwayScoreInput("")}
-              onBlur={() => {
-                if (awayScoreInput.trim() === "") {
-                  setAwayScore(0);
-                  setAwayScoreInput("0");
-                }
-              }}
-              onChange={(e) => {
-                const { str, num } = normalizeScoreInput(e.target.value);
-                setAwayScoreInput(str);
-                setAwayScore(num);
-              }}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="block text-xs font-bold text-[var(--text-secondary)]">
-              Gol Atacak Oyuncu (
-              {showOtherAgePlayers
-                ? "Tüm Kategoriler"
-                : `${effectiveCategory} Kadrosu`}
-              )
-            </label>
-            <div className="flex items-center gap-2">
-              {otherPlayers.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setShowOtherAgePlayers((prev) => !prev)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border cursor-pointer ${
-                    showOtherAgePlayers
-                      ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                      : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-strong)] hover:opacity-85"
-                  }`}
-                >
-                  {showOtherAgePlayers
-                    ? "Yalnızca Maç Grubu"
-                    : "+ Diğer Yaş Grupları"}
-                </button>
+              {activeMatches.length === 0 ? (
+                <option value="">Şu an 24 saat içinde aktif maç yok</option>
+              ) : (
+                activeMatches.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    [{m.age_group || "Genel"}] {m.title}{" "}
+                    {m.event_date ? `(${m.event_date})` : ""}{" "}
+                    {m.match_time ? m.match_time : ""}
+                  </option>
+                ))
               )}
-              <span className="text-[11px] font-bold text-[var(--text-muted)]">
-                {selectableScorers.length} oyuncu
-              </span>
-            </div>
+            </select>
           </div>
 
-          {selectableScorers.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
-              {selectableScorers.map((cand) => {
-                const mult = playerMultipliers.get(cand.id) ?? 1;
-                const isSelected = effectiveFirstScorer === cand.full_name;
-                return (
-                  <button
-                    key={cand.id}
-                    type="button"
-                    onClick={() => setFirstScorer(cand.full_name)}
-                    className={`px-3 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer flex items-center gap-1.5 ${
-                      isSelected
-                        ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)] shadow-xs"
-                        : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--brand-navy)]"
-                    }`}
-                  >
-                    <span>
-                      {cand.full_name}
-                      {cand.jersey_number ? ` #${cand.jersey_number}` : ""}
-                      {showOtherAgePlayers ? ` (${cand.age_group})` : ""}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-                        isSelected
-                          ? "bg-white/20 text-white"
-                          : "bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300"
-                      }`}
-                    >
-                      x{mult.toFixed(2)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-xs text-[var(--text-muted)]">
-              {effectiveCategory} kategorisinde kayıtlı oyuncu bulunamadı.
-            </p>
-          )}
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              İkbalspor Skor
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              disabled={lockedByTime || !selectedMatch}
+              value={homeScore}
+              onChange={(e) => setHomeScore(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-black text-center text-[var(--text-primary)] disabled:opacity-50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Rakip Skor
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={30}
+              disabled={lockedByTime || !selectedMatch}
+              value={awayScore}
+              onChange={(e) => setAwayScore(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-black text-center text-[var(--text-primary)] disabled:opacity-50"
+            />
+          </div>
         </div>
 
-        {statusMsg && (
+        <div>
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+            İlk Golü Kim Atar? (İsteğe Bağlı)
+          </label>
+          <input
+            type="text"
+            disabled={lockedByTime || !selectedMatch}
+            value={firstScorer}
+            onChange={(e) => setFirstScorer(e.target.value)}
+            placeholder="Oyuncu adı yazın..."
+            className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-semibold text-[var(--text-primary)] disabled:opacity-50"
+          />
+        </div>
+
+        {lockedByTime && (
+          <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold">
+            🔒 Maç saati geldiği için tahmin girişi kilitlendi.
+          </div>
+        )}
+
+        {feedback && (
           <div
             className={`p-3 rounded-xl text-xs font-bold ${
-              statusMsg.ok
+              feedback.ok
                 ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
                 : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
             }`}
           >
-            {statusMsg.text}
+            {feedback.text}
           </div>
         )}
 
         <button
-          type="submit"
-          disabled={saving || !activeMatchTitle}
-          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-extrabold transition disabled:opacity-50 cursor-pointer"
+          type="button"
+          disabled={saving || !selectedMatch}
+          onClick={() => {
+            if (lockedByTime) {
+              setFeedback({
+                ok: false,
+                text: "🔒 Tahmin kilitli! Maç başlama saati geldiği için tahmin kaydedilemez.",
+              });
+              return;
+            }
+            const formEl = document.querySelector("form");
+            if (formEl) {
+              const fakeEvent = {
+                preventDefault: () => {},
+              } as React.FormEvent;
+              void handleSavePrediction(fakeEvent);
+            }
+          }}
+          className={`w-full py-3 rounded-2xl text-white text-sm font-black transition cursor-pointer disabled:opacity-50 ${
+            lockedByTime
+              ? "bg-rose-900 hover:bg-rose-800 border-2 border-rose-400"
+              : "bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
+          }`}
         >
-          {saving ? "Kaydediliyor..." : "Tahminimi Kaydet"}
+          {lockedByTime
+            ? "🔒 Gol & Skor Tahmini Kaydet (Kilitli)"
+            : saving
+            ? "Kaydediliyor..."
+            : "Gol & Skor Tahmini Kaydet"}
         </button>
       </form>
 
-      {visiblePredictions.length > 0 && (
-        <div className="border-t border-[var(--border-subtle)] pt-4 space-y-2">
-          <h3 className="text-xs font-extrabold uppercase text-[var(--text-muted)]">
-            {effectiveCategory} Grubu Tahminleri
+      {/* Tahminlerim & Ödül Topla */}
+      {predictions.length > 0 && (
+        <div className="space-y-2.5 pt-2 border-t border-[var(--border-subtle)]">
+          <h3 className="text-sm font-black text-[var(--text-primary)]">
+            Son Tahminler &amp; Ödül Aktarımı
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {visiblePredictions.map((pred) => {
-              const hasActual =
-                typeof pred.actual_home_score === "number" &&
-                typeof pred.actual_away_score === "number";
-              const pts = hasActual
-                ? pred.awarded_points ??
-                  calcPredictionPoints(
-                    pred.home_score,
-                    pred.away_score,
-                    pred.actual_home_score!,
-                    pred.actual_away_score!
-                  )
-                : null;
-
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {predictions.slice(0, 10).map((pr) => {
+              const pts = Number(pr.awarded_points ?? 10);
               return (
                 <div
-                  key={pred.id}
-                  className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-3.5 py-2.5"
+                  key={pr.id}
+                  className="py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm"
                 >
-                  <div className="min-w-0">
-                    <p className="text-xs font-extrabold text-[var(--text-primary)] truncate">
-                      {pred.players?.full_name || "Sporcu"}
-                      {pred.players?.jersey_number
-                        ? ` (#${pred.players.jersey_number})`
-                        : ""}
-                    </p>
-                    <p className="text-[11px] text-[var(--text-secondary)] truncate">
-                      {pred.match_title}
-                      {pred.first_scorer_name
-                        ? ` • Gol: ${pred.first_scorer_name}${
-                            typeof pred.scorer_multiplier === "number"
-                              ? ` (x${pred.scorer_multiplier.toFixed(2)})`
-                              : ""
-                          }`
-                        : ""}
-                      {pts !== null ? ` • +${pts}p` : ""}
-                    </p>
+                  <div>
+                    <div className="font-extrabold text-[var(--text-primary)]">
+                      {pr.match_title}{" "}
+                      <span className="text-xs font-bold text-[var(--brand-navy)] dark:text-sky-300">
+                        ({pr.home_score} - {pr.away_score})
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      {pr.age_group}
+                      {pr.first_scorer_name
+                        ? ` • Golcü: ${pr.first_scorer_name}`
+                        : ""}{" "}
+                      • Ödül: +{pts} Puan
+                    </div>
                   </div>
-                  <span className="ml-2 shrink-0 px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-black">
-                    {pred.home_score} - {pred.away_score}
-                  </span>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(pr.reward_claimed) || claimingId === pr.id}
+                    onClick={() => void handleClaimReward(pr)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                      pr.reward_claimed
+                        ? "bg-emerald-900/30 text-emerald-300 cursor-default"
+                        : "bg-amber-400 hover:bg-amber-300 text-slate-950"
+                    }`}
+                  >
+                    {pr.reward_claimed
+                      ? "Kartına Aktarıldı ✓"
+                      : claimingId === pr.id
+                      ? "Aktarılıyor..."
+                      : `Ödül Topla (+${pts})`}
+                  </button>
                 </div>
               );
             })}
           </div>
         </div>
       )}
-    </div>
+
+      {/* 1 Gün Sonra Geçmiş Maçlara Taşınanlar */}
+      {pastMatches.length > 0 && (
+        <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)]">
+          <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)]">
+            Geçmiş Maçlar ({pastMatches.length})
+          </h3>
+          <div className="divide-y divide-[var(--border-subtle)]">
+            {pastMatches.slice(0, 8).map((pm) => (
+              <div
+                key={pm.id}
+                className="py-2 flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]"
+              >
+                <span className="font-bold">
+                  {pm.title} ({pm.age_group || "Genel"})
+                </span>
+                <span>{pm.event_date || ""}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

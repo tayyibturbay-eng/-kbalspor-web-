@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, Coach, UserRole } from "@/types/club";
 import { sendPushViaApi } from "@/lib/club-utils";
 
 const supabase = createClient();
+const DEFAULT_IMAGE_URL = "https://ikbalspor.com/logo.png";
 
 interface ClubMessageRow {
   id: string;
@@ -25,15 +26,30 @@ interface NotificationsTabProps {
 }
 
 const SOUND_OPTIONS = [
-  { value: "default", label: "Varsayılan Bildirim Sesi", freq: 740, type: "sine" as OscillatorType },
-  { value: "whistle_alert", label: "Düdük & Tribün Sesi", freq: 880, type: "triangle" as OscillatorType },
-  { value: "chime_soft", label: "Yumuşak Kulüp Sinyali", freq: 660, type: "sine" as OscillatorType },
-  { value: "urgent_horn", label: "Acil Maç / Duyuru Uyarısı", freq: 520, type: "sawtooth" as OscillatorType },
-] as const;
-
-const PRESET_IMAGES = [
-  { label: "Kulüp Logosu", url: "/logo.png" },
-  { label: "Uygulama İkonu", url: "/icon.png" },
+  {
+    value: "default",
+    label: "Varsayılan Bildirim Sesi",
+    freq: 740,
+    type: "sine" as OscillatorType,
+  },
+  {
+    value: "whistle_alert",
+    label: "Düdük & Tribün Sesi",
+    freq: 880,
+    type: "triangle" as OscillatorType,
+  },
+  {
+    value: "chime_soft",
+    label: "Yumuşak Kulüp Sinyali",
+    freq: 660,
+    type: "sine" as OscillatorType,
+  },
+  {
+    value: "urgent_horn",
+    label: "Acil Maç / Duyuru Uyarısı",
+    freq: 520,
+    type: "sawtooth" as OscillatorType,
+  },
 ] as const;
 
 export function NotificationsTab({
@@ -46,8 +62,10 @@ export function NotificationsTab({
   const [notifTargetGroups, setNotifTargetGroups] = useState<string[]>(["Tümü"]);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
-  const [notifImageUrl, setNotifImageUrl] = useState("/logo.png");
+  const [notifImageUrl, setNotifImageUrl] = useState(DEFAULT_IMAGE_URL);
   const [notifSound, setNotifSound] = useState<string>("default");
+  const [customAudioUrl, setCustomAudioUrl] = useState<string>("");
+  const [uploadingMedia, setUploadingMedia] = useState<boolean>(false);
   const [notifSaveAnnouncement, setNotifSaveAnnouncement] = useState(true);
   const [notifSending, setNotifSending] = useState(false);
 
@@ -91,7 +109,7 @@ export function NotificationsTab({
     };
   }, []);
 
-  function handlePreviewSound() {
+  function playTonePreview(soundKey: string) {
     try {
       const AudioCtx =
         window.AudioContext ||
@@ -99,7 +117,7 @@ export function NotificationsTab({
           .webkitAudioContext;
       if (!AudioCtx) return;
       const selected =
-        SOUND_OPTIONS.find((s) => s.value === notifSound) || SOUND_OPTIONS[0];
+        SOUND_OPTIONS.find((s) => s.value === soundKey) || SOUND_OPTIONS[0];
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -111,19 +129,62 @@ export function NotificationsTab({
       osc.start();
       osc.stop(ctx.currentTime + 0.25);
     } catch {
-      // ses oynatılamazsa sessiz geç
+      // sessiz geç
     }
   }
 
-  function resolveAbsoluteImageUrl(rawUrl: string): string | undefined {
-    const trimmed = rawUrl.trim();
-    if (!trimmed) return undefined;
-    if (/^https?:\/\//i.test(trimmed)) return trimmed;
-    const origin =
-      typeof window !== "undefined" && window.location?.origin
-        ? window.location.origin
-        : "https://ikbalspor.com";
-    return `${origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+  function handlePreviewSound() {
+    if (customAudioUrl.trim()) {
+      try {
+        const audio = new Audio(customAudioUrl.trim());
+        void audio.play().catch(() => {
+          playTonePreview(notifSound);
+        });
+        return;
+      } catch {
+        // fallback
+      }
+    }
+    playTonePreview(notifSound);
+  }
+
+  async function uploadOrCreateLink(file: File, folder: "images" | "sounds") {
+    setUploadingMedia(true);
+    try {
+      const ext = (file.name.split(".").pop() || "bin").toLowerCase();
+      const path = `notifications/${folder}/${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}.${ext}`;
+
+      const { error } = await supabase.storage
+        .from("club-media")
+        .upload(path, file, { upsert: true });
+
+      if (!error) {
+        const { data } = supabase.storage.from("club-media").getPublicUrl(path);
+        if (data?.publicUrl) {
+          if (folder === "images") {
+            setNotifImageUrl(data.publicUrl);
+            onFeedback("Görsel yüklendi ve bağlantı oluşturuldu.");
+          } else {
+            setCustomAudioUrl(data.publicUrl);
+            onFeedback("Ses dosyası yüklendi ve bağlantı oluşturuldu.");
+          }
+          return;
+        }
+      }
+
+      const objectUrl = URL.createObjectURL(file);
+      if (folder === "images") {
+        setNotifImageUrl(objectUrl);
+        onFeedback("Görsel bağlantısı oluşturuldu (önizleme/yerel).");
+      } else {
+        setCustomAudioUrl(objectUrl);
+        onFeedback("Ses bağlantısı oluşturuldu (dinleme aktif).");
+      }
+    } finally {
+      setUploadingMedia(false);
+    }
   }
 
   async function handleSendCustomPush(e: React.FormEvent) {
@@ -134,7 +195,11 @@ export function NotificationsTab({
     }
     setNotifSending(true);
     const groups = notifTargetGroups.length === 0 ? ["Tümü"] : notifTargetGroups;
-    const resolvedImage = resolveAbsoluteImageUrl(notifImageUrl);
+    const rawImg = notifImageUrl.trim() || DEFAULT_IMAGE_URL;
+    const resolvedImage = rawImg.startsWith("/")
+      ? `https://ikbalspor.com${rawImg}`
+      : rawImg;
+    const activeSoundValue = notifSound || "default";
 
     const pushRes = await sendPushViaApi(
       groups,
@@ -142,14 +207,14 @@ export function NotificationsTab({
       notifBody.trim(),
       {
         imageUrl: resolvedImage,
-        sound: notifSound,
+        sound: activeSoundValue,
       }
     );
 
     if (notifSaveAnnouncement) {
-      const notifCombined = `${notifTitle.trim()}\n${notifBody.trim()}${
-        resolvedImage ? `\nGörsel: ${resolvedImage}` : ""
-      }${notifSound !== "default" ? `\nSes: ${notifSound}` : ""}`.trim();
+      const notifCombined = `${notifTitle.trim()}\n${notifBody.trim()}\nGörsel: ${resolvedImage}\nSes: ${activeSoundValue}${
+        customAudioUrl.trim() ? ` (${customAudioUrl.trim()})` : ""
+      }`.trim();
 
       await supabase.from("club_messages").insert({
         body: notifCombined,
@@ -166,9 +231,7 @@ export function NotificationsTab({
 
     await onLogActivity(
       "Bildirim Gönderimi",
-      `[${groups.join(", ")}] ${notifTitle.trim()} • Ses: ${notifSound}${
-        resolvedImage ? ` • Görsel: ${resolvedImage}` : ""
-      } (${pushRes.sentCount} cihaz)`
+      `[${groups.join(", ")}] ${notifTitle.trim()} • Ses: ${activeSoundValue} • Görsel: ${resolvedImage} (${pushRes.sentCount} cihaz)`
     );
     setNotifSending(false);
 
@@ -177,11 +240,11 @@ export function NotificationsTab({
     } else if (pushRes.sentCount === 0) {
       onFeedback(
         "Kayıtlı telefon token'ı bulunamadı (sporcuların mobil uygulamaya giriş yapması gerekir)." +
-          (notifSaveAnnouncement ? " Duyuru siteye/uygulamaya kaydedildi." : "")
+          (notifSaveAnnouncement ? " Duyuru kaydedildi." : "")
       );
     } else {
       onFeedback(
-        `${pushRes.sentCount} cihaza anlık bildirim gönderildi (Ses: ${notifSound}).`
+        `${pushRes.sentCount} cihaza bildirim gönderildi (Varsayılan/Seçili Görsel ve Ses ile).`
       );
       setNotifTitle("");
       setNotifBody("");
@@ -221,11 +284,10 @@ export function NotificationsTab({
 
   const activeSoundLabel =
     SOUND_OPTIONS.find((s) => s.value === notifSound)?.label || notifSound;
-
-  const previewImgSrc = notifImageUrl.trim() || "/logo.png";
+  const previewImgSrc = notifImageUrl.trim() || DEFAULT_IMAGE_URL;
 
   return (
-    <div className="space-y-6 max-w-4xl text-[var(--text-primary)] tabular-nums">
+    <div className="space-y-6 max-w-5xl text-[var(--text-primary)] tabular-nums">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <form
           onSubmit={handleSendCustomPush}
@@ -237,7 +299,8 @@ export function NotificationsTab({
                 İsteğe Bağlı Anlık Bildirim Gönder
               </h2>
               <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                Hedef kitle, bildirim görseli ve bildirim sesi seçerek gönderin.
+                Varsayılan kulüp logosu ve bildirim sesi ile gönderilir;
+                isterseniz görsel/ses yükleyip link oluşturabilirsiniz.
               </p>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-[11px] font-extrabold">
@@ -310,46 +373,68 @@ export function NotificationsTab({
             />
           </div>
 
-          <div className="space-y-2.5">
+          {/* Görsel Yükle & Bağlantı */}
+          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="block text-xs font-bold text-[var(--text-secondary)]">
-                Bildirim Görseli (Hazır Seçim veya URL)
+              <label className="text-xs font-bold text-[var(--text-secondary)]">
+                Bildirim Görseli (Varsayılan: Kulüp Logosu)
               </label>
-              <div className="flex flex-wrap gap-1.5">
-                {PRESET_IMAGES.map((preset) => (
-                  <button
-                    type="button"
-                    key={preset.url}
-                    onClick={() => setNotifImageUrl(preset.url)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border cursor-pointer transition ${
-                      notifImageUrl.trim() === preset.url
-                        ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                        : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNotifImageUrl(DEFAULT_IMAGE_URL)}
+                  className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[11px] font-extrabold cursor-pointer"
+                >
+                  Varsayılan Logo
+                </button>
+                <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+                  {uploadingMedia ? "Yükleniyor..." : "Görsel Yükle & Link Al"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void uploadOrCreateLink(f, "images");
+                    }}
+                  />
+                </label>
               </div>
             </div>
             <input
               type="text"
               value={notifImageUrl}
               onChange={(e) => setNotifImageUrl(e.target.value)}
-              placeholder="/logo.png veya https://..."
-              className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm"
+              placeholder="https://ikbalspor.com/logo.png"
+              className="w-full border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-semibold"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Bildirim Sesi
-            </label>
+          {/* Ses Seçimi, Ses Yükleme & Bağlantı */}
+          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-bold text-[var(--text-secondary)]">
+                Bildirim Sesi (Varsayılan: Telefon Bildirim Sesi)
+              </label>
+              <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+                {uploadingMedia ? "Yükleniyor..." : "Ses Yükle & Link Al"}
+                <input
+                  type="file"
+                  accept="audio/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadOrCreateLink(f, "sounds");
+                  }}
+                />
+              </label>
+            </div>
+
             <div className="flex gap-2">
               <select
                 value={notifSound}
                 onChange={(e) => setNotifSound(e.target.value)}
-                className="flex-1 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold"
+                className="flex-1 border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-bold"
               >
                 {SOUND_OPTIONS.map((snd) => (
                   <option key={snd.value} value={snd.value}>
@@ -360,11 +445,19 @@ export function NotificationsTab({
               <button
                 type="button"
                 onClick={handlePreviewSound}
-                className="px-4 py-2.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer shrink-0"
+                className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer shrink-0"
               >
                 Sesi Dinle
               </button>
             </div>
+
+            <input
+              type="text"
+              value={customAudioUrl}
+              onChange={(e) => setCustomAudioUrl(e.target.value)}
+              placeholder="İsteğe bağlı özel ses dosyası linki (yükleyince otomatik oluşur)"
+              className="w-full border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-semibold"
+            />
           </div>
 
           <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)] cursor-pointer">

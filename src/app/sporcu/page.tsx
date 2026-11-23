@@ -5,19 +5,27 @@ import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 import { Due, Player, TaskAssignment } from "@/types/club";
-import { PlayerHeader } from "@/components/sporcu/PlayerHeader";
 import { PlayerCardSection } from "@/components/sporcu/PlayerCardSection";
 import { PlayerProfileTab } from "@/components/sporcu/PlayerProfileTab";
 import { PlayerEquipmentTab } from "@/components/sporcu/PlayerEquipmentTab";
+import { MatchPredictionCard } from "@/components/ikbal/MatchPredictionCard";
 
 const supabase = createClient();
 const PLAYER_SESSION_KEY = "ikbal_logged_player_id";
 const SPORCU_TAB_KEY = "ikbal_sporcu_tab";
 
-type SporcuTab = "kartim" | "qr" | "program" | "malzeme" | "aidat" | "profil";
+type SporcuTab =
+  | "kartim"
+  | "tahmin"
+  | "qr"
+  | "program"
+  | "malzeme"
+  | "aidat"
+  | "profil";
 
 const VALID_SPORCU_TABS: SporcuTab[] = [
   "kartim",
+  "tahmin",
   "qr",
   "program",
   "malzeme",
@@ -59,7 +67,7 @@ interface StockItemRow {
 }
 
 function getSavedSporcuTab(): SporcuTab {
-  if (typeof window === "undefined") return "profil";
+  if (typeof window === "undefined") return "kartim";
   try {
     const saved = localStorage.getItem(SPORCU_TAB_KEY) as SporcuTab | null;
     if (saved && VALID_SPORCU_TABS.includes(saved)) {
@@ -68,22 +76,13 @@ function getSavedSporcuTab(): SporcuTab {
   } catch {
     // yoksay
   }
-  return "profil";
-}
-
-function mapHeaderTabToSporcuTab(next: string): SporcuTab {
-  if (next === "ekipman" || next === "malzeme") return "malzeme";
-  if (next === "qr") return "qr";
-  if (next === "program") return "program";
-  if (next === "aidat") return "aidat";
-  if (next === "kartim") return "kartim";
-  return "profil";
+  return "kartim";
 }
 
 export default function SporcuPage() {
   const [player, setPlayer] = useState<Player | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTabState] = useState<SporcuTab>("profil");
+  const [activeTab, setActiveTabState] = useState<SporcuTab>("kartim");
   const [dues, setDues] = useState<Due[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
   const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLogItem[]>([]);
@@ -117,7 +116,7 @@ export default function SporcuPage() {
         .from("tasks_assignments")
         .select("*")
         .order("event_date", { ascending: true })
-        .limit(20),
+        .limit(30),
       supabase
         .from("equipment_logs")
         .select("*")
@@ -276,64 +275,68 @@ export default function SporcuPage() {
     return (
       <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col">
         <Navbar />
-        <main className="flex-1 flex items-center justify-center px-4 py-10">
-          <form
-            onSubmit={handlePlayerLogin}
-            className="w-full max-w-md bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-sm space-y-4"
-          >
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
-                Çorum İkbalspor • Sporcu Girişi
-              </span>
-              <h1 className="text-xl font-black text-[var(--text-primary)] mt-1">
-                Sporcu Paneli Girişi
-              </h1>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">
-                Kartınızı, puanlarınızı, programınızı, aidatlarınızı ve malzeme
-                durumunuzu görüntülemek için giriş yapın.
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Sporcu Kodu
-              </label>
-              <input
-                type="text"
-                value={loginCode}
-                onChange={(e) => setLoginCode(e.target.value)}
-                placeholder="Örn: D2 veya IKB-101"
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                PIN Kodu
-              </label>
-              <input
-                type="password"
-                value={loginPin}
-                onChange={(e) => setLoginPin(e.target.value)}
-                placeholder="••••"
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
-              />
-            </div>
-
-            {loginError && (
-              <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-bold">
-                {loginError}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loggingIn}
-              className="w-full py-3 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-sm font-black cursor-pointer disabled:opacity-50"
+        <main className="flex-1 flex items-center justify-center px-4 py-10 space-y-6">
+          <div className="w-full max-w-2xl space-y-6">
+            <form
+              onSubmit={handlePlayerLogin}
+              className="w-full max-w-md mx-auto bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-sm space-y-4"
             >
-              {loggingIn ? "Giriş Yapılıyor..." : "Giriş Yap"}
-            </button>
-          </form>
+              <div>
+                <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
+                  Çorum İkbalspor • Sporcu Girişi
+                </span>
+                <h1 className="text-xl font-black text-[var(--text-primary)] mt-1">
+                  Sporcu Paneli Girişi
+                </h1>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Kartınızı, puanlarınızı, programınızı, aidatlarınızı ve malzeme
+                  durumunuzu görüntülemek için giriş yapın.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  Sporcu Kodu
+                </label>
+                <input
+                  type="text"
+                  value={loginCode}
+                  onChange={(e) => setLoginCode(e.target.value)}
+                  placeholder="Örn: D2 veya IKB-101"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  PIN Kodu
+                </label>
+                <input
+                  type="password"
+                  value={loginPin}
+                  onChange={(e) => setLoginPin(e.target.value)}
+                  placeholder="••••"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
+                />
+              </div>
+
+              {loginError && (
+                <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-bold">
+                  {loginError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loggingIn}
+                className="w-full py-3 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-sm font-black cursor-pointer disabled:opacity-50"
+              >
+                {loggingIn ? "Giriş Yapılıyor..." : "Giriş Yap"}
+              </button>
+            </form>
+
+            <MatchPredictionCard />
+          </div>
         </main>
       </div>
     );
@@ -341,6 +344,7 @@ export default function SporcuPage() {
 
   const tabs: Array<{ id: SporcuTab; label: string }> = [
     { id: "kartim", label: "Kartım" },
+    { id: "tahmin", label: "Maç Tahmini" },
     { id: "qr", label: "QR Yoklama" },
     { id: "program", label: "Program & Maçlar" },
     { id: "malzeme", label: "Malzemelerim" },
@@ -348,44 +352,58 @@ export default function SporcuPage() {
     { id: "profil", label: "Profil & PIN" },
   ];
 
-  const playerTasks = tasks.filter(
-    (t) =>
-      !t.age_group ||
-      t.age_group === "Tümü" ||
-      t.age_group === player.age_group
-  );
-
   const unpaidDues = dues.filter((d) => {
     const row = d as Due & { is_paid?: boolean | null };
     return row.status !== "Ödendi" && !row.is_paid;
   });
 
-  const activeEquipmentCount = equipmentLogs.filter(
-    (eq) => eq.status !== "İade Edildi"
-  ).length;
-
-  const headerTab =
-    activeTab === "malzeme" || activeTab === "kartim" ? "profil" : activeTab;
+  const initials = (player.full_name || "İ").trim().charAt(0).toUpperCase();
 
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-14 transition-colors">
       <Navbar />
 
       <div className="max-w-6xl mx-auto px-4 pt-5 space-y-5">
-        <PlayerHeader
-          player={player}
-          tab={headerTab as React.ComponentProps<typeof PlayerHeader>["tab"]}
-          onTabChange={(next) => setActiveTab(mapHeaderTabToSporcuTab(next))}
-          totalSessionsCount={0}
-          attendanceRate={0}
-          activeEquipmentCount={activeEquipmentCount}
-          overdueCount={unpaidDues.length}
-          currentUnpaid={unpaidDues.length > 0}
-          onLogout={handleLogout}
-        />
+        {/* Tek Sporcu Üst Kartı */}
+        <div className="rounded-3xl bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white p-5 sm:p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {player.photo_url ? (
+              <img
+                src={player.photo_url}
+                alt={player.full_name}
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-white/40 bg-white shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-[var(--brand-red)] border-2 border-white/40 flex items-center justify-center text-2xl font-black shrink-0">
+                {initials}
+              </div>
+            )}
+            <div>
+              <span className="inline-block px-2.5 py-0.5 rounded-full bg-white/15 text-[11px] font-extrabold">
+                {player.age_group}
+              </span>
+              <h1 className="text-xl sm:text-2xl font-black mt-1">
+                {player.full_name}
+              </h1>
+              <div className="text-xs text-slate-200 mt-0.5">
+                Kod: {player.player_code || "-"} • Mevki:{" "}
+                {player.position || "Belirtilmemiş"} • Forma:{" "}
+                {player.jersey_number ? `#${player.jersey_number}` : "-"}
+              </div>
+            </div>
+          </div>
 
-        {/* Tek Birleştirilmiş Sekme Çubuğu */}
-        <div className="bg-[var(--bg-surface)] p-2 rounded-2xl border border-[var(--border-subtle)] shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="px-4 py-2 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer"
+          >
+            Çıkış Yap
+          </button>
+        </div>
+
+        {/* Tek Sekme Çubuğu */}
+        <div className="bg-[var(--bg-surface)] p-2 rounded-2xl border border-[var(--border-subtle)] shadow-xs grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {tabs.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -426,6 +444,16 @@ export default function SporcuPage() {
           />
         )}
 
+        {activeTab === "tahmin" && (
+          <MatchPredictionCard
+            playerId={player.id}
+            playerAgeGroup={player.age_group}
+            onRewardClaimed={() => {
+              void loadPlayerData(player.id);
+            }}
+          />
+        )}
+
         {activeTab === "qr" && (
           <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-3">
             <h2 className="text-base font-black text-[var(--text-primary)]">
@@ -445,15 +473,15 @@ export default function SporcuPage() {
         {activeTab === "program" && (
           <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-3">
             <h2 className="text-base font-black text-[var(--text-primary)]">
-              Program &amp; Maçlar ({playerTasks.length})
+              Program &amp; Maçlar ({tasks.length})
             </h2>
-            {playerTasks.length === 0 ? (
+            {tasks.length === 0 ? (
               <p className="text-xs text-[var(--text-secondary)]">
                 Henüz planlanmış maç veya görev bulunmuyor.
               </p>
             ) : (
               <div className="divide-y divide-[var(--border-subtle)]">
-                {playerTasks.map((t) => (
+                {tasks.map((t) => (
                   <div
                     key={t.id}
                     className="py-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm"
@@ -463,6 +491,7 @@ export default function SporcuPage() {
                         {t.title}
                       </div>
                       <div className="text-xs text-[var(--text-secondary)]">
+                        {t.age_group || "Genel"} •{" "}
                         {t.location || "Saha belirtilmedi"}
                       </div>
                     </div>
@@ -535,20 +564,13 @@ export default function SporcuPage() {
         )}
 
         {activeTab === "profil" && (
-          <div className="space-y-6">
-            <PlayerProfileTab
-              {...({
-                player,
-                setPlayer,
-                overdueCount: unpaidDues.length,
-              } as unknown as React.ComponentProps<typeof PlayerProfileTab>)}
-            />
-            <PlayerCardSection
-              player={player}
-              onPlayerUpdated={(updated: Player) => setPlayer(updated)}
-              onFeedback={setFeedback}
-            />
-          </div>
+          <PlayerProfileTab
+            {...({
+              player,
+              setPlayer,
+              overdueCount: unpaidDues.length,
+            } as unknown as React.ComponentProps<typeof PlayerProfileTab>)}
+          />
         )}
       </div>
     </div>
