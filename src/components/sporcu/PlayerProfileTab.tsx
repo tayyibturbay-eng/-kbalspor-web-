@@ -112,7 +112,7 @@ export function PlayerProfileTab({
       setPinMsg({ ok: false, text: "PIN güncellenemedi: " + error.message });
       return;
     }
-    setPlayer({ ...player, player_pin: cleaned, pin_changed: true });
+    setPlayer({ ...player, player_pin: "***", pin_changed: true });
     setNewPin("");
     setPinMsg({ ok: true, text: "PIN kodunuz başarıyla güncellendi." });
   }

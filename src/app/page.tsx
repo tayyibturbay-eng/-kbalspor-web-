@@ -106,6 +106,18 @@ export default function HomePage() {
             >
               Taktik Tahtası &amp; Kadro Kur
             </Link>
+            <Link
+              href="/sporcu"
+              className="px-5 py-3 rounded-2xl bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs sm:text-sm font-extrabold transition"
+            >
+              Sporcu Girişi
+            </Link>
+            <Link
+              href="/kayit"
+              className="px-5 py-3 rounded-2xl bg-white text-[var(--brand-navy)] hover:bg-slate-100 text-xs sm:text-sm font-black shadow-sm transition"
+            >
+              Ön Kayıt Ol
+            </Link>
           </div>
         </div>
       </section>
@@ -228,6 +240,39 @@ export default function HomePage() {
           </section>
         </div>
       </main>
+
+      <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] mt-auto">
+        <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
+          <div className="space-y-2">
+            <div className="text-sm font-black text-[var(--brand-navy)] dark:text-sky-300">
+              Çorum İkbal Spor Kulübü
+            </div>
+            <p className="text-[var(--text-secondary)] leading-relaxed">
+              Altyapıdan A takıma disiplinli spor eğitimi, ahlaklı gelişim ve
+              modern dijital kulüp yönetimi.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <div className="font-black uppercase tracking-wider text-[11px] text-[var(--text-muted)]">
+              Hızlı Erişim
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 font-bold text-[var(--text-secondary)]">
+              <Link href="/sporcu" className="hover:text-[var(--brand-red)]">Sporcu Paneli</Link>
+              <Link href="/kadro-kur" className="hover:text-[var(--brand-red)]">Kadro Kur</Link>
+              <Link href="/gorevler" className="hover:text-[var(--brand-red)]">Maç &amp; Görevler</Link>
+              <Link href="/bildirimler" className="hover:text-[var(--brand-red)]">Duyurular</Link>
+              <Link href="/kayit" className="hover:text-[var(--brand-red)]">Üyelik Başvurusu</Link>
+              <Link href="/iletisim" className="hover:text-[var(--brand-red)]">İletişim</Link>
+            </div>
+          </div>
+          <div className="space-y-1.5 md:text-right text-[var(--text-muted)]">
+            <div className="font-bold text-[var(--text-primary)]">
+              2026–2027 Sezonu
+            </div>
+            <div>© 2026 Çorum İkbalspor. Tüm hakları saklıdır.</div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
