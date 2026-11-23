@@ -183,6 +183,14 @@ export function TasksTab({
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
+    const computedTitle =
+      newTask.task_type === "mac"
+        ? `${homeTeam.trim()} - ${awayTeam.trim()}`.replace(/^\s*-\s*|\s*-\s*$/g, "")
+        : newTask.title.trim();
+    if (!computedTitle) {
+      onFeedback("Lütfen maç takımlarını veya etkinlik başlığını girin.");
+      return;
+    }
     const finalLocation =
       newTask.field_choice === "Diğer"
         ? newTask.custom_location.trim() || "Özel Saha"
