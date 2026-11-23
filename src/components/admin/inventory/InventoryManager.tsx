@@ -307,6 +307,10 @@ export function InventoryManager({
   }, [fetchInventoryData, syncUnitMapsFromDb]);
 
   function saveJerseyUnitsMap(next: Record<string, UnitDetail[]>) {
+    void supabase.from("club_settings").upsert({
+      key: "ikbal_jersey_units_v1",
+      value: JSON.stringify(next),
+    });
     setJerseyUnitsMap(next);
     const serialized = JSON.stringify(next);
     try {
@@ -320,6 +324,10 @@ export function InventoryManager({
   }
 
   function saveStockUnitsMap(next: Record<string, UnitDetail[]>) {
+    void supabase.from("club_settings").upsert({
+      key: "ikbal_stock_units_v1",
+      value: JSON.stringify(next),
+    });
     setStockUnitsMap(next);
     const serialized = JSON.stringify(next);
     try {
