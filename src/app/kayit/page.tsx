@@ -14,6 +14,7 @@ export default function MembershipRequestPage() {
   const [guardianPhone, setGuardianPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [kvkkAccepted, setKvkkAccepted] = useState(false);
   const [feedback, setFeedback] = useState<{
     ok: boolean;
     text: string;
@@ -37,6 +38,14 @@ export default function MembershipRequestPage() {
     }
 
     const computedGroup = calcAgeGroupFromBirthDate(birthDate) || "Minikler";
+
+    if (!kvkkAccepted) {
+      setFeedback({
+        ok: false,
+        text: "Başvuruyu göndermek için KVKK Aydınlatma Metni onay kutusunu işaretlemelisiniz.",
+      });
+      return;
+    }
 
     setSubmitting(true);
     const { error } = await supabase.from("membership_requests").insert({
@@ -68,6 +77,7 @@ export default function MembershipRequestPage() {
     setGuardianName("");
     setGuardianPhone("");
     setNotes("");
+    setKvkkAccepted(false);
   }
 
   return (
@@ -181,6 +191,30 @@ export default function MembershipRequestPage() {
               {feedback.text}
             </div>
           )}
+
+          <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-2.5">
+            <details className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              <summary className="cursor-pointer font-extrabold text-[var(--brand-navy)] dark:text-sky-300">
+                6698 Sayılı KVKK Kapsamında Aydınlatma Metni (Okumak için tıklayın)
+              </summary>
+              <p className="mt-2">
+                <strong>Çorum İkbal Spor Kulübü</strong> olarak, bu form aracılığıyla paylaştığınız sporcu ad-soyad, doğum tarihi, veli/iletişim bilgileri ve ek notlar; 6698 sayılı Kişisel Verilerin Korunması Kanunu (KVKK) uyarınca yalnızca kulüp ön kayıt değerlendirmesi, yaş kategorisi planlaması, antrenman/seçme daveti ve lisans süreçlerinin yürütülmesi amacıyla işlenmektedir. Verileriniz yetkisiz üçüncü kişilerle paylaşılmaz; yasal ve federasyon yükümlülükleri dışında kullanılmaz.
+              </p>
+            </details>
+
+            <label className="flex items-start gap-2.5 text-xs font-bold text-[var(--text-primary)] cursor-pointer select-none">
+              <input
+                type="checkbox"
+                required
+                checked={kvkkAccepted}
+                onChange={(e) => setKvkkAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--brand-red)]"
+              />
+              <span>
+                6698 sayılı KVKK Aydınlatma Metni&apos;ni okudum; kişisel verilerin kulüp ön kayıt ve iletişim süreçleri kapsamında işlenmesini onaylıyorum. *
+              </span>
+            </label>
+          </div>
 
           <button
             type="submit"
