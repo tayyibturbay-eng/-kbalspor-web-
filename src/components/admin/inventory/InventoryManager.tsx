@@ -73,6 +73,32 @@ const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"> 
   "Kayıp",
 ];
 
+function getUnitCardStyle(status: JerseyUnitDetail["status"]): string {
+  if (status === "Kayıp") {
+    return "bg-rose-950/65 border-rose-500 ring-1 ring-rose-400/60";
+  }
+  if (status === "Teslim Edildi") {
+    return "bg-amber-950/55 border-amber-400 ring-1 ring-amber-300/50";
+  }
+  if (status === "Bakımda") {
+    return "bg-sky-950/45 border-sky-400/70";
+  }
+  return "bg-[var(--bg-surface)] border-[var(--border-subtle)]";
+}
+
+function getUnitBadgeStyle(status: JerseyUnitDetail["status"]): string {
+  if (status === "Kayıp") {
+    return "bg-rose-600 text-white";
+  }
+  if (status === "Teslim Edildi") {
+    return "bg-amber-400 text-slate-950";
+  }
+  if (status === "Bakımda") {
+    return "bg-sky-500 text-white";
+  }
+  return "bg-emerald-700/30 text-emerald-300";
+}
+
 function buildDefaultUnitsForSet(set: JerseySetRow): JerseyUnitDetail[] {
   const count = Math.max(1, Number(set.total_count || 1));
   const defaultSize = set.size_label || "M";
@@ -102,10 +128,8 @@ export function InventoryManager({
   const [stockItems, setStockItems] = useState<StockItemRow[]>([]);
   const [logs, setLogs] = useState<EquipmentLogRow[]>([]);
 
-  // Ortak panel sekmesi: Formalar veya Diğer Malzemeler
   const [panelTab, setPanelTab] = useState<"forma" | "ekipman">("forma");
 
-  // Yeni Forma Ekleme (Adet sorar, 1'den başlayarak otomatik numaralandırır)
   const [jerseyName, setJerseyName] = useState("");
   const [kitType, setKitType] = useState("İç Saha");
   const [jerseyQty, setJerseyQty] = useState("20");
@@ -113,7 +137,6 @@ export function InventoryManager({
   const [jerseyPhotoUrl, setJerseyPhotoUrl] = useState("/logo.png");
   const [creatingJersey, setCreatingJersey] = useState(false);
 
-  // Yeni Diğer Malzeme Ekleme (Yağmurluk, eşofman takımı vb. + opsiyonel numara)
   const [productName, setProductName] = useState("");
   const [category, setCategory] = useState("Eşofman Takımı");
   const [otherQty, setOtherQty] = useState("10");
@@ -122,7 +145,6 @@ export function InventoryManager({
   const [otherPhotoUrl, setOtherPhotoUrl] = useState("/logo.png");
   const [creatingOther, setCreatingOther] = useState(false);
 
-  // Beden / Numara / Durum düzenleme
   const [selectedJerseySetId, setSelectedJerseySetId] = useState<string>("");
   const [selectedStockId, setSelectedStockId] = useState<string>("");
   const [jerseyUnitsMap, setJerseyUnitsMap] = useState<
@@ -137,7 +159,6 @@ export function InventoryManager({
     "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"
   >("Müsait");
 
-  // Teslim / İade / Kayıp Formu
   const [ageFilter, setAgeFilter] = useState<string>("Tümü");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
   const [jerseyNumber, setJerseyNumber] = useState<string>("");
@@ -148,7 +169,6 @@ export function InventoryManager({
   >("teslim_edildi");
   const [notes, setNotes] = useState<string>("");
 
-  // Geçmiş Filtreleme & Silme
   const [historyFilterPlayerId, setHistoryFilterPlayerId] = useState<string>("all");
   const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState<boolean>(false);
@@ -244,6 +264,34 @@ export function InventoryManager({
     } catch {
       // yoksay
     }
+  }
+
+  async function insertEquipmentLogSafe(payload: {
+    player_id: string;
+    item_type: string;
+    item_name: string;
+    jersey_number: number | null;
+    size_label: string;
+    condition_status: string;
+    status: string;
+    notes: string | null;
+    created_at: string;
+  }) {
+    const res = await supabase.from("equipment_logs").insert(payload);
+    if (!res.error) return { error: null };
+
+    const missingCondition =
+      res.error.message.includes("condition_status") ||
+      res.error.message.includes("schema cache");
+
+    if (missingCondition) {
+      const { condition_status: _ignored, ...fallbackPayload } = payload;
+      void _ignored;
+      const retry = await supabase.from("equipment_logs").insert(fallbackPayload);
+      return { error: retry.error };
+    }
+
+    return { error: res.error };
   }
 
   const activeJerseySet = useMemo(
@@ -439,7 +487,10 @@ export function InventoryManager({
     if (!activeJerseySet) return;
     const num = parseInt(customAddNumber, 10);
     if (Number.isNaN(num) || num < 1 || num > 999) {
-      notify(false, "Lütfen 1 ile 999 arasında geçerli bir numara girin (örn: 95).");
+      notify(
+        false,
+        "Lütfen 1 ile 999 arasında geçerli bir numara girin (örn: 95)."
+      );
       return;
     }
 
@@ -550,7 +601,7 @@ export function InventoryManager({
       }
 
       setSubmitting(true);
-      const { error: logErr } = await supabase.from("equipment_logs").insert({
+      const { error: logErr } = await insertEquipmentLogSafe({
         player_id: selectedPlayerId,
         item_type: "forma",
         item_name: chosenSet.set_name,
@@ -654,7 +705,7 @@ export function InventoryManager({
     }
 
     setSubmitting(true);
-    const { error: eqErr } = await supabase.from("equipment_logs").insert({
+    const { error: eqErr } = await insertEquipmentLogSafe({
       player_id: selectedPlayerId,
       item_type: "ekipman",
       item_name: chosenStock.product_name,
@@ -790,7 +841,7 @@ export function InventoryManager({
         </div>
       </div>
 
-      {/* Sekme 1: Formalar (Adetle Ekle + Kapak Görseli + Beden/Numara/Durum) */}
+      {/* Sekme 1: Formalar */}
       {panelTab === "forma" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form
@@ -927,6 +978,21 @@ export function InventoryManager({
               </select>
             </div>
 
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
+                Teslim Edildi
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
+                Kayıp
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
+                Müsait
+              </span>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {jerseySets.map((j) => (
                 <button
@@ -999,11 +1065,17 @@ export function InventoryManager({
                   {currentUnits.map((unit) => (
                     <div
                       key={unit.id}
-                      className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-2.5 space-y-1.5 text-xs"
+                      className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
+                        unit.status
+                      )}`}
                     >
                       <div className="flex items-center justify-between gap-1">
-                        <span className="font-black text-[var(--brand-navy)] dark:text-sky-300">
-                          #{unit.number}
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-black text-[11px] ${getUnitBadgeStyle(
+                            unit.status
+                          )}`}
+                        >
+                          #{unit.number} • {unit.status}
                         </span>
                         <input
                           type="number"
@@ -1016,9 +1088,15 @@ export function InventoryManager({
                               handleUpdateUnit(unit.id, { number: nextNum });
                             }
                           }}
-                          className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] font-bold"
+                          className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)]"
                         />
                       </div>
+
+                      {unit.assigned_to && unit.status === "Teslim Edildi" && (
+                        <div className="text-[10px] font-bold text-amber-200 truncate">
+                          Sporcu: {unit.assigned_to}
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 gap-1">
                         <select
@@ -1026,7 +1104,7 @@ export function InventoryManager({
                           onChange={(e) =>
                             handleUpdateUnit(unit.id, { size: e.target.value })
                           }
-                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-1.5 py-1 text-[11px] font-bold"
+                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                         >
                           {SIZE_OPTIONS.map((sz) => (
                             <option key={sz} value={sz}>
@@ -1043,7 +1121,7 @@ export function InventoryManager({
                                 .value as JerseyUnitDetail["status"],
                             })
                           }
-                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-1.5 py-1 text-[11px] font-bold"
+                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                         >
                           {ITEM_STATUSES.map((st) => (
                             <option key={st} value={st}>
@@ -1061,7 +1139,7 @@ export function InventoryManager({
         </div>
       )}
 
-      {/* Sekme 2: Diğer Malzemeler (Yağmurluk, Eşofman Takımı vb. + Numara/Beden/Durum) */}
+      {/* Sekme 2: Diğer Malzemeler */}
       {panelTab === "ekipman" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form
