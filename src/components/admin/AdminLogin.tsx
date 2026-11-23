@@ -45,23 +45,32 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
     e.preventDefault();
     setAuthError("");
     setLoading(true);
-    const { data, error } = await supabase
-      .from("coaches")
-      .select("*")
-      .eq("coach_code", coachCode.trim().toUpperCase())
-      .eq("pin", coachPin.trim())
-      .eq("is_active", true)
-      .maybeSingle();
-    setLoading(false);
+    try {
+      const res = await fetch("/api/auth/pin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "coach",
+          code: coachCode.trim().toUpperCase(),
+          pin: coachPin.trim(),
+        }),
+      });
+      const data = await res.json();
 
-    if (error || !data) {
-      setAuthError("Antrenör kodu veya şifre hatalı.");
-      return;
+      if (!res.ok || !data.ok || !data.coach) {
+        setAuthError(data.error || "Antrenör kodu veya şifre hatalı.");
+        return;
+      }
+
+      const coach = { ...data.coach, pin: "" } as Coach;
+      localStorage.setItem("ikbal_coach", JSON.stringify(coach));
+      window.dispatchEvent(new Event("ikbal-auth-changed"));
+      await onCoachSuccess(coach);
+    } catch {
+      setAuthError("Sunucuya bağlanırken bir hata oluştu.");
+    } finally {
+      setLoading(false);
     }
-    const coach = data as Coach;
-    localStorage.setItem("ikbal_coach", JSON.stringify(coach));
-    window.dispatchEvent(new Event("ikbal-auth-changed"));
-    await onCoachSuccess(coach);
   }
 
   return (

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeSwitch } from "@/components/ikbal/ThemeSwitch";
 
+const THEME_STORAGE_KEY = "ikbalspor_theme";
+
 const NAV_LINKS = [
   { href: "/", label: "Ana Sayfa" },
   { href: "/kadro-kur", label: "Kadro Kur" },
@@ -23,9 +25,11 @@ export function Navbar() {
   useEffect(() => {
     const applySavedTheme = () => {
       try {
-        const saved = localStorage.getItem("ikbal_theme");
+        const saved = localStorage.getItem(THEME_STORAGE_KEY);
         const isDark = saved === "dark";
-        setTheme(isDark ? "dark" : "light");
+        const next: "light" | "dark" = isDark ? "dark" : "light";
+        setTheme(next);
+        document.documentElement.setAttribute("data-theme", next);
         document.documentElement.classList.toggle("dark", isDark);
       } catch {
         // yoksay
@@ -37,12 +41,13 @@ export function Navbar() {
 
   function handleToggleTheme() {
     setTheme((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
+      const next: "light" | "dark" = prev === "dark" ? "light" : "dark";
       try {
-        localStorage.setItem("ikbal_theme", next);
+        localStorage.setItem(THEME_STORAGE_KEY, next);
       } catch {
         // yoksay
       }
+      document.documentElement.setAttribute("data-theme", next);
       document.documentElement.classList.toggle("dark", next === "dark");
       return next;
     });

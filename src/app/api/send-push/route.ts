@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function chunkArray<T>(items: T[], size: number): T[][] {
@@ -18,8 +19,32 @@ type ExpoPushTicket = {
 
 const DEFAULT_LOGO_URL = "https://ikbalspor.com/logo.png";
 
+async function verifyAdminRequest(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) return false;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
+  if (!url || !anon) return false;
+
+  const authClient = createClient(url, anon, {
+    auth: { persistSession: false },
+  });
+  const { data, error } = await authClient.auth.getUser(token);
+  return !error && Boolean(data?.user);
+}
+
 export async function POST(req: Request) {
   try {
+    const isAuthorized = await verifyAdminRequest(req);
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { ok: false, error: "Bu işlem için yönetici yetkisi gereklidir.", sentCount: 0 },
+        { status: 401 }
+      );
+    }
+
     const { ageGroups, title, body, imageUrl, sound } = (await req.json()) as {
       ageGroups?: string[];
       title?: string;
@@ -35,11 +60,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createServerSupabaseClient();
+    const supabase = createServerSupabaseClient(true);
 
     let query = supabase
       .from("player_push_tokens")
       .select("expo_push_token, age_group");
+
     if (ageGroups && ageGroups.length > 0 && !ageGroups.includes("Tümü")) {
       query = query.in("age_group", ageGroups);
     }
@@ -56,10 +82,7 @@ export async function POST(req: Request) {
       new Set(
         (tokens || [])
           .map((t) => t.expo_push_token)
-          .filter(
-            (tk): tk is string =>
-              Boolean(tk) && tk.startsWith("ExponentPushToken")
-          )
+          .filter((tk): tk is string => Boolean(tk) && tk.startsWith("ExponentPushToken"))
       )
     );
 
@@ -67,15 +90,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, sentCount: 0 });
     }
 
-    const cleanSound =
-      typeof sound === "string" && sound.trim() ? sound.trim() : "default";
+    const cleanSound = typeof sound === "string" && sound.trim() ? sound.trim() : "default";
     const rawImg =
-      typeof imageUrl === "string" && imageUrl.trim()
-        ? imageUrl.trim()
-        : DEFAULT_LOGO_URL;
-    const cleanImage = rawImg.startsWith("/")
-      ? `https://ikbalspor.com${rawImg}`
-      : rawImg;
+      typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : DEFAULT_LOGO_URL;
+    const cleanImage = rawImg.startsWith("/") ? `https://ikbalspor.com${rawImg}` : rawImg;
 
     const tokenChunks = chunkArray(uniqueTokens, 100);
     let totalSent = 0;
@@ -90,9 +108,7 @@ export async function POST(req: Request) {
         title: title.trim(),
         body: body.trim(),
         image: cleanImage,
-        richContent: {
-          image: cleanImage,
-        },
+        richContent: { image: cleanImage },
         data: {
           imageUrl: cleanImage,
           sound: cleanSound,
@@ -117,11 +133,7 @@ export async function POST(req: Request) {
 
       if (!expoRes.ok) {
         return NextResponse.json(
-          {
-            ok: false,
-            error: `Expo Push hatası (${expoRes.status})`,
-            sentCount: totalSent,
-          },
+          { ok: false, error: `Expo Push hatası (${expoRes.status})`, sentCount: totalSent },
           { status: 502 }
         );
       }
@@ -134,37 +146,22 @@ export async function POST(req: Request) {
           if (ticket.status === "ok") {
             totalSent += 1;
           } else {
-            const detailErr =
-              ticket.details?.error || ticket.message || "Bilinmeyen hata";
+            const detailErr = ticket.details?.error || ticket.message || "Bilinmeyen hata";
             errors.push(`${chunk[idx]?.slice(0, 28)}...: ${detailErr}`);
           }
         });
       }
     }
 
-    if (totalSent === 0 && errors.length > 0) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: errors.join(" | "),
-          sentCount: 0,
-        },
-        { status: 200 }
-      );
-    }
-
     return NextResponse.json({
-      ok: true,
+      ok: totalSent > 0 || errors.length === 0,
       sentCount: totalSent,
       warning: errors.length > 0 ? errors.join(" | ") : undefined,
+      error: totalSent === 0 && errors.length > 0 ? errors.join(" | ") : undefined,
     });
   } catch (err) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: err instanceof Error ? err.message : "Sunucu hatası",
-        sentCount: 0,
-      },
+      { ok: false, error: err instanceof Error ? err.message : "Sunucu hatası", sentCount: 0 },
       { status: 500 }
     );
   }

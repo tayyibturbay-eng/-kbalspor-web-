@@ -126,9 +126,18 @@ export function TasksTab({
   async function handleSyncCorumfit() {
     setSyncingCorumfit(true);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const res = await fetch("/api/sync-corumfit-matches", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           url:
             corumfitUrl.trim() || "https://corumfit.org/index.asp?id=hft_prg",

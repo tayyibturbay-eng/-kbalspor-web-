@@ -10,6 +10,9 @@ export async function claimPredictionRewardSafely(
   }
 ): Promise<{ ok: boolean; newPoints?: number; error?: string }> {
   const { predictionId, playerId, points, currentPlayerPoints } = params;
+  if (!playerId || playerId === "guest") {
+    return { ok: false, error: "Ödül toplamak için sporcu girişi yapmalısınız." };
+  }
   if (points <= 0) {
     return { ok: false, error: "Toplanacak puan bulunamadı." };
   }
@@ -23,7 +26,14 @@ export async function claimPredictionRewardSafely(
     }
   );
 
-  if (!rpcErr && rpcData && typeof rpcData === "object") {
+  if (rpcErr) {
+    return {
+      ok: false,
+      error: "Ödül sunucuda doğrulanamadı: " + rpcErr.message,
+    };
+  }
+
+  if (rpcData && typeof rpcData === "object") {
     const res = rpcData as {
       ok?: boolean;
       error?: string;
@@ -38,25 +48,5 @@ export async function claimPredictionRewardSafely(
     return { ok: false, error: res.error || "Ödül toplanamadı." };
   }
 
-  const nextPoints = Number(currentPlayerPoints) + Number(points);
-  const { error: pErr } = await supabase
-    .from("match_predictions")
-    .update({ reward_claimed: true, awarded_points: points })
-    .eq("id", predictionId)
-    .eq("player_id", playerId);
-
-  if (pErr) {
-    return { ok: false, error: "Ödül kaydedilemedi: " + pErr.message };
-  }
-
-  const { error: uErr } = await supabase
-    .from("players")
-    .update({ skill_points: nextPoints })
-    .eq("id", playerId);
-
-  if (uErr) {
-    return { ok: false, error: "Puan eklenemedi: " + uErr.message };
-  }
-
-  return { ok: true, newPoints: nextPoints };
+  return { ok: false, error: "Sunucudan geçersiz yanıt alındı." };
 }

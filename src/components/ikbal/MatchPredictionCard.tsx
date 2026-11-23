@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
+import { claimPredictionRewardSafely } from "@/lib/prediction-rpc";
 
 const supabase = createClient();
 
@@ -26,9 +27,6 @@ interface PredictionRecord {
   away_score: number;
   first_scorer_name?: string | null;
   scorer_multiplier?: number | null;
-  actual_home_score?: number | null;
-  actual_away_score?: number | null;
-  actual_scorer_name?: string | null;
   awarded_points?: number | null;
   reward_claimed?: boolean | null;
   created_at?: string | null;
@@ -37,6 +35,7 @@ interface PredictionRecord {
 interface MatchPredictionCardProps {
   playerId?: string | null;
   playerAgeGroup?: string | null;
+  currentSkillPoints?: number;
   onRewardClaimed?: (pointsAdded: number) => void;
 }
 
@@ -52,8 +51,7 @@ function isWithin24Hours(match: MatchTaskRow, nowMs: number): boolean {
   if (!nowMs) return true;
   const start = getMatchStartDate(match);
   if (!start) return true;
-  const diffMs = nowMs - start.getTime();
-  return diffMs <= 24 * 60 * 60 * 1000;
+  return nowMs - start.getTime() <= 24 * 60 * 60 * 1000;
 }
 
 function isMatchStarted(match: MatchTaskRow, nowMs: number): boolean {
@@ -66,6 +64,7 @@ function isMatchStarted(match: MatchTaskRow, nowMs: number): boolean {
 export function MatchPredictionCard({
   playerId,
   playerAgeGroup,
+  currentSkillPoints = 0,
   onRewardClaimed,
 }: MatchPredictionCardProps) {
   const [matches, setMatches] = useState<MatchTaskRow[]>([]);
@@ -77,41 +76,46 @@ export function MatchPredictionCard({
   const [saving, setSaving] = useState<boolean>(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(0);
-  const [feedback, setFeedback] = useState<{
-    ok: boolean;
-    text: string;
-  } | null>(null);
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const effectivePlayerId = useMemo(() => {
+    if (playerId) return playerId;
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("ikbal_logged_player_id") || "";
+    }
+    return "";
+  }, [playerId]);
 
   const loadData = useCallback(async () => {
     const [mRes, pRes] = await Promise.all([
       supabase
         .from("tasks_assignments")
-        .select(
-          "id, title, age_group, task_type, event_date, match_time, location, created_at"
-        )
+        .select("id, title, age_group, task_type, event_date, match_time, location, created_at")
         .order("event_date", { ascending: true })
         .limit(60),
-      supabase
-        .from("match_predictions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(80),
+      effectivePlayerId
+        ? supabase
+            .from("match_predictions")
+            .select("*")
+            .eq("player_id", effectivePlayerId)
+            .order("created_at", { ascending: false })
+            .limit(30)
+        : Promise.resolve({ data: [] as PredictionRecord[] }),
     ]);
 
-    const matchRows = ((mRes.data as MatchTaskRow[] | null) || []).filter(
-      (m) => {
-        const t = (m.task_type || "").toLowerCase();
-        const title = (m.title || "").toLowerCase();
-        return (
-          t.includes("maç") ||
-          t.includes("match") ||
-          title.includes("maç") ||
-          title.includes("vs") ||
-          title.includes("-") ||
-          !m.task_type
-        );
-      }
-    );
+    const matchRows = ((mRes.data as MatchTaskRow[] | null) || []).filter((m) => {
+      const t = (m.task_type || "").toLowerCase();
+      const title = (m.title || "").toLowerCase();
+      return (
+        t.includes("maç") ||
+        t.includes("mac") ||
+        t.includes("match") ||
+        title.includes("maç") ||
+        title.includes("vs") ||
+        title.includes("-") ||
+        !m.task_type
+      );
+    });
 
     setMatches(matchRows);
     setPredictions((pRes.data as PredictionRecord[] | null) || []);
@@ -119,7 +123,7 @@ export function MatchPredictionCard({
       if (prev && matchRows.some((x) => x.id === prev)) return prev;
       return matchRows[0]?.id || "";
     });
-  }, []);
+  }, [effectivePlayerId]);
 
   useEffect(() => {
     const syncClock = () => setNowMs(Date.now());
@@ -129,7 +133,6 @@ export function MatchPredictionCard({
     }, 0);
 
     const clockInterval = window.setInterval(syncClock, 15000);
-
     const unsubscribe = subscribeClubLiveUpdates(
       supabase,
       () => {
@@ -156,10 +159,7 @@ export function MatchPredictionCard({
   );
 
   const selectedMatch = useMemo(
-    () =>
-      activeMatches.find((m) => m.id === selectedMatchId) ||
-      activeMatches[0] ||
-      null,
+    () => activeMatches.find((m) => m.id === selectedMatchId) || activeMatches[0] || null,
     [activeMatches, selectedMatchId]
   );
 
@@ -168,31 +168,20 @@ export function MatchPredictionCard({
     [selectedMatch, nowMs]
   );
 
-  const effectivePlayerId = useMemo(() => {
-    if (playerId) return playerId;
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ikbal_logged_player_id") || "guest";
-    }
-    return "guest";
-  }, [playerId]);
-
   async function handleSavePrediction(e: React.FormEvent) {
     e.preventDefault();
     setFeedback(null);
 
-    if (!selectedMatch) {
-      setFeedback({
-        ok: false,
-        text: "Tahmin yapılacak aktif bir maç bulunamadı.",
-      });
+    if (!effectivePlayerId) {
+      setFeedback({ ok: false, text: "Tahmin yapmak için önce sporcu girişi yapmalısınız." });
       return;
     }
-
+    if (!selectedMatch) {
+      setFeedback({ ok: false, text: "Tahmin yapılacak aktif bir maç bulunamadı." });
+      return;
+    }
     if (lockedByTime) {
-      setFeedback({
-        ok: false,
-        text: "Maç saati geldiği için bu maçın tahmin ekranı kilitlendi.",
-      });
+      setFeedback({ ok: false, text: "Maç saati geldiği için tahmin girişi kilitlendi." });
       return;
     }
 
@@ -215,10 +204,7 @@ export function MatchPredictionCard({
     setSaving(false);
 
     if (error) {
-      setFeedback({
-        ok: false,
-        text: "Tahmin kaydedilemedi: " + error.message,
-      });
+      setFeedback({ ok: false, text: "Tahmin kaydedilemedi: " + error.message });
       return;
     }
 
@@ -231,61 +217,28 @@ export function MatchPredictionCard({
   }
 
   async function handleClaimReward(pred: PredictionRecord) {
-    if (pred.reward_claimed) return;
+    if (pred.reward_claimed || !effectivePlayerId) return;
     const rewardPts = Number(pred.awarded_points ?? 10);
     setClaimingId(pred.id);
     setFeedback(null);
 
-    const { error: updPredErr } = await supabase
-      .from("match_predictions")
-      .update({ reward_claimed: true })
-      .eq("id", pred.id);
+    const res = await claimPredictionRewardSafely(supabase, {
+      predictionId: pred.id,
+      playerId: effectivePlayerId,
+      points: rewardPts,
+      currentPlayerPoints: currentSkillPoints,
+    });
 
-    if (updPredErr) {
-      setClaimingId(null);
-      setFeedback({
-        ok: false,
-        text: "Ödül güncellenemedi: " + updPredErr.message,
-      });
+    setClaimingId(null);
+    if (!res.ok) {
+      setFeedback({ ok: false, text: res.error || "Ödül toplanamadı." });
       return;
     }
 
-    if (pred.player_id && pred.player_id !== "guest") {
-      try {
-        const localKey = `ikbal_player_card_${pred.player_id}`;
-        const rawLocal = localStorage.getItem(localKey);
-        const parsedLocal = rawLocal
-          ? (JSON.parse(rawLocal) as { skill_points?: number })
-          : {};
-        const nextLocalPts = Number(parsedLocal.skill_points ?? 0) + rewardPts;
-        localStorage.setItem(
-          localKey,
-          JSON.stringify({ ...parsedLocal, skill_points: nextLocalPts })
-        );
-      } catch {
-        // yoksay
-      }
-
-      const { data: pRow } = await supabase
-        .from("players")
-        .select("skill_points")
-        .eq("id", pred.player_id)
-        .maybeSingle();
-
-      const currentPts = Number(
-        (pRow as { skill_points?: number | null } | null)?.skill_points ?? 0
-      );
-      await supabase
-        .from("players")
-        .update({ skill_points: currentPts + rewardPts })
-        .eq("id", pred.player_id);
-    }
-
-    setClaimingId(null);
     onRewardClaimed?.(rewardPts);
     setFeedback({
       ok: true,
-      text: `+${rewardPts} puan oyuncu kartınıza aktarıldı!`,
+      text: `+${rewardPts} puan ortak kulüp sıralamana aktarıldı!`,
     });
     await loadData();
   }
@@ -295,18 +248,17 @@ export function MatchPredictionCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
-            Çorum İkbalspor • Tüm Yaş Grupları Açık
+            Çorum İkbalspor • Ortak Puan Yarışı
           </span>
           <h2 className="text-lg font-black text-[var(--text-primary)]">
             Maç Skor &amp; Golcü Tahmini
           </h2>
           <p className="text-xs text-[var(--text-secondary)]">
-            Tüm maçlara tahmin yapabilir, maç saati geldiğinde kilitlenen
-            ekrandan sonra ödül puanınızı kartınıza aktarabilirsiniz.
+            Tüm kulüp maçlarına tahmin yapabilir, ödül puanlarını ortak sıralamana aktarabilirsin.
           </p>
         </div>
         <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold">
-          Aktif Maç: {activeMatches.length} • Geçmiş: {pastMatches.length}
+          Aktif: {activeMatches.length} • Geçmiş: {pastMatches.length}
         </span>
       </div>
 
@@ -314,7 +266,7 @@ export function MatchPredictionCard({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Maç Seçimi (Tüm Yaş Grupları)
+              Maç Seçimi
             </label>
             <select
               value={selectedMatch?.id || ""}
@@ -326,9 +278,8 @@ export function MatchPredictionCard({
               ) : (
                 activeMatches.map((m) => (
                   <option key={m.id} value={m.id}>
-                    [{m.age_group || "Genel"}] {m.title}{" "}
-                    {m.event_date ? `(${m.event_date})` : ""}{" "}
-                    {m.match_time ? m.match_time : ""}
+                    [{m.age_group || "Genel"}] {m.title} {m.event_date ? `(${m.event_date})` : ""}{" "}
+                    {m.match_time || ""}
                   </option>
                 ))
               )}
@@ -399,31 +350,17 @@ export function MatchPredictionCard({
         )}
 
         <button
-          type="button"
-          disabled={saving || !selectedMatch}
-          onClick={() => {
-            if (lockedByTime) {
-              setFeedback({
-                ok: false,
-                text: "🔒 Tahmin kilitli! Maç başlama saati geldiği için tahmin kaydedilemez.",
-              });
-              return;
-            }
-            const formEl = document.querySelector("form");
-            if (formEl) {
-              const fakeEvent = {
-                preventDefault: () => {},
-              } as React.FormEvent;
-              void handleSavePrediction(fakeEvent);
-            }
-          }}
+          type="submit"
+          disabled={saving || !selectedMatch || lockedByTime || !effectivePlayerId}
           className={`w-full py-3 rounded-2xl text-white text-sm font-black transition cursor-pointer disabled:opacity-50 ${
             lockedByTime
-              ? "bg-rose-900 hover:bg-rose-800 border-2 border-rose-400"
+              ? "bg-rose-900 border-2 border-rose-400"
               : "bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
           }`}
         >
-          {lockedByTime
+          {!effectivePlayerId
+            ? "Tahmin için Sporcu Girişi Yapın"
+            : lockedByTime
             ? "🔒 Gol & Skor Tahmini Kaydet (Kilitli)"
             : saving
             ? "Kaydediliyor..."
@@ -434,7 +371,7 @@ export function MatchPredictionCard({
       {predictions.length > 0 && (
         <div className="space-y-2.5 pt-2 border-t border-[var(--border-subtle)]">
           <h3 className="text-sm font-black text-[var(--text-primary)]">
-            Son Tahminler &amp; Ödül Aktarımı
+            Tahminlerim &amp; Ödül Aktarımı
           </h3>
           <div className="divide-y divide-[var(--border-subtle)]">
             {predictions.slice(0, 10).map((pr) => {
@@ -453,10 +390,8 @@ export function MatchPredictionCard({
                     </div>
                     <div className="text-[11px] text-[var(--text-secondary)]">
                       {pr.age_group}
-                      {pr.first_scorer_name
-                        ? ` • Golcü: ${pr.first_scorer_name}`
-                        : ""}{" "}
-                      • Ödül: +{pts} Puan
+                      {pr.first_scorer_name ? ` • Golcü: ${pr.first_scorer_name}` : ""} • Ödül: +
+                      {pts} Puan
                     </div>
                   </div>
 
@@ -479,27 +414,6 @@ export function MatchPredictionCard({
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {pastMatches.length > 0 && (
-        <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)]">
-          <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)]">
-            Geçmiş Maçlar ({pastMatches.length})
-          </h3>
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {pastMatches.slice(0, 8).map((pm) => (
-              <div
-                key={pm.id}
-                className="py-2 flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]"
-              >
-                <span className="font-bold">
-                  {pm.title} ({pm.age_group || "Genel"})
-                </span>
-                <span>{pm.event_date || ""}</span>
-              </div>
-            ))}
           </div>
         </div>
       )}

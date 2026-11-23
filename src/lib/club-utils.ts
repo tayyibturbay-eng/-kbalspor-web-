@@ -1,4 +1,8 @@
+import { createClient } from "@/lib/supabase/client";
 import { Player, TR_MONTHS } from "@/types/club";
+import { calcAgeGroupFromBirthDate } from "@/lib/age-groups";
+
+export { calcAgeGroupFromBirthDate };
 
 export function formatDateTimeTR(isoStr?: string | null): string {
   const dt = isoStr ? new Date(isoStr) : new Date();
@@ -44,26 +48,6 @@ export function calcAgeFromBirthDate(birthDate: string): number | null {
     age--;
   }
   return age;
-}
-
-export function calcAgeGroupFromBirthDate(birthDate: string): string {
-  if (!birthDate) return "Minikler";
-  const age = calcAgeFromBirthDate(birthDate);
-  if (age !== null && !isNaN(age) && age <= 10) {
-    return "Minikler";
-  }
-
-  const year = parseInt(birthDate.split("-")[0], 10);
-  if (isNaN(year)) return "Minikler";
-  if (year < 2007) return "Çorum Süper Amatör Ligi";
-  if (year >= 2015) return "U11";
-  if (year === 2014) return "U12";
-  if (year === 2013) return "U13";
-  if (year === 2012) return "U14";
-  if (year === 2011) return "U15";
-  if (year === 2010) return "U16";
-  if (year === 2009) return "U17";
-  return "U19";
 }
 
 export function subtractHours(timeStr: string, hours: number): string {
@@ -157,12 +141,24 @@ export async function sendPushViaApi(
   ageGroups: string[],
   title: string,
   body: string,
-  options?: { imageUrl?: string; sound?: string }
+  options?: { imageUrl?: string; sound?: string; accessToken?: string }
 ): Promise<{ sentCount: number; error?: string }> {
   try {
+    let token = options?.accessToken;
+    if (!token) {
+      const supabase = createClient();
+      const { data: sessionData } = await supabase.auth.getSession();
+      token = sessionData.session?.access_token;
+    }
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
     const res = await fetch("/api/send-push", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
         ageGroups,
         title,

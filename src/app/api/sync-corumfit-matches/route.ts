@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+async function verifyAdminRequest(req: NextRequest): Promise<boolean> {
+  const authHeader = req.headers.get("authorization") || "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  if (!token) return false;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
+  if (!url || !anon) return false;
+
+  const authClient = createClient(url, anon, { auth: { persistSession: false } });
+  const { data, error } = await authClient.auth.getUser(token);
+  return !error && Boolean(data?.user);
+}
 
 function decodeHtmlBuffer(buf: ArrayBuffer, contentType: string | null): string {
   const ct = (contentType || "").toLowerCase();
   const asciiPreview = new TextDecoder("latin1").decode(buf.slice(0, 2048));
   const metaCharset = /charset=["']?([a-z0-9_-]+)/i.exec(asciiPreview)?.[1]?.toLowerCase();
-  const charset = metaCharset || (ct.includes("charset=") ? ct.split("charset=")[1].split(";")[0].trim() : "");
+  const charset =
+    metaCharset || (ct.includes("charset=") ? ct.split("charset=")[1].split(";")[0].trim() : "");
 
   try {
     if (charset.includes("1254") || charset.includes("8859-9") || charset.includes("turkish")) {
@@ -28,14 +44,10 @@ function normalizeTurkishText(input: string): string {
     .trim();
 }
 
-/**
- * Geçerli takvim tarihini YYYY-MM-DD olarak döndürür.
- * Hatalı / bozuk tarihlerde null döner.
- */
-function parseStrictValidDate(rawDate: string, rawTime?: string | null): {
-  isoDate: string;
-  eventTimestamp: number;
-} | null {
+function parseStrictValidDate(
+  rawDate: string,
+  rawTime?: string | null
+): { isoDate: string; eventTimestamp: number } | null {
   const trimmed = rawDate.trim();
   let year = 0;
   let month = 0;
@@ -112,8 +124,8 @@ function extractMatchesFromHtml(html: string) {
 
   for (const rm of rowMatches) {
     const rowHtml = rm[1];
-    const cells = Array.from(rowHtml.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)).map(
-      (c) => normalizeTurkishText(c[1])
+    const cells = Array.from(rowHtml.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)).map((c) =>
+      normalizeTurkishText(c[1])
     );
     const joined = cells.length > 0 ? cells.join(" | ") : normalizeTurkishText(rowHtml);
     if (!joined) continue;
@@ -129,8 +141,7 @@ function extractMatchesFromHtml(html: string) {
     const timeToken = /\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(joined)?.[0] || null;
     const parsed = parseStrictValidDate(dateToken, timeToken);
 
-    if (!parsed) continue;
-    if (parsed.eventTimestamp < nowTs) continue;
+    if (!parsed || parsed.eventTimestamp < nowTs) continue;
 
     const nonDateCells = cells.filter(
       (c) =>
@@ -164,22 +175,26 @@ function extractMatchesFromHtml(html: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json().catch(() => ({}))) as {
-      url?: string;
-      html?: string;
-    };
+    const isAuthorized = await verifyAdminRequest(req);
+    if (!isAuthorized) {
+      return NextResponse.json(
+        { ok: false, error: "Bu işlem için yönetici yetkisi gereklidir." },
+        { status: 401 }
+      );
+    }
+
+    const body = (await req.json().catch(() => ({}))) as { url?: string; html?: string };
+    const defaultUrl = "https://corumfit.org/index.asp?id=hft_prg";
+    const targetUrl =
+      typeof body.url === "string" && body.url.trim().startsWith("https://corumfit.org/")
+        ? body.url.trim()
+        : defaultUrl;
 
     let htmlContent = typeof body.html === "string" ? body.html : "";
-    const targetUrl =
-      typeof body.url === "string" && body.url.trim()
-        ? body.url.trim()
-        : "https://corumfit.org/index.asp?id=hft_prg";
-
     if (!htmlContent.trim()) {
       const res = await fetch(targetUrl, {
         headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         },
         cache: "no-store",
       });
@@ -188,7 +203,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            error: `Corumfit sayfası alınamadı (HTTP ${res.status}). Gerekirse sayfa HTML içeriğini gönderebilirsiniz.`,
+            error: `Corumfit sayfası alınamadı (HTTP ${res.status}).`,
           },
           { status: 502 }
         );
@@ -199,7 +214,7 @@ export async function POST(req: NextRequest) {
     }
 
     const upcomingMatches = extractMatchesFromHtml(htmlContent);
-    const supabase = createServerSupabaseClient();
+    const supabase = createServerSupabaseClient(true);
 
     const { data: existingRows } = await supabase
       .from("tasks_assignments")
@@ -216,9 +231,7 @@ export async function POST(req: NextRequest) {
 
     const toInsert = upcomingMatches
       .filter((m) => {
-        const key = `${m.event_date}|${m.match_time || ""}|${m.title
-          .trim()
-          .toLocaleLowerCase("tr-TR")}`;
+        const key = `${m.event_date}|${m.match_time || ""}|${m.title.trim().toLocaleLowerCase("tr-TR")}`;
         if (existingSet.has(key)) return false;
         existingSet.add(key);
         return true;
@@ -234,15 +247,9 @@ export async function POST(req: NextRequest) {
       }));
 
     if (toInsert.length > 0) {
-      const { error: insErr } = await supabase
-        .from("tasks_assignments")
-        .insert(toInsert);
-
+      const { error: insErr } = await supabase.from("tasks_assignments").insert(toInsert);
       if (insErr) {
-        return NextResponse.json(
-          { ok: false, error: insErr.message },
-          { status: 500 }
-        );
+        return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
       }
     }
 
@@ -255,10 +262,7 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: err instanceof Error ? err.message : "Senkronizasyon hatası",
-      },
+      { ok: false, error: err instanceof Error ? err.message : "Senkronizasyon hatası" },
       { status: 500 }
     );
   }

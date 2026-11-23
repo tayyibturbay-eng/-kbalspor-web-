@@ -99,6 +99,14 @@ export function QrAttendanceTab({
     [effectiveSessions]
   );
 
+  useEffect(() => {
+    if (!activeSession) return;
+    const timer = setInterval(() => {
+      void onRefreshQr();
+    }, 3000);
+    return () => clearInterval(timer);
+  }, [activeSession, onRefreshQr]);
+
   const latestSession = activeSession || effectiveSessions[0] || null;
 
   const checkedInIds = useMemo(

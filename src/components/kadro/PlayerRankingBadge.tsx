@@ -2,10 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  buildOverallLeaderboard,
-  PlayerGoalStats,
-} from "@/lib/goal-scoring";
+import { buildOverallLeaderboard, PlayerGoalStats } from "@/lib/goal-scoring";
 import { LeaderboardPodium } from "./LeaderboardPodium";
 
 const supabase = createClient();
@@ -32,12 +29,14 @@ export function PlayerRankingBadge({
   useEffect(() => {
     if (!playerId) return;
     let active = true;
+
     (async () => {
       const { data } = await supabase
         .from("players")
         .select("id, full_name, age_group, photo_url, skill_points");
       if (active && data) setPlayers(data as PlayerRow[]);
     })();
+
     return () => {
       active = false;
     };
@@ -52,7 +51,7 @@ export function PlayerRankingBadge({
       photo_url: p.photo_url,
       total_goals: 0,
       matches_played_or_scored: 0,
-      base_points: Number(p.skill_points ?? 20),
+      base_points: Number(p.skill_points ?? 0),
     }));
     return buildOverallLeaderboard(stats);
   }, [players]);
@@ -67,27 +66,29 @@ export function PlayerRankingBadge({
 
   return (
     <div className="space-y-4 tabular-nums">
-      <div className="rounded-2xl bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-red)] text-white p-4 flex items-center justify-between gap-4 shadow-xs">
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-amber-200 font-extrabold">
-            Üyelere Özel Genel Sıralama
+      {!showFullLeaderboard && (
+        <div className="rounded-2xl bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-red)] text-white p-4 flex items-center justify-between gap-4 shadow-xs">
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-amber-200 font-extrabold">
+              Kulüp Ortak Sıralaması
+            </div>
+            <div className="text-xl font-black mt-0.5">
+              #{myRankInfo.rank}{" "}
+              <span className="text-xs font-semibold text-slate-200">
+                / {myRankInfo.totalPlayers} sporcu
+              </span>
+            </div>
           </div>
-          <div className="text-xl font-black mt-0.5">
-            #{myRankInfo.rank}{" "}
-            <span className="text-xs font-semibold text-slate-200">
-              / {myRankInfo.totalPlayers} sporcu (Tüm Kategoriler)
-            </span>
+          <div className="text-right">
+            <div className="text-base font-black text-amber-300">
+              {myRankInfo.overall_points} Puan
+            </div>
+            <div className="text-[11px] font-bold text-slate-200">
+              {myRankInfo.age_group}
+            </div>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-base font-black text-amber-300">
-            {myRankInfo.overall_points} Puan
-          </div>
-          <div className="text-[11px] font-bold text-slate-200">
-            {myRankInfo.age_group}
-          </div>
-        </div>
-      </div>
+      )}
 
       {showFullLeaderboard && (
         <LeaderboardPodium rankings={ranked} currentPlayerId={playerId} />

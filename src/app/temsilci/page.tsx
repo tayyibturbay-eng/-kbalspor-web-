@@ -11,7 +11,6 @@ const supabase = createClient();
 interface RepPlayer {
   id: string;
   player_code: string;
-  player_pin: string | null;
   full_name: string;
   age_group: string;
   is_representative: boolean;
@@ -39,7 +38,7 @@ export default function RepresentativePage() {
       const { data } = await supabase
         .from("players")
         .select(
-          "id, player_code, player_pin, full_name, age_group, is_representative"
+          "id, player_code, full_name, age_group, is_representative"
         )
         .eq("id", savedId)
         .maybeSingle();
@@ -62,7 +61,7 @@ export default function RepresentativePage() {
       supabase
         .from("players")
         .select(
-          "id, player_code, player_pin, full_name, age_group, is_representative"
+          "id, player_code, full_name, age_group, is_representative"
         )
         .order("age_group", { ascending: true }),
     ]);
@@ -87,30 +86,32 @@ export default function RepresentativePage() {
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
-    const { data } = await supabase
-      .from("players")
-      .select(
-        "id, player_code, player_pin, full_name, age_group, is_representative"
-      )
-      .eq("player_code", repCode.trim().toUpperCase())
-      .maybeSingle();
-
-    if (!data) {
-      setErr("Bu ID'ye ait oyuncu bulunamadı.");
-      return;
+    try {
+      const res = await fetch("/api/auth/pin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "player",
+          code: repCode.trim().toUpperCase(),
+          pin: repPin.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok || !json.player) {
+        setErr(json.error || "Oyuncu ID veya şifre hatalı.");
+        return;
+      }
+      if (!json.player.is_representative) {
+        setErr(
+          "Bu panel sadece yönetici tarafından seçilen Temsilci oyunculara açıktır."
+        );
+        return;
+      }
+      setRepPlayer(json.player as RepPlayer);
+      await loadAttendance();
+    } catch {
+      setErr("Sunucuya bağlanılamadı.");
     }
-    if ((data.player_pin || "1234") !== repPin.trim()) {
-      setErr("Şifre hatalı.");
-      return;
-    }
-    if (!data.is_representative) {
-      setErr(
-        "Bu panel sadece yönetici tarafından seçilen Temsilci oyunculara açıktır."
-      );
-      return;
-    }
-    setRepPlayer(data as RepPlayer);
-    await loadAttendance();
   }
 
   async function togglePlayerAttendance(playerId: string) {

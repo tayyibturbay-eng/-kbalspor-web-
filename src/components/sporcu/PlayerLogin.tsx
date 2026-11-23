@@ -2,10 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Player } from "@/types/club";
-
-const supabase = createClient();
 
 export function getOrCreateWebDeviceId(): string {
   if (typeof window === "undefined") return "web-ssr";
@@ -43,46 +40,34 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
     }
 
     setAuthLoading(true);
-    const { data, error } = await supabase
-      .from("players")
-      .select("*")
-      .ilike("player_code", cleanCode)
-      .maybeSingle();
+    try {
+      const deviceId = getOrCreateWebDeviceId();
+      const res = await fetch("/api/auth/pin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: "player",
+          code: cleanCode,
+          pin: cleanPin,
+          deviceId,
+        }),
+      });
 
-    if (error || !data) {
-      setAuthError("Sporcu kodu bulunamadı.");
+      const data = await res.json();
+      if (!res.ok || !data.ok || !data.player) {
+        setAuthError(data.error || "Giriş başarısız.");
+        return;
+      }
+
+      const p = data.player as Player;
+      localStorage.setItem("ikbal_logged_player_id", p.id);
+      window.dispatchEvent(new Event("ikbal-auth-changed"));
+      await onLoginSuccess(p);
+    } catch {
+      setAuthError("Sunucuya bağlanırken bir hata oluştu.");
+    } finally {
       setAuthLoading(false);
-      return;
     }
-
-    const p = data as Player;
-    if ((p.player_pin || "") !== cleanPin) {
-      setAuthError("PIN kodu hatalı.");
-      setAuthLoading(false);
-      return;
-    }
-
-    const deviceId = getOrCreateWebDeviceId();
-    if (p.bound_device_id && p.bound_device_id !== deviceId) {
-      setAuthError(
-        "Bu hesap başka bir cihaza veya mobil uygulamaya tanımlı. Bu tarayıcıdan giriş için yöneticiden 'Cihaz Kilidini Sıfırla' işlemini isteyin."
-      );
-      setAuthLoading(false);
-      return;
-    }
-
-    if (!p.bound_device_id) {
-      await supabase
-        .from("players")
-        .update({ bound_device_id: deviceId })
-        .eq("id", p.id);
-      p.bound_device_id = deviceId;
-    }
-
-    localStorage.setItem("ikbal_logged_player_id", p.id);
-    window.dispatchEvent(new Event("ikbal-auth-changed"));
-    await onLoginSuccess(p);
-    setAuthLoading(false);
   }
 
   return (
