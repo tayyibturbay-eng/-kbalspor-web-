@@ -49,14 +49,15 @@ function getMatchStartDate(match: MatchTaskRow): Date | null {
 }
 
 function isWithin24Hours(match: MatchTaskRow, nowMs: number): boolean {
+  if (!nowMs) return true;
   const start = getMatchStartDate(match);
   if (!start) return true;
   const diffMs = nowMs - start.getTime();
-  // Maç saati henüz gelmemişse veya maç saatinden itibaren 24 saat (1 gün) geçmemişse aktif
   return diffMs <= 24 * 60 * 60 * 1000;
 }
 
 function isMatchStarted(match: MatchTaskRow, nowMs: number): boolean {
+  if (!nowMs) return false;
   const start = getMatchStartDate(match);
   if (!start) return false;
   return nowMs >= start.getTime();
@@ -75,7 +76,7 @@ export function MatchPredictionCard({
   const [firstScorer, setFirstScorer] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
-  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [nowMs, setNowMs] = useState<number>(0);
   const [feedback, setFeedback] = useState<{
     ok: boolean;
     text: string;
@@ -121,13 +122,13 @@ export function MatchPredictionCard({
   }, []);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
+    const syncClock = () => setNowMs(Date.now());
+    const initTimer = window.setTimeout(() => {
+      syncClock();
       void loadData();
     }, 0);
 
-    const clockInterval = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, 15000);
+    const clockInterval = window.setInterval(syncClock, 15000);
 
     const unsubscribe = subscribeClubLiveUpdates(
       supabase,
@@ -138,14 +139,12 @@ export function MatchPredictionCard({
     );
 
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(initTimer);
       window.clearInterval(clockInterval);
       unsubscribe();
     };
   }, [loadData]);
 
-  // Yaş grubu kısıtı kaldırıldı: tüm yaş gruplarındaki maçlar gösterilir.
-  // Maç saati + 1 gün (24 saat) dolduğunda geçmiş maçlara taşınır.
   const activeMatches = useMemo(
     () => matches.filter((m) => isWithin24Hours(m, nowMs)),
     [matches, nowMs]
@@ -251,7 +250,6 @@ export function MatchPredictionCard({
       return;
     }
 
-    // Oyuncu kart puanına aktar
     if (pred.player_id && pred.player_id !== "guest") {
       try {
         const localKey = `ikbal_player_card_${pred.player_id}`;
@@ -433,7 +431,6 @@ export function MatchPredictionCard({
         </button>
       </form>
 
-      {/* Tahminlerim & Ödül Topla */}
       {predictions.length > 0 && (
         <div className="space-y-2.5 pt-2 border-t border-[var(--border-subtle)]">
           <h3 className="text-sm font-black text-[var(--text-primary)]">
@@ -486,7 +483,6 @@ export function MatchPredictionCard({
         </div>
       )}
 
-      {/* 1 Gün Sonra Geçmiş Maçlara Taşınanlar */}
       {pastMatches.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-[var(--border-subtle)]">
           <h3 className="text-xs font-black uppercase tracking-wider text-[var(--text-muted)]">
