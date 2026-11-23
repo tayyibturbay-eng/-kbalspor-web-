@@ -248,26 +248,60 @@ export function InventoryManager({
     );
   }, [players]);
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      try {
+  const syncUnitMapsFromDb = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("club_settings")
+        .select("key, value")
+        .in("key", ["ikbal_jersey_units_v1", "ikbal_stock_units_v1"]);
+
+      const byKey = new Map<string, string>();
+      for (const row of (data || []) as Array<{ key?: string; value?: string | null }>) {
+        if (row.key && row.value) byKey.set(row.key, row.value);
+      }
+
+      const dbJersey = byKey.get("ikbal_jersey_units_v1");
+      if (dbJersey) {
+        setJerseyUnitsMap(JSON.parse(dbJersey) as Record<string, UnitDetail[]>);
+        localStorage.setItem("ikbal_jersey_units_v1", dbJersey);
+      } else {
         const rawJ = localStorage.getItem("ikbal_jersey_units_v1");
         if (rawJ) {
           setJerseyUnitsMap(JSON.parse(rawJ) as Record<string, UnitDetail[]>);
+          await supabase
+            .from("club_settings")
+            .upsert({ key: "ikbal_jersey_units_v1", value: rawJ }, { onConflict: "key" });
         }
+      }
+
+      const dbStock = byKey.get("ikbal_stock_units_v1");
+      if (dbStock) {
+        setStockUnitsMap(JSON.parse(dbStock) as Record<string, UnitDetail[]>);
+        localStorage.setItem("ikbal_stock_units_v1", dbStock);
+      } else {
         const rawS = localStorage.getItem("ikbal_stock_units_v1");
         if (rawS) {
           setStockUnitsMap(JSON.parse(rawS) as Record<string, UnitDetail[]>);
+          await supabase
+            .from("club_settings")
+            .upsert({ key: "ikbal_stock_units_v1", value: rawS }, { onConflict: "key" });
         }
-      } catch {
-        // yoksay
       }
+    } catch {
+      // yoksay
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void syncUnitMapsFromDb();
       void fetchInventoryData();
     }, 0);
 
     const unsubscribe = subscribeClubLiveUpdates(
       supabase,
       () => {
+        void syncUnitMapsFromDb();
         void fetchInventoryData();
       },
       "admin-inventory-live"
@@ -277,24 +311,32 @@ export function InventoryManager({
       window.clearTimeout(timer);
       unsubscribe();
     };
-  }, [fetchInventoryData]);
+  }, [fetchInventoryData, syncUnitMapsFromDb]);
 
   function saveJerseyUnitsMap(next: Record<string, UnitDetail[]>) {
     setJerseyUnitsMap(next);
+    const serialized = JSON.stringify(next);
     try {
-      localStorage.setItem("ikbal_jersey_units_v1", JSON.stringify(next));
+      localStorage.setItem("ikbal_jersey_units_v1", serialized);
     } catch {
       // yoksay
     }
+    void supabase
+      .from("club_settings")
+      .upsert({ key: "ikbal_jersey_units_v1", value: serialized }, { onConflict: "key" });
   }
 
   function saveStockUnitsMap(next: Record<string, UnitDetail[]>) {
     setStockUnitsMap(next);
+    const serialized = JSON.stringify(next);
     try {
-      localStorage.setItem("ikbal_stock_units_v1", JSON.stringify(next));
+      localStorage.setItem("ikbal_stock_units_v1", serialized);
     } catch {
       // yoksay
     }
+    void supabase
+      .from("club_settings")
+      .upsert({ key: "ikbal_stock_units_v1", value: serialized }, { onConflict: "key" });
   }
 
   const activeJerseySet = useMemo(
