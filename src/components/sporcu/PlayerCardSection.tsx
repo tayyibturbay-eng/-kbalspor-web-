@@ -12,7 +12,7 @@ interface PlayerCardSectionProps {
   onFeedback?: (msg: string) => void;
 }
 
-type CardTierKey = "bronze" | "silver" | "gold" | "diamond";
+type CardTierKey = "iron" | "bronze" | "silver" | "gold" | "diamond";
 
 type CardTier = {
   key: CardTierKey;
