@@ -280,18 +280,55 @@ export function InventoryManager({
     const res = await supabase.from("equipment_logs").insert(payload);
     if (!res.error) return { error: null };
 
-    const missingCondition =
+    const missingCol =
       res.error.message.includes("condition_status") ||
+      res.error.message.includes("item_type") ||
       res.error.message.includes("schema cache");
 
-    if (missingCondition) {
-      const { condition_status: _ignored, ...fallbackPayload } = payload;
-      void _ignored;
+    if (missingCol) {
+      const {
+        condition_status: _c,
+        item_type: _t,
+        ...fallbackPayload
+      } = payload;
+      void _c;
+      void _t;
       const retry = await supabase.from("equipment_logs").insert(fallbackPayload);
       return { error: retry.error };
     }
 
     return { error: res.error };
+  }
+
+  async function insertJerseySetSafe(baseRow: {
+    set_name: string;
+    kit_type: string;
+    size_label: string;
+    total_count: number;
+    available_count: number;
+    photo_url: string;
+  }) {
+    const firstTry = await supabase
+      .from("jersey_sets")
+      .insert(baseRow)
+      .select("*")
+      .single();
+
+    if (!firstTry.error) return firstTry;
+
+    if (firstTry.error.message.includes("jersey_sets_kit_type_check")) {
+      const candidates = ["home", "away", "third", "goalkeeper", "İç Saha", "Deplasman"];
+      for (const candidate of candidates) {
+        const retry = await supabase
+          .from("jersey_sets")
+          .insert({ ...baseRow, kit_type: candidate })
+          .select("*")
+          .single();
+        if (!retry.error) return retry;
+      }
+    }
+
+    return firstTry;
   }
 
   const activeJerseySet = useMemo(
@@ -374,18 +411,14 @@ export function InventoryManager({
     const title = jerseyName.trim() || `${kitType} Forma Seti (${qty} Adet)`;
 
     setCreatingJersey(true);
-    const { data, error } = await supabase
-      .from("jersey_sets")
-      .insert({
-        set_name: title,
-        kit_type: kitType,
-        size_label: jerseyDefaultSize,
-        total_count: qty,
-        available_count: qty,
-        photo_url: jerseyPhotoUrl.trim() || "/logo.png",
-      })
-      .select("*")
-      .single();
+    const { data, error } = await insertJerseySetSafe({
+      set_name: title,
+      kit_type: kitType,
+      size_label: jerseyDefaultSize,
+      total_count: qty,
+      available_count: qty,
+      photo_url: jerseyPhotoUrl.trim() || "/logo.png",
+    });
     setCreatingJersey(false);
 
     if (error) {
@@ -802,7 +835,6 @@ export function InventoryManager({
 
   return (
     <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
-      {/* Ortak Üst Sekme Paneli */}
       <div className="bg-[var(--bg-surface)] p-4 rounded-2xl border border-[var(--border-subtle)] shadow-xs flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-black text-[var(--text-primary)]">
@@ -841,7 +873,6 @@ export function InventoryManager({
         </div>
       </div>
 
-      {/* Sekme 1: Formalar */}
       {panelTab === "forma" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form
@@ -1139,7 +1170,6 @@ export function InventoryManager({
         </div>
       )}
 
-      {/* Sekme 2: Diğer Malzemeler */}
       {panelTab === "ekipman" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <form
@@ -1385,7 +1415,6 @@ export function InventoryManager({
         </div>
       )}
 
-      {/* Ortak Teslim / İade / Kayıp Formu */}
       <form
         onSubmit={handleAssignOrReturn}
         className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs"
@@ -1588,7 +1617,6 @@ export function InventoryManager({
         </button>
       </form>
 
-      {/* Malzeme Geçmişi & Filtreleme / Silme */}
       <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
