@@ -275,6 +275,30 @@ export default function HomePage() {
           </section>
         </div>
 
+        <section className="rounded-3xl bg-gradient-to-r from-[#041e3b] via-[var(--brand-navy)] to-[#7f1d1d] text-white p-6 sm:p-8 shadow-md border border-white/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/20 border border-emerald-300/40 text-emerald-200 text-[11px] font-black uppercase tracking-wider">
+              Android APK Yayında • Resmi Mobil Uygulama
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+              Çorum İkbal Spor Mobil Uygulamamız Android Platformunda Yayında
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              QR antrenman yoklaması, canlı duyurular, taktik kadro paylaşımı ve
+              sporcu kartı yönetimi artık cebinizde. Resmi APK dosyasını
+              doğrudan telefonunuza indirebilirsiniz.
+            </p>
+          </div>
+          <a
+            href="https://expo.dev/artifacts/eas/nR1N-4BNki0uWG3AVxUvidX2MW7MkyN7uHCMS_yitN8.apk"
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 px-6 py-3.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg transition"
+          >
+            Android Uygulamayı İndir (APK) ↓
+          </a>
+        </section>
+
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
             href="/gorevler"

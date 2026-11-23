@@ -6,6 +6,7 @@ export interface PlayerGoalStats {
   total_goals: number;
   matches_played_or_scored: number;
   base_points: number;
+  total_earned_points?: number;
 }
 
 export interface RankedPlayer {
@@ -14,6 +15,7 @@ export interface RankedPlayer {
   age_group: string;
   photo_url?: string | null;
   overall_points: number;
+  total_earned_points?: number;
   rank: number;
 }
 
@@ -63,6 +65,7 @@ export function buildOverallLeaderboard(
     age_group: p.age_group,
     photo_url: p.photo_url,
     overall_points: p.base_points,
+    total_earned_points: p.total_earned_points ?? p.base_points,
     rank: index + 1,
   }));
 }

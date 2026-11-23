@@ -364,44 +364,6 @@ export function TrainingsTab({
           )}
         </div>
 
-        <div className="bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl p-3 space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs font-extrabold text-[var(--text-primary)]">
-              Hazır Tesis / Saha Seçimi (Varsayılan: Nazmi Avluca Spor Tesisi)
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {FACILITY_OPTIONS.map((fac) => {
-                const active = trainingForm.location === fac.location;
-                return (
-                  <button
-                    key={fac.label}
-                    type="button"
-                    onClick={() =>
-                      setTrainingForm({
-                        ...trainingForm,
-                        location: fac.location,
-                      })
-                    }
-                    className={`px-3 py-1.5 rounded-lg text-xs font-extrabold border cursor-pointer transition ${
-                      active
-                        ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                        : "bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-strong)] hover:opacity-90"
-                    }`}
-                  >
-                    {fac.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <p className="text-[11px] font-semibold text-[var(--text-secondary)]">
-            Adres Bilgisi:{" "}
-            {trainingForm.location.toLowerCase().includes("mimar sinan")
-              ? "Mimar Sinan Amatör Futbol Sahası — Mimar Sinan Mah., Merkez / Çorum"
-              : "Nazmi Avluca Spor Tesisi — Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum"}
-          </p>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <select
             value={trainingForm.training_type}
@@ -440,14 +402,30 @@ export function TrainingsTab({
                 </option>
               ))}
           </select>
-          <input
-            placeholder="Konum / Saha Adı"
-            value={trainingForm.location}
-            onChange={(e) =>
-              setTrainingForm({ ...trainingForm, location: e.target.value })
-            }
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
-          />
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {FACILITY_OPTIONS.map((fac) => {
+              const active = trainingForm.location === fac.location;
+              return (
+                <button
+                  key={fac.label}
+                  type="button"
+                  onClick={() =>
+                    setTrainingForm({
+                      ...trainingForm,
+                      location: fac.location,
+                    })
+                  }
+                  className={`px-2.5 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition flex-1 ${
+                    active
+                      ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                      : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-strong)] hover:opacity-90"
+                  }`}
+                >
+                  {fac.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="text-xs text-[var(--text-secondary)] flex items-center gap-2">

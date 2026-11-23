@@ -35,7 +35,7 @@ export function LeaderboardPodium({
               <span className="text-xs font-semibold text-slate-200">
                 / {rankings.length} sporcu
               </span>{" "}
-              • {currentUserRank.overall_points} Puan
+              • {currentUserRank.overall_points} OVR (Toplam: {currentUserRank.total_earned_points ?? 0}p)
             </div>
           </div>
           <span className="px-3 py-1 rounded-full bg-[var(--brand-red)] text-xs font-extrabold shrink-0">
@@ -63,7 +63,7 @@ export function LeaderboardPodium({
                   {second.full_name}
                 </div>
                 <div className="text-sm font-black text-[var(--brand-red)] mt-0.5">
-                  {second.overall_points} Puan
+                  {second.overall_points} OVR • {second.total_earned_points ?? 0}p
                 </div>
               </div>
             </>
@@ -89,7 +89,7 @@ export function LeaderboardPodium({
                   {first.full_name}
                 </div>
                 <div className="text-lg font-black text-amber-300 mt-1">
-                  {first.overall_points} Puan
+                  {first.overall_points} OVR • {first.total_earned_points ?? 0}p
                 </div>
               </div>
             </>
@@ -115,7 +115,7 @@ export function LeaderboardPodium({
                   {third.full_name}
                 </div>
                 <div className="text-xs font-black text-[var(--brand-red)] mt-0.5">
-                  {third.overall_points} Puan
+                  {third.overall_points} OVR • {third.total_earned_points ?? 0}p
                 </div>
               </div>
             </>
@@ -160,7 +160,7 @@ export function LeaderboardPodium({
                   </span>
                 </div>
                 <span className="font-black text-[var(--brand-red)] shrink-0 ml-2">
-                  {item.overall_points} Puan
+                  {item.overall_points} OVR <span className="text-[11px] font-semibold text-[var(--text-secondary)]">({item.total_earned_points ?? 0}p)</span>
                 </span>
               </div>
             );

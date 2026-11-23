@@ -13,6 +13,12 @@ interface PlayerRow {
   age_group: string;
   photo_url?: string | null;
   skill_points?: number | null;
+  pace?: number | null;
+  shooting?: number | null;
+  passing?: number | null;
+  dribbling?: number | null;
+  defending?: number | null;
+  physical?: number | null;
 }
 
 interface PlayerRankingBadgeProps {
@@ -33,7 +39,7 @@ export function PlayerRankingBadge({
     (async () => {
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, age_group, photo_url, skill_points");
+        .select("id, full_name, age_group, photo_url, skill_points, pace, shooting, passing, dribbling, defending, physical");
       if (active && data) setPlayers(data as PlayerRow[]);
     })();
 
@@ -81,7 +87,7 @@ export function PlayerRankingBadge({
           </div>
           <div className="text-right">
             <div className="text-base font-black text-amber-300">
-              {myRankInfo.overall_points} Puan
+              {myRankInfo.overall_points} OVR • Toplam: {myRankInfo.total_earned_points ?? 0}p
             </div>
             <div className="text-[11px] font-bold text-slate-200">
               {myRankInfo.age_group}

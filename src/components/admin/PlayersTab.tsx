@@ -377,14 +377,20 @@ export function PlayersTab({
       return;
     }
 
+    const pointLogText =
+      delta !== 0
+        ? ` (${editPointSign}${rawAmount}p -> ${nextSkillPoints}p)`
+        : "";
     await onLogActivity(
       "Oyuncu Düzenleme",
       `${editingPlayer.full_name} (${updatedAgeGroup}${
         cleanSecondGroup ? ` + ${cleanSecondGroup}` : ""
-      }) güncellendi (${editPointSign}${rawAmount}p -> ${nextSkillPoints}p).`
+      }) güncellendi${pointLogText}.`
     );
     onFeedback(
-      `${editingPlayer.full_name} bilgileri güncellendi (${editPointSign}${rawAmount}p • Yeni Puan: ${nextSkillPoints}).`
+      delta !== 0
+        ? `${editingPlayer.full_name} bilgileri güncellendi (${editPointSign}${rawAmount}p • Yeni Puan: ${nextSkillPoints}).`
+        : `${editingPlayer.full_name} bilgileri güncellendi.`
     );
     setEditingPlayer(null);
     await onRefreshPlayers();
@@ -706,21 +712,23 @@ export function PlayersTab({
                                 <>
                                   <button
                                     type="button"
+                                    title={`+${pointStep} Puan`}
                                     onClick={() =>
                                       adjustPlayerPoints(p, pointStep)
                                     }
-                                    className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                    className="w-8 h-8 rounded-full border-2 border-emerald-600/70 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-base font-black cursor-pointer transition"
                                   >
-                                    +{pointStep} Puan
+                                    +
                                   </button>
                                   <button
                                     type="button"
+                                    title={`-${pointStep} Puan`}
                                     onClick={() =>
                                       adjustPlayerPoints(p, -pointStep)
                                     }
-                                    className="bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                    className="w-8 h-8 rounded-full border-2 border-red-600/70 bg-red-500/10 hover:bg-red-600 hover:text-white text-red-700 dark:text-red-300 flex items-center justify-center text-base font-black cursor-pointer transition"
                                   >
-                                    -{pointStep} Puan
+                                    -
                                   </button>
                                 </>
                               )}
