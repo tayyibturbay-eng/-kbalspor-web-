@@ -350,23 +350,43 @@ export function MatchPredictionCard({
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={saving || !selectedMatch || lockedByTime || !effectivePlayerId}
-          className={`w-full py-3 rounded-2xl text-white text-sm font-black transition cursor-pointer disabled:opacity-50 ${
-            lockedByTime
-              ? "bg-rose-900 border-2 border-rose-400"
-              : "bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
-          }`}
-        >
-          {!effectivePlayerId
-            ? "Tahmin için Sporcu Girişi Yapın"
-            : lockedByTime
-            ? "🔒 Gol & Skor Tahmini Kaydet (Kilitli)"
-            : saving
-            ? "Kaydediliyor..."
-            : "Gol & Skor Tahmini Kaydet"}
-        </button>
+        {effectivePlayerId === "guest" ? (
+          <Link
+            href="/sporcu"
+            className="block w-full py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-center text-sm font-black transition shadow-xs"
+          >
+            Tahmin için Sporcu Girişi Yapın
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled={saving || !selectedMatch}
+            onClick={() => {
+              if (lockedByTime) {
+                setFeedback({
+                  ok: false,
+                  text: "🔒 Tahmin kilitli! Maç başlama saati geldiği için tahmin kaydedilemez.",
+                });
+                return;
+              }
+              const fakeEvent = {
+                preventDefault: () => {},
+              } as React.FormEvent;
+              void handleSavePrediction(fakeEvent);
+            }}
+            className={`w-full py-3 rounded-2xl text-white text-sm font-black transition cursor-pointer disabled:opacity-50 ${
+              lockedByTime
+                ? "bg-slate-500 hover:bg-slate-600"
+                : "bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
+            }`}
+          >
+            {saving
+              ? "Kaydediliyor..."
+              : lockedByTime
+              ? "🔒 Maç Saati Geldi — Tahmin Kilitli"
+              : "Skor & Golcü Tahminini Kaydet"}
+          </button>
+        )}
       </form>
 
       {predictions.length > 0 && (
