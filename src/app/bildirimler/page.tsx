@@ -2,21 +2,15 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
+import {
+  AnnouncementCard,
+  AnnouncementItem,
+  extractAnnouncementMediaAndCleanText,
+} from "@/components/ikbal/AnnouncementCard";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 
 const supabase = createClient();
-
-interface ClubAnnouncementRow {
-  id: string;
-  title?: string | null;
-  body?: string | null;
-  message_text?: string | null;
-  age_group?: string | null;
-  target_group?: string | null;
-  sender_name?: string | null;
-  created_at?: string | null;
-}
 
 const GROUP_FILTERS = [
   "Tümü",
@@ -47,7 +41,7 @@ function formatAnnouncementDateTR(raw?: string | null): string {
 }
 
 export default function AnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState<ClubAnnouncementRow[]>([]);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string>("Tümü");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
@@ -59,7 +53,7 @@ export default function AnnouncementsPage() {
       .order("created_at", { ascending: false })
       .limit(100);
 
-    setAnnouncements((data as ClubAnnouncementRow[] | null) || []);
+    setAnnouncements((data as AnnouncementItem[] | null) || []);
     setLoading(false);
   }, []);
 
@@ -73,7 +67,7 @@ export default function AnnouncementsPage() {
         .order("created_at", { ascending: false })
         .limit(100);
       if (!active) return;
-      setAnnouncements((data as ClubAnnouncementRow[] | null) || []);
+      setAnnouncements((data as AnnouncementItem[] | null) || []);
       setLoading(false);
     })();
 
@@ -114,16 +108,12 @@ export default function AnnouncementsPage() {
       }
 
       if (!q) return true;
-      const titleText = (item.title || "").toLowerCase();
-      const bodyText = (
-        item.body ||
-        item.message_text ||
-        ""
-      ).toLowerCase();
+      const { cleanedTitle, cleanedBody } =
+        extractAnnouncementMediaAndCleanText(item);
       const senderText = (item.sender_name || "").toLowerCase();
       return (
-        titleText.includes(q) ||
-        bodyText.includes(q) ||
+        cleanedTitle.toLowerCase().includes(q) ||
+        cleanedBody.toLowerCase().includes(q) ||
         senderText.includes(q) ||
         rawGroup.toLowerCase().includes(q)
       );
@@ -204,52 +194,13 @@ export default function AnnouncementsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filteredAnnouncements.map((ann) => {
-              const groupLabel = (
-                ann.age_group ||
-                ann.target_group ||
-                "Tümü"
-              ).trim();
-              const contentText = (
-                ann.body ||
-                ann.message_text ||
-                ""
-              ).trim();
-
-              return (
-                <article
-                  key={ann.id}
-                  className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] border-l-4 border-l-[var(--brand-red)] p-5 shadow-xs space-y-2"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 font-extrabold">
-                      {groupLabel}
-                    </span>
-                    <span className="text-[var(--text-muted)] font-semibold tabular-nums">
-                      {formatAnnouncementDateTR(ann.created_at)}
-                    </span>
-                  </div>
-
-                  {ann.title && (
-                    <h2 className="text-base font-black text-[var(--text-primary)]">
-                      {ann.title}
-                    </h2>
-                  )}
-
-                  {contentText && (
-                    <p className="text-sm text-[var(--text-secondary)] whitespace-pre-line leading-relaxed">
-                      {contentText}
-                    </p>
-                  )}
-
-                  {ann.sender_name && (
-                    <div className="pt-1 text-[11px] font-bold text-[var(--text-muted)]">
-                      Gönderen: {ann.sender_name}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+            {filteredAnnouncements.map((ann) => (
+              <AnnouncementCard
+                key={ann.id}
+                announcement={ann}
+                dateLabel={formatAnnouncementDateTR(ann.created_at)}
+              />
+            ))}
           </div>
         )}
       </main>

@@ -3,6 +3,10 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/ikbal/Navbar";
+import {
+  AnnouncementCard,
+  AnnouncementItem,
+} from "@/components/ikbal/AnnouncementCard";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 
@@ -15,14 +19,6 @@ interface HomeTaskRow {
   event_date?: string | null;
   match_time?: string | null;
   location?: string | null;
-}
-
-interface HomeAnnouncementRow {
-  id: string;
-  body?: string | null;
-  message_text?: string | null;
-  age_group?: string | null;
-  created_at?: string | null;
 }
 
 function formatShortDateTR(raw?: string | null, timeStr?: string | null): string {
@@ -38,7 +34,7 @@ function formatShortDateTR(raw?: string | null, timeStr?: string | null): string
 export default function HomePage() {
   const [upcomingMatches, setUpcomingMatches] = useState<HomeTaskRow[]>([]);
   const [recentAnnouncements, setRecentAnnouncements] = useState<
-    HomeAnnouncementRow[]
+    AnnouncementItem[]
   >([]);
   const [playerCount, setPlayerCount] = useState<number>(0);
 
@@ -51,7 +47,7 @@ export default function HomePage() {
         .limit(6),
       supabase
         .from("club_messages")
-        .select("id, body, message_text, age_group, created_at")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(4),
       supabase.from("players").select("id", { count: "exact", head: true }),
@@ -59,7 +55,7 @@ export default function HomePage() {
 
     if (tasksRes.data) setUpcomingMatches(tasksRes.data as HomeTaskRow[]);
     if (msgsRes.data)
-      setRecentAnnouncements(msgsRes.data as HomeAnnouncementRow[]);
+      setRecentAnnouncements(msgsRes.data as AnnouncementItem[]);
     if (typeof playersCountRes.count === "number")
       setPlayerCount(playersCountRes.count);
   }, []);
@@ -221,17 +217,11 @@ export default function HomePage() {
             ) : (
               <div className="space-y-3">
                 {recentAnnouncements.map((ann) => (
-                  <div
+                  <AnnouncementCard
                     key={ann.id}
-                    className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-l-4 border-l-[var(--brand-red)] p-3.5 space-y-1"
-                  >
-                    <div className="text-[11px] font-extrabold text-[var(--brand-navy)] dark:text-sky-300">
-                      {ann.age_group || "Tümü"}
-                    </div>
-                    <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
-                      {ann.body || ann.message_text || ""}
-                    </p>
-                  </div>
+                    announcement={ann}
+                    compact
+                  />
                 ))}
               </div>
             )}
