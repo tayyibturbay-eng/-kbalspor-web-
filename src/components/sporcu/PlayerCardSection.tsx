@@ -171,13 +171,15 @@ export function PlayerCardSection({
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    setAvailablePoints(Number(playerExt.skill_points ?? 0));
+  }, [playerExt.skill_points]);
+
+  useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
         const raw = localStorage.getItem(`ikbal_player_card_${player.id}`);
         if (!raw) return;
         const saved = JSON.parse(raw) as Partial<SavedCardPayload>;
-        if (typeof saved.skill_points === "number")
-          setAvailablePoints(saved.skill_points);
         if (typeof saved.pace === "number") setPace(saved.pace);
         if (typeof saved.shooting === "number") setShooting(saved.shooting);
         if (typeof saved.passing === "number") setPassing(saved.passing);

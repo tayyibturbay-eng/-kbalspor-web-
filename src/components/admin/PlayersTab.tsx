@@ -145,6 +145,28 @@ export function PlayersTab({
     );
   }
 
+  async function updatePlayerJerseyNumber(player: Player, rawVal: string) {
+    const parsed = parseInt(rawVal.trim(), 10);
+    const nextNum = !rawVal.trim() || isNaN(parsed) ? null : Math.max(1, Math.min(99, parsed));
+    if (nextNum === (player.jersey_number ?? null)) return;
+
+    const { error } = await supabase
+      .from("players")
+      .update({ jersey_number: nextNum })
+      .eq("id", player.id);
+
+    if (error) {
+      onFeedback("Forma no güncellenemedi: " + error.message);
+      return;
+    }
+
+    setPlayers((prev) =>
+      prev.map((x) =>
+        x.id === player.id ? { ...x, jersey_number: nextNum } : x
+      )
+    );
+  }
+
   async function updatePlayerPosition(player: Player, newPosition: string) {
     const { error } = await supabase
       .from("players")
