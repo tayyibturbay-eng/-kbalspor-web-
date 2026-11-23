@@ -73,6 +73,12 @@ const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"> 
   "Kayıp",
 ];
 
+const STATUS_FALLBACKS: Record<string, string[]> = {
+  teslim_edildi: ["Teslim Edildi", "delivered", "assigned", "emanet"],
+  iade_alindi: ["İade Edildi", "returned", "iade"],
+  kayip: ["Kayıp", "Kayıp / Hasarlı", "lost", "damaged"],
+};
+
 function getUnitCardStyle(status: JerseyUnitDetail["status"]): string {
   if (status === "Kayıp") {
     return "bg-rose-950/65 border-rose-500 ring-1 ring-rose-400/60";
@@ -280,6 +286,20 @@ export function InventoryManager({
     const res = await supabase.from("equipment_logs").insert(payload);
     if (!res.error) return { error: null };
 
+    if (res.error.message.includes("equipment_logs_status_check")) {
+      const candidates = STATUS_FALLBACKS[payload.status] || [
+        "Teslim Edildi",
+        "İade Edildi",
+        "Kayıp",
+      ];
+      for (const candidate of candidates) {
+        const retryStatus = await supabase
+          .from("equipment_logs")
+          .insert({ ...payload, status: candidate });
+        if (!retryStatus.error) return { error: null };
+      }
+    }
+
     const missingCol =
       res.error.message.includes("condition_status") ||
       res.error.message.includes("item_type") ||
@@ -293,7 +313,9 @@ export function InventoryManager({
       } = payload;
       void _c;
       void _t;
-      const retry = await supabase.from("equipment_logs").insert(fallbackPayload);
+      const retry = await supabase
+        .from("equipment_logs")
+        .insert(fallbackPayload);
       return { error: retry.error };
     }
 
@@ -317,7 +339,14 @@ export function InventoryManager({
     if (!firstTry.error) return firstTry;
 
     if (firstTry.error.message.includes("jersey_sets_kit_type_check")) {
-      const candidates = ["home", "away", "third", "goalkeeper", "İç Saha", "Deplasman"];
+      const candidates = [
+        "home",
+        "away",
+        "third",
+        "goalkeeper",
+        "İç Saha",
+        "Deplasman",
+      ];
       for (const candidate of candidates) {
         const retry = await supabase
           .from("jersey_sets")
