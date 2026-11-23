@@ -39,7 +39,6 @@ export function EquipmentLogsSection({
         prev.map((l) => (l.id === logItem.id ? { ...l, status } : l))
       );
 
-      // İade alındığında stok malzemesi ise adetini 1 artır; forma ise zimmet kalkıp boşta görünür
       if (status === "iade_edildi" && logItem.category === "Malzeme") {
         const cleanProdName = logItem.item_name
           .replace(/\s*\[(Emanet|Tam Teslim)\]\s*$/i, "")
@@ -61,15 +60,21 @@ export function EquipmentLogsSection({
 
   async function sendClubAlert(player: MiniPlayer | undefined, text: string) {
     if (!player) return;
-    await supabase.from("club_messages").insert({ body: `${player.full_name}: ${text}`, message_text: `${player.full_name}: ${text}`, age_group: player.age_group, sender_name: "Yönetim (Malzeme Takip)", created_at: new Date().toISOString() });
+    await supabase.from("club_messages").insert({
+      body: `${player.full_name}: ${text}`,
+      message_text: `${player.full_name}: ${text}`,
+      age_group: player.age_group,
+      sender_name: "Yönetim (Malzeme Takip)",
+      created_at: new Date().toISOString(),
+    });
     alert(`${player.full_name} için kulüp mesajı/bildirimi yayınlandı.`);
   }
 
   if (mode === "missing") {
     return (
-      <div className="bg-white text-slate-900 rounded-2xl border border-slate-200 divide-y divide-slate-200">
+      <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-2xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)] tabular-nums">
         {logs.length === 0 ? (
-          <p className="p-6 text-slate-600 text-sm">
+          <p className="p-6 text-[var(--text-secondary)] text-sm">
             Eksik veya kayıp olarak işaretlenen malzeme yok.
           </p>
         ) : (
@@ -78,13 +83,13 @@ export function EquipmentLogsSection({
             return (
               <div
                 key={l.id}
-                className="p-4 flex flex-wrap items-center justify-between gap-3 bg-red-50/50"
+                className="p-4 flex flex-wrap items-center justify-between gap-3 bg-[var(--status-danger-bg)]/35"
               >
                 <div>
-                  <span className="px-2 py-0.5 rounded bg-red-600 text-white text-xs font-extrabold mr-2">
+                  <span className="px-2 py-0.5 rounded bg-[var(--brand-red)] text-white text-xs font-extrabold mr-2">
                     KAYIP / EKSİK
                   </span>
-                  <strong className="text-[#02274c]">
+                  <strong className="text-[var(--text-primary)]">
                     {pl?.full_name || "Oyuncu"}
                   </strong>{" "}
                   — {l.item_name} (Beden: {l.item_size || "-"}, No:{" "}
@@ -93,7 +98,7 @@ export function EquipmentLogsSection({
                 <button
                   type="button"
                   onClick={() => updateLogStatus(l, "iade_edildi")}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer"
                 >
                   Bulundu / İade Alındı
                 </button>
@@ -106,9 +111,9 @@ export function EquipmentLogsSection({
   }
 
   return (
-    <div className="bg-white text-slate-900 rounded-2xl border border-slate-200 divide-y divide-slate-200">
+    <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-2xl border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)] tabular-nums">
       {logs.length === 0 ? (
-        <p className="p-6 text-slate-600 text-sm">
+        <p className="p-6 text-[var(--text-secondary)] text-sm">
           Geri beklenen forma veya malzeme yok.
         </p>
       ) : (
@@ -126,11 +131,11 @@ export function EquipmentLogsSection({
               className="p-4 flex flex-wrap items-center justify-between gap-3"
             >
               <div>
-                <strong className="text-[#02274c]">
+                <strong className="text-[var(--text-primary)]">
                   {pl?.full_name || "Oyuncu"}
                 </strong>{" "}
                 — {l.item_name}
-                <span className="text-xs text-slate-700 ml-2">
+                <span className="text-xs text-[var(--text-secondary)] ml-2">
                   Beden: <strong>{l.item_size || "-"}</strong>
                   {l.jersey_number_given
                     ? ` • No: #${l.jersey_number_given}`
@@ -142,14 +147,14 @@ export function EquipmentLogsSection({
                 <button
                   type="button"
                   onClick={() => updateLogStatus(l, "iade_edildi")}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer"
                 >
                   İade Alındı (Boşa Çıkar)
                 </button>
                 <button
                   type="button"
                   onClick={() => updateLogStatus(l, "kayip_eksik")}
-                  className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-extrabold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer"
                 >
                   Kayıp / Eksik
                 </button>
@@ -158,7 +163,7 @@ export function EquipmentLogsSection({
                   onClick={() =>
                     sendClubAlert(pl, `${l.item_name} iadesi beklenmektedir.`)
                   }
-                  className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer"
                 >
                   Bildirim Gönder
                 </button>
@@ -169,7 +174,7 @@ export function EquipmentLogsSection({
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-3 py-1.5 rounded-lg bg-emerald-700 text-white text-xs font-extrabold"
+                    className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold"
                   >
                     WhatsApp
                   </a>

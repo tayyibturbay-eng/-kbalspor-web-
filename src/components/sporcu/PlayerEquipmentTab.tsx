@@ -1,3 +1,4 @@
+// PlayerEquipmentTab.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -49,23 +50,23 @@ export function PlayerEquipmentTab({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-5 shadow-xs">
+      <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-5 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-black text-[#02274c]">
+            <h2 className="text-lg font-black text-[var(--text-primary)]">
               Malzemelerim &amp; Zimmet Kayıtları
             </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
               Kulüp tarafından size teslim edilen forma ve ekipmanları
               görselleriyle takip edebilirsiniz.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1 rounded-full bg-[#02274c]/10 text-[#02274c] text-xs font-extrabold">
+          <div className="flex flex-wrap gap-2 tabular-nums">
+            <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold">
               Üzerimde: {activeEquipmentCount}
             </span>
             {missingEquipmentCount > 0 && (
-              <span className="px-3 py-1 rounded-full bg-red-100 text-red-700 text-xs font-extrabold">
+              <span className="px-3 py-1 rounded-full bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold">
                 Eksik/Kayıp: {missingEquipmentCount}
               </span>
             )}
@@ -73,12 +74,11 @@ export function PlayerEquipmentTab({
         </div>
 
         {equipmentLogs.length === 0 ? (
-          <div className="rounded-2xl bg-slate-50 border border-dashed border-slate-300 p-8 text-center space-y-1">
-            <div className="text-3xl">👕</div>
-            <p className="font-extrabold text-sm text-[#02274c]">
+          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center space-y-1.5">
+            <p className="font-extrabold text-sm text-[var(--text-primary)]">
               Henüz adınıza kayıtlı forma veya malzeme yok.
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[var(--text-secondary)] max-w-md mx-auto">
               Yönetici tarafından size malzeme teslim edildiğinde burada
               görseliyle birlikte görünecektir.
             </p>
@@ -94,10 +94,10 @@ export function PlayerEquipmentTab({
                   key={eq.id}
                   className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col transition hover:shadow-md ${
                     isMissing
-                      ? "bg-red-50/40 border-red-200"
+                      ? "bg-[var(--status-danger-bg)]/35 border-[var(--status-danger-text)]/30"
                       : isDelivered
-                      ? "bg-white border-slate-200"
-                      : "bg-slate-50 border-slate-200 opacity-85"
+                      ? "bg-[var(--bg-surface)] border-[var(--border-subtle)]"
+                      : "bg-[var(--bg-subtle)] border-[var(--border-subtle)] opacity-85"
                   }`}
                 >
                   {photoUrl ? (
@@ -106,7 +106,7 @@ export function PlayerEquipmentTab({
                       onClick={() =>
                         setPreviewPhoto({ url: photoUrl, title: eq.item_name })
                       }
-                      className="relative group w-full h-44 bg-slate-100 overflow-hidden cursor-pointer"
+                      className="relative group w-full h-44 bg-[var(--bg-subtle)] overflow-hidden cursor-pointer"
                       title="Büyütmek için tıklayın"
                     >
                       <img
@@ -114,16 +114,13 @@ export function PlayerEquipmentTab({
                         alt={eq.item_name}
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       />
-                      <span className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/60 text-white text-[10px] font-bold backdrop-blur-xs">
-                        🔍 Büyüt
+                      <span className="absolute bottom-2 right-2 px-2.5 py-1 rounded-lg bg-black/65 text-white text-[10px] font-bold backdrop-blur-xs">
+                        Büyüt
                       </span>
                     </button>
                   ) : (
-                    <div className="w-full h-32 bg-gradient-to-br from-[#02274c] to-[#04376b] flex flex-col items-center justify-center text-white/90">
-                      <span className="text-3xl mb-1">
-                        {eq.category === "Forma" ? "👕" : "🎒"}
-                      </span>
-                      <span className="text-[11px] font-bold uppercase tracking-wider">
+                    <div className="w-full h-32 bg-gradient-to-br from-[var(--brand-navy)] to-[#06396b] flex flex-col items-center justify-center text-white/90">
+                      <span className="text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-white/15">
                         {eq.category || "Kulüp Malzemesi"}
                       </span>
                     </div>
@@ -132,45 +129,45 @@ export function PlayerEquipmentTab({
                   <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
                     <div className="space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-[#02274c] text-[10px] font-extrabold uppercase">
+                        <span className="px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[10px] font-extrabold uppercase">
                           {eq.category || "Ekipman"}
                         </span>
                         {isDelivered && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-extrabold">
-                            ✓ Üzerimde
+                          <span className="px-2.5 py-0.5 rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-[11px] font-extrabold">
+                            Üzerimde
                           </span>
                         )}
                         {eq.status === "iade_edildi" && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[11px] font-extrabold">
+                          <span className="px-2.5 py-0.5 rounded-full bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[11px] font-extrabold">
                             İade Edildi
                           </span>
                         )}
                         {isMissing && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-extrabold">
-                            ⚠️ Kayıp / Eksik
+                          <span className="px-2.5 py-0.5 rounded-full bg-[var(--status-danger-text)] text-white text-[11px] font-extrabold">
+                            Kayıp / Eksik
                           </span>
                         )}
                       </div>
 
-                      <h3 className="font-extrabold text-sm text-[#02274c] leading-snug pt-0.5">
+                      <h3 className="font-extrabold text-sm text-[var(--text-primary)] leading-snug pt-0.5">
                         {eq.item_name}
                       </h3>
                     </div>
 
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                    <div className="pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)] tabular-nums">
                       <div className="flex items-center gap-2">
                         {eq.item_size && (
-                          <span className="px-2 py-0.5 rounded bg-slate-100 font-bold text-slate-800">
+                          <span className="px-2 py-0.5 rounded bg-[var(--bg-subtle)] font-bold text-[var(--text-primary)]">
                             Beden: {eq.item_size}
                           </span>
                         )}
                         {eq.jersey_number_given !== null && (
-                          <span className="px-2 py-0.5 rounded bg-[#a60513]/10 font-extrabold text-[#a60513]">
+                          <span className="px-2 py-0.5 rounded bg-[var(--brand-red-soft)] font-extrabold text-[var(--brand-red)]">
                             #{eq.jersey_number_given}
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-[var(--text-muted)]">
                         {eq.given_date}
                       </span>
                     </div>
@@ -189,21 +186,21 @@ export function PlayerEquipmentTab({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-slate-200"
+            className="bg-[var(--bg-surface)] rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-[var(--border-subtle)]"
           >
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100">
-              <h3 className="font-extrabold text-sm text-[#02274c]">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-subtle)]">
+              <h3 className="font-extrabold text-sm text-[var(--text-primary)]">
                 {previewPhoto.title}
               </h3>
               <button
                 type="button"
                 onClick={() => setPreviewPhoto(null)}
-                className="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
+                className="px-3 py-1 rounded-lg bg-[var(--bg-subtle)] hover:opacity-85 text-xs font-bold text-[var(--text-primary)] cursor-pointer"
               >
-                Kapat ✕
+                Kapat
               </button>
             </div>
-            <div className="bg-slate-100 p-2 flex items-center justify-center">
+            <div className="bg-[var(--bg-subtle)] p-2 flex items-center justify-center">
               <img
                 src={previewPhoto.url}
                 alt={previewPhoto.title}

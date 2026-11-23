@@ -1,426 +1,275 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/ikbal/Navbar";
-import { MembershipModal } from "@/components/ikbal/MembershipModal";
 import { createClient } from "@/lib/supabase/client";
+import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 
-interface TaskItem {
+const supabase = createClient();
+
+interface HomeTaskRow {
   id: string;
   title: string;
-  task_type: "antrenman" | "mac" | "etkinlik";
-  age_group: string;
-  event_date: string;
+  age_group?: string | null;
+  event_date?: string | null;
   match_time?: string | null;
-  location: string | null;
+  location?: string | null;
 }
 
-function formatShortDate(raw: string): string {
-  if (!raw) return "";
-  const clean = raw.slice(0, 10);
-  const parts = clean.split("-");
-  if (parts.length === 3) return `${parts[2]}.${parts[1]}.${parts[0]}`;
-  return clean;
+interface HomeAnnouncementRow {
+  id: string;
+  title?: string | null;
+  body?: string | null;
+  message_text?: string | null;
+  age_group?: string | null;
+  created_at?: string | null;
 }
 
-function isUpcomingEvent(item: TaskItem, nowMs: number): boolean {
-  if (!item.event_date) return false;
-  const datePart = item.event_date.slice(0, 10);
-  const timePart = (item.match_time || "").trim();
-
-  if (/^\d{1,2}:\d{2}/.test(timePart)) {
-    const [hh, mm] = timePart.split(":").map((n) => parseInt(n, 10));
-    const eventDt = new Date(`${datePart}T00:00:00`);
-    if (Number.isNaN(eventDt.getTime())) return false;
-    eventDt.setHours(
-      Number.isNaN(hh) ? 23 : hh,
-      Number.isNaN(mm) ? 59 : mm,
-      59,
-      999
-    );
-    return eventDt.getTime() >= nowMs;
-  }
-
-  const dayEnd = new Date(`${datePart}T23:59:59`);
-  if (Number.isNaN(dayEnd.getTime())) return false;
-  return dayEnd.getTime() >= nowMs;
+function formatShortDateTR(raw?: string | null, timeStr?: string | null): string {
+  if (!raw) return "Tarih belirtilmedi";
+  const dateOnly = raw.slice(0, 10);
+  const parts = dateOnly.split("-");
+  const formattedDate =
+    parts.length === 3 ? `${parts[2]}.${parts[1]}.${parts[0]}` : dateOnly;
+  const cleanTime = (timeStr || "").slice(0, 5);
+  return cleanTime ? `${formattedDate} • ${cleanTime}` : formattedDate;
 }
 
-function buildMapsUrl(location?: string | null): string {
-  const query = (location || "Nazmi Avluca Spor Tesisi Çorum").trim();
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    query
-  )}`;
-}
+export default function HomePage() {
+  const [upcomingMatches, setUpcomingMatches] = useState<HomeTaskRow[]>([]);
+  const [recentAnnouncements, setRecentAnnouncements] = useState<
+    HomeAnnouncementRow[]
+  >([]);
+  const [playerCount, setPlayerCount] = useState<number>(0);
 
-export default function IkbalHomePage() {
-  const [upcoming, setUpcoming] = useState<TaskItem[]>([]);
-  const [showRegModal, setShowRegModal] = useState(false);
-  const [currentYear, setCurrentYear] = useState<number>(2026);
+  const loadHomeSummary = useCallback(async () => {
+    const [tasksRes, msgsRes, playersRes] = await Promise.all([
+      supabase
+        .from("tasks_assignments")
+        .select("id, title, age_group, event_date, match_time, location")
+        .order("event_date", { ascending: true })
+        .limit(6),
+      supabase
+        .from("club_messages")
+        .select("id, title, body, message_text, age_group, created_at")
+        .order("created_at", { ascending: false })
+        .limit(4),
+      supabase.from("players").select("id", { count: "exact", head: true }),
+    ]);
+
+    if (tasksRes.data) setUpcomingMatches(tasksRes.data as HomeTaskRow[]);
+    if (msgsRes.data)
+      setRecentAnnouncements(msgsRes.data as HomeAnnouncementRow[]);
+    if (typeof playersRes.count === "number") setPlayerCount(playersRes.count);
+  }, []);
 
   useEffect(() => {
     let active = true;
 
     (async () => {
-      const now = new Date();
-      const todayStr = now.toISOString().slice(0, 10);
-      const nowMs = now.getTime();
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("tasks_assignments")
-        .select(
-          "id, title, task_type, age_group, event_date, match_time, location"
-        )
-        .gte("event_date", todayStr)
-        .order("event_date", { ascending: true })
-        .limit(12);
-      if (active) {
-        setCurrentYear(new Date().getFullYear());
-        if (data) {
-          const filtered = (data as TaskItem[]).filter((item) =>
-            isUpcomingEvent(item, nowMs)
-          );
-          setUpcoming(filtered.slice(0, 4));
-        }
-      }
+      const [tasksRes, msgsRes, playersRes] = await Promise.all([
+        supabase
+          .from("tasks_assignments")
+          .select("id, title, age_group, event_date, match_time, location")
+          .order("event_date", { ascending: true })
+          .limit(6),
+        supabase
+          .from("club_messages")
+          .select("id, title, body, message_text, age_group, created_at")
+          .order("created_at", { ascending: false })
+          .limit(4),
+        supabase.from("players").select("id", { count: "exact", head: true }),
+      ]);
+      if (!active) return;
+      if (tasksRes.data) setUpcomingMatches(tasksRes.data as HomeTaskRow[]);
+      if (msgsRes.data)
+        setRecentAnnouncements(msgsRes.data as HomeAnnouncementRow[]);
+      if (typeof playersRes.count === "number")
+        setPlayerCount(playersRes.count);
     })();
+
+    const unsubscribe = subscribeClubLiveUpdates(
+      supabase,
+      () => {
+        if (active) {
+          void loadHomeSummary();
+        }
+      },
+      "web-home-live"
+    );
 
     return () => {
       active = false;
+      unsubscribe();
     };
-  }, []);
+  }, [loadHomeSummary]);
 
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-clip bg-[#F8FAFC] text-slate-900 flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
 
-      <main className="flex-1 w-full max-w-full overflow-x-clip">
-      <div className="max-w-6xl mx-auto px-4 pt-4">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <span className="text-[11px] font-black uppercase tracking-wider text-[#a60513]">Android Mobil Uygulama</span>
-            <p className="text-sm font-extrabold text-[#02274c]">Çorum İkbalspor Güncel APK Sürümü Hazır</p>
+      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white py-10 px-4 shadow-sm">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <span className="inline-block px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
+              Çorum İkbalspor • 2026–2027 Sezonu
+            </span>
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+              Altyapıdan Amatöre Tek Yürek, Tek Platform
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              Taktik kadro kurulumu, maç günü skor ve golcü tahminleri, QR
+              yoklama takibi, aidat/malzeme ekranları ve kulüp duyuruları tek
+              yerde.
+            </p>
           </div>
-          <a
-            href="https://expo.dev/artifacts/eas/MdwkNzqnjFQbyV-GBGa7Mspm1yYETJdvHKlk7WOlee8.apk"
-            target="_blank"
-            rel="noreferrer"
-            className="px-4 py-2.5 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-xs font-extrabold"
-          >
-            📲 Android APK İndir
-          </a>
-        </div>
-      </div>
-        {/* Hero */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-[#02274c] via-[#04376b] to-[#a60513] text-white">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 md:py-14 grid lg:grid-cols-12 gap-8 items-center">
-            <div className="lg:col-span-7 space-y-5 min-w-0">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] sm:text-xs font-extrabold uppercase tracking-wider max-w-full truncate">
-                <img
-                  src="/logo.png"
-                  alt="Çorum İkbalspor"
-                  className="w-4 h-4 rounded-xs object-contain bg-white p-0.5"
-                />
-                <span>Çorum İkbalspor • Süper Amatör Lig</span>
-              </div>
 
-              <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black leading-tight break-words">
-                Geleceğin Yıldızları{" "}
-                <span className="text-red-300">İkbalspor</span> Çatısı Altında
-                Yetişiyor
-              </h1>
-
-              <p className="text-sm sm:text-lg text-slate-100 leading-relaxed max-w-2xl break-words">
-                Minikler&apos;den U19&apos;a tüm yaş kategorilerinde antrenman
-                ve maç görevleri, aidat ve malzeme takibi, Cumartesi sabah namazı
-                QR yoklaması ve kendi kadronu kurma heyecanı tek platformda.
-              </p>
-
-              <div className="flex flex-col sm:flex-row flex-wrap gap-3 pt-1">
-                <Link
-                  href="/kadro-kur"
-                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-[#a60513] hover:bg-red-700 border border-white/20 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center text-center shadow-lg transition"
-                >
-                  Kendi Kadronu Kur (Minikler–U19 &amp; SAL)
-                </Link>
-                <Link
-                  href="/gorevler"
-                  className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-white text-[#02274c] hover:bg-slate-100 font-extrabold text-xs sm:text-sm flex items-center justify-center text-center shadow-lg transition"
-                >
-                  Görevler &amp; Maç Takvimi
-                </Link>
-              </div>
-            </div>
-
-            <div className="lg:col-span-5 min-w-0">
-              <div className="rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 p-4 sm:p-6 space-y-4 shadow-2xl">
-                <div className="flex items-center justify-between border-b border-white/15 pb-3 gap-2">
-                  <h2 className="text-base sm:text-lg font-extrabold truncate">
-                    Yaklaşan Etkinlikler
-                  </h2>
-                  <Link
-                    href="/gorevler"
-                    className="text-xs font-bold text-red-200 hover:underline shrink-0"
-                  >
-                    Tümünü Gör →
-                  </Link>
-                </div>
-
-                {upcoming.length === 0 ? (
-                  <p className="text-sm text-slate-200 leading-relaxed">
-                    Yaklaşan planlanmış antrenman veya maç yok. Yönetim
-                    panelinden ekleyebilirsiniz.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {upcoming.map((t) => (
-                      <div
-                        key={t.id}
-                        className="rounded-xl bg-white/10 border border-white/15 p-3 min-w-0"
-                      >
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="inline-block px-2 py-0.5 rounded bg-[#a60513] text-[11px] font-extrabold shrink-0">
-                            {t.age_group}
-                          </span>
-                          <span className="font-bold text-sm break-words">
-                            {t.title}
-                          </span>
-                        </div>
-                        <div className="text-xs text-slate-200 mt-1 flex flex-wrap items-center justify-between gap-2">
-                          <span>
-                            {formatShortDate(t.event_date)}
-                            {t.match_time ? ` • ${t.match_time}` : ""}
-                            {t.location ? ` • ${t.location}` : ""}
-                          </span>
-                          {t.location && (
-                            <a
-                              href={buildMapsUrl(t.location)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-amber-200 hover:underline font-bold shrink-0"
-                            >
-                              📍 Harita
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Mobil Uygulama Tanıtım Kartı */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-10 pb-6">
-          <div className="bg-gradient-to-br from-[#02274c] via-[#043666] to-[#a60513] rounded-3xl p-5 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-8">
-            <div className="space-y-4 max-w-xl text-center md:text-left min-w-0">
-              <span className="inline-block bg-white/15 text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full">
-                Resmi Mobil Uygulama
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight">
-                Çorum İkbalspor Cebinizde!
-              </h2>
-              <p className="text-slate-200 text-sm sm:text-base leading-relaxed">
-                Antrenman programları, maç takvimi, taktik kadro kurma ve QR
-                yoklama işlemleri tek uygulamada.
-              </p>
-
-              <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-center md:justify-start gap-3 pt-2">
-                <a
-                  href="https://expo.dev/artifacts/eas/T1cdkoZpnh4X2LR_ZzMP2GPPIcVDLna2IB2QqE35jiw.apk"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-3 rounded-xl shadow-md transition text-xs sm:text-sm text-center"
-                >
-                  <span>🤖</span>
-                  <span>Android Uygulamamız Yayında (APK İndir)</span>
-                </a>
-
-                <div className="inline-flex items-center justify-center gap-2 bg-white/15 border border-white/25 text-slate-100 font-semibold px-4 py-3 rounded-xl text-xs sm:text-sm text-center">
-                  <span>🍎</span>
-                  <span>iPhone: Safari → Paylaş → Ana Ekrana Ekle</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="shrink-0">
-              <div className="w-44 h-72 sm:w-52 sm:h-88 bg-slate-950 rounded-[2.4rem] p-3 shadow-2xl border-4 border-slate-700 relative flex flex-col items-center justify-center">
-                <div className="w-20 h-3.5 bg-slate-900 rounded-full absolute top-3" />
-                <div className="w-full h-full bg-gradient-to-b from-[#02274c] to-[#0a192f] rounded-[1.8rem] flex flex-col items-center justify-center p-4 text-center border border-white/10">
-                  <img
-                    src="/logo.png"
-                    alt="Çorum İkbalspor Logo"
-                    className="w-16 h-16 sm:w-20 sm:h-20 object-contain rounded-2xl bg-white p-2 shadow-lg mb-3"
-                  />
-                  <p className="font-extrabold text-xs sm:text-sm text-white tracking-wide">
-                    ÇORUM İKBALSPOR
-                  </p>
-                  <p className="text-[11px] text-slate-300 mt-1">
-                    Sporcu &amp; Yönetim Portalı
-                  </p>
-                  <span className="mt-3 bg-[#a60513] text-white text-[10px] font-bold px-3 py-1 rounded-full">
-                    Android Yayında
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Üyelik / İletişim Başvuru Alanı + Hakkımızda Butonu Yan Yana */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-          <div className="rounded-3xl bg-white border-2 border-dashed border-[#02274c]/30 hover:border-[#a60513] hover:shadow-lg transition p-5 sm:p-8 flex flex-col lg:flex-row items-center justify-between gap-4">
-            <div
-              onClick={() => setShowRegModal(true)}
-              className="cursor-pointer space-y-1 text-center lg:text-left min-w-0 flex-1"
+          <div className="flex flex-wrap gap-2.5">
+            <Link
+              href="/kadro-kur"
+              className="px-5 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black shadow-sm transition"
             >
-              <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-1">
-                Kulübe Katıl &amp; İletişim
-              </span>
-              <h2 className="text-lg sm:text-2xl font-extrabold text-[#02274c]">
-                Sporcu Üyelik Başvuru &amp; İletişim Formu
-              </h2>
-              <p className="text-xs sm:text-sm text-slate-600">
-                Başvuru ve iletişim formunu açmak için tıklayın (18 yaş altı
-                için velisi doldurmalıdır).
-              </p>
-            </div>
-
-            <div className="w-full lg:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
-              <a
-                href="#hakkimizda"
-                className="w-full sm:w-auto rounded-xl border border-[#02274c]/25 bg-slate-50 hover:bg-slate-100 text-[#02274c] font-bold px-5 py-3.5 text-sm transition text-center"
-              >
-                Hakkımızda
-              </a>
-              <button
-                type="button"
-                onClick={() => setShowRegModal(true)}
-                className="w-full sm:w-auto rounded-xl bg-[#02274c] hover:bg-[#a60513] text-white font-bold px-6 py-3.5 text-sm transition shadow cursor-pointer"
-              >
-                Başvuru Formunu Aç
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Hakkımızda — Kurumsal Kulüp Kimliği */}
-        <section
-          id="hakkimizda"
-          aria-labelledby="hakkimizda-baslik"
-          className="max-w-6xl mx-auto px-4 sm:px-6 pt-2 pb-12"
-        >
-          <div className="rounded-3xl bg-white border border-slate-200/90 shadow-md overflow-hidden">
-            <div className="bg-gradient-to-r from-[#02274c] via-[#04376b] to-[#a60513] px-6 py-7 sm:px-10 sm:py-9 text-white flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="max-w-2xl space-y-2">
-                <span className="inline-block text-[11px] font-extrabold uppercase tracking-widest bg-white/15 border border-white/20 px-3 py-1 rounded-full">
-                  Hakkımızda • Kurumsal Kimlik
-                </span>
-                <h2
-                  id="hakkimizda-baslik"
-                  className="text-2xl sm:text-3xl font-black tracking-tight"
-                >
-                  Saha İçi Disiplin ve Kurumsal Kulüp Kültürü
-                </h2>
-                <p className="text-xs sm:text-sm text-slate-100 leading-relaxed">
-                  Çorum İkbalspor; Minikler (10 yaş ve altı) kategorisinden
-                  başlayarak altyapıdan yetişen sporcuları çağdaş antrenman
-                  planlaması, takım ruhu ve kurumsal yönetim standartlarıyla
-                  buluşturarak Çorum futboluna kalıcı katkı sunan kulüptür.
-                </p>
-              </div>
-
-              <div className="shrink-0 flex items-center gap-3 bg-white/10 border border-white/20 rounded-2xl px-4 py-3">
-                <img
-                  src="/logo.png"
-                  alt="Çorum İkbalspor Arması"
-                  className="w-12 h-12 rounded-xl bg-white p-1.5 object-contain shrink-0"
-                />
-                <div className="text-left">
-                  <div className="text-xs font-extrabold uppercase tracking-wider text-red-200">
-                    Çorum • Türkiye
-                  </div>
-                  <div className="text-sm font-black text-white">
-                    Çorum İkbalspor
-                  </div>
-                  <div className="text-[11px] text-slate-200">
-                    Minikler–U19 Altyapı &amp; A Takım
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 sm:p-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-5 space-y-2">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-[#a60513]">
-                  01 • Altyapı Gelişimi
-                </div>
-                <h3 className="text-base font-extrabold text-[#02274c]">
-                  Minikler&apos;den U19&apos;a Planlı Eğitim
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  10 yaş ve altı Minikler kategorisinden U19&apos;a kadar her
-                  yaş grubunda temel koordinasyon, teknik beceri, oyun görüşü
-                  ve fiziksel gelişimi kademeli olarak destekliyoruz.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-5 space-y-2">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-[#a60513]">
-                  02 • Karakter &amp; Sportmenlik
-                </div>
-                <h3 className="text-base font-extrabold text-[#02274c]">
-                  Sahada Saygı, Hayatta Disiplin
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  Sporcularımızın yalnızca iyi birer futbolcu değil; sorumluluk
-                  sahibi, takım arkadaşına saygılı ve ahlaki değerleri güçlü
-                  bireyler olarak yetişmesini önemsiyoruz.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 border border-slate-200/80 p-5 space-y-2">
-                <div className="text-xs font-extrabold uppercase tracking-wider text-[#a60513]">
-                  03 • Kurumsal İletişim
-                </div>
-                <h3 className="text-base font-extrabold text-[#02274c]">
-                  Şeffaf &amp; Düzenli Kulüp Operasyonu
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                  Maç programları, duyurular, aidat/malzeme süreçleri ve
-                  sporcu bilgilendirmelerini düzenli bir yapı ile sporcular ve
-                  ailelerle paylaşıyoruz.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <MembershipModal
-        isOpen={showRegModal}
-        onClose={() => setShowRegModal(false)}
-        currentYear={currentYear}
-      />
-
-      <footer className="bg-[#02274c] text-slate-200 border-t-4 border-[#a60513] py-8 px-4">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-center sm:text-left">
-          <div className="flex items-center justify-center sm:justify-start gap-2.5 font-extrabold text-white">
-            <img
-              src="/logo.png"
-              alt="Çorum İkbalspor"
-              className="w-7 h-7 rounded-md bg-white p-0.5 object-contain"
-            />
-            <span>Çorum İkbalspor • Çorum</span>
-          </div>
-          <div className="text-slate-300">
-            © {currentYear} Çorum İkbalspor. Tüm hakları saklıdır.
+              Taktik Tahtası &amp; Kadro Kur
+            </Link>
+            <Link
+              href="/sporcu"
+              className="px-5 py-3 rounded-2xl bg-white text-[var(--brand-navy)] hover:bg-slate-100 text-xs sm:text-sm font-black shadow-sm transition"
+            >
+              Sporcu Paneli
+            </Link>
           </div>
         </div>
-      </footer>
+      </section>
+
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 space-y-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 tabular-nums">
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
+            <span className="text-[11px] font-extrabold uppercase text-[var(--text-muted)]">
+              Kayıtlı Sporcu Kadrosu
+            </span>
+            <div className="text-2xl font-black text-[var(--brand-navy)] dark:text-sky-300 mt-1">
+              {playerCount} Sporcu
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Minikler, U11–U19 ve Süper Amatör yaş grupları
+            </p>
+          </div>
+
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
+            <span className="text-[11px] font-extrabold uppercase text-[var(--text-muted)]">
+              Aktif Maç &amp; Görev Kaydı
+            </span>
+            <div className="text-2xl font-black text-[var(--brand-red)] mt-1">
+              {upcomingMatches.length} Program
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              Saha, saat ve servis bilgileri canlı güncellenir
+            </p>
+          </div>
+
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
+            <span className="text-[11px] font-extrabold uppercase text-[var(--text-muted)]">
+              Son Kulüp Duyuruları
+            </span>
+            <div className="text-2xl font-black text-[var(--text-primary)] mt-1">
+              {recentAnnouncements.length} Güncel Duyuru
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">
+              <Link
+                href="/bildirimler"
+                className="text-[var(--brand-red)] font-extrabold hover:underline"
+              >
+                Tüm duyuruları gör →
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <section className="lg:col-span-7 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-black text-[var(--text-primary)]">
+                Yaklaşan Maçlar &amp; Program
+              </h2>
+              <Link
+                href="/kadro-kur"
+                className="text-xs font-extrabold text-[var(--brand-red)] hover:underline"
+              >
+                Kadro Hazırla →
+              </Link>
+            </div>
+
+            {upcomingMatches.length === 0 ? (
+              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center text-xs font-bold text-[var(--text-secondary)]">
+                Henüz planlanmış maç veya görev kaydı bulunmuyor.
+              </div>
+            ) : (
+              <div className="divide-y divide-[var(--border-subtle)]">
+                {upcomingMatches.map((m) => (
+                  <div
+                    key={m.id}
+                    className="py-3 flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <div>
+                      <div className="text-sm font-extrabold text-[var(--text-primary)]">
+                        {m.title}
+                      </div>
+                      <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                        {m.age_group || "Genel"} • {m.location || "Saha bilgisi yok"}
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold tabular-nums">
+                      {formatShortDateTR(m.event_date, m.match_time)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="lg:col-span-5 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-black text-[var(--text-primary)]">
+                Son Duyurular
+              </h2>
+              <Link
+                href="/bildirimler"
+                className="text-xs font-extrabold text-[var(--brand-red)] hover:underline"
+              >
+                Tümü →
+              </Link>
+            </div>
+
+            {recentAnnouncements.length === 0 ? (
+              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center text-xs font-bold text-[var(--text-secondary)]">
+                Henüz duyuru paylaşılmadı.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentAnnouncements.map((ann) => (
+                  <div
+                    key={ann.id}
+                    className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-l-4 border-l-[var(--brand-red)] p-3.5 space-y-1"
+                  >
+                    <div className="text-[11px] font-extrabold text-[var(--brand-navy)] dark:text-sky-300">
+                      {ann.age_group || "Tümü"}
+                    </div>
+                    {ann.title && (
+                      <div className="text-xs font-black text-[var(--text-primary)]">
+                        {ann.title}
+                      </div>
+                    )}
+                    <p className="text-xs text-[var(--text-secondary)] line-clamp-2">
+                      {ann.body || ann.message_text || ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
     </div>
   );
 }

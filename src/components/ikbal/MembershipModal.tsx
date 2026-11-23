@@ -95,21 +95,21 @@ export function MembershipModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-5 relative"
+        className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-3xl shadow-2xl border border-[var(--border-subtle)] w-full max-w-xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-5 relative page-transition"
       >
-        <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+        <div className="flex items-start justify-between border-b border-[var(--border-subtle)] pb-4">
           <div>
-            <span className="inline-block bg-[#a60513] text-white text-xs font-bold px-3 py-1 rounded-full mb-2">
+            <span className="inline-block bg-[var(--brand-red)] text-white text-xs font-extrabold px-3 py-1 rounded-full mb-2">
               Çorum İkbalspor
             </span>
-            <h2 className="text-xl sm:text-2xl font-extrabold text-[#02274c]">
+            <h2 className="text-xl sm:text-2xl font-black text-[var(--text-primary)]">
               Sporcu Üyelik Başvurusu
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+            <p className="text-xs sm:text-sm text-[var(--text-secondary)] mt-1">
               18 yaşından küçük sporcular için form ve KVKK/Açık Rıza onayları
               velisi tarafından doldurulmalıdır.
             </p>
@@ -117,7 +117,7 @@ export function MembershipModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-1.5 text-sm transition cursor-pointer"
+            className="rounded-lg bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-subtle)] text-[var(--text-primary)] font-bold px-3 py-1.5 text-sm transition cursor-pointer"
           >
             ✕
           </button>
@@ -125,7 +125,7 @@ export function MembershipModal({
 
         <form onSubmit={handleMembershipSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Sporcu Adı Soyadı *
             </label>
             <input
@@ -136,12 +136,12 @@ export function MembershipModal({
                 setRegForm({ ...regForm, full_name: e.target.value })
               }
               placeholder="Örn: Ahmet Yılmaz"
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] px-3.5 py-2.5 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Doğum Tarihi *
             </label>
             <input
@@ -151,17 +151,17 @@ export function MembershipModal({
               onChange={(e) =>
                 setRegForm({ ...regForm, birth_date: e.target.value })
               }
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm"
             />
           </div>
 
           {isMinor && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-              <p className="text-xs font-bold text-amber-800">
+            <div className="bg-[var(--status-warning-bg)]/50 border border-amber-400/60 rounded-2xl p-4 space-y-2">
+              <p className="text-xs font-extrabold text-[var(--status-warning-text)]">
                 18 Yaş Altı Sporcu — Veli Bilgisi Zorunludur
               </p>
-              <label className="block text-xs font-bold text-slate-700">
-                Veli / Vasi Adı Soyadı *
+              <label className="block text-xs font-bold text-[var(--text-primary)]">
+                Veli / Vasi Ad Soyadı *
               </label>
               <input
                 type="text"
@@ -171,13 +171,13 @@ export function MembershipModal({
                   setRegForm({ ...regForm, guardian_name: e.target.value })
                 }
                 placeholder="Anne / Baba veya Yasal Vasi Adı Soyadı"
-                className="w-full rounded-xl border border-amber-300 bg-white px-3.5 py-2.5 text-sm"
+                className="w-full rounded-xl border border-amber-400 bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] px-3.5 py-2.5 text-sm"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               {isMinor ? "Veli Telefon Numarası *" : "Telefon Numarası *"}
             </label>
             <input
@@ -188,12 +188,12 @@ export function MembershipModal({
                 setRegForm({ ...regForm, parent_phone: e.target.value })
               }
               placeholder="05XX XXX XX XX"
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] px-3.5 py-2.5 text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Notlar (Opsiyonel)
             </label>
             <textarea
@@ -203,26 +203,26 @@ export function MembershipModal({
                 setRegForm({ ...regForm, notes: e.target.value })
               }
               placeholder="Varsa sağlık durumu veya önceki kulüp bilgisi"
-              className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] px-3.5 py-2.5 text-sm"
             />
           </div>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+          <div className="bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold text-[#02274c] uppercase">
+              <span className="text-xs font-extrabold text-[var(--text-primary)] uppercase">
                 KVKK ve Açık Rıza Onayı
               </span>
               <button
                 type="button"
                 onClick={() => setShowKvkkText(!showKvkkText)}
-                className="text-xs font-bold text-[#a60513] underline cursor-pointer"
+                className="text-xs font-bold text-[var(--brand-red)] underline cursor-pointer"
               >
                 {showKvkkText ? "Metni Gizle" : "Aydınlatma Metnini Oku"}
               </button>
             </div>
 
             {showKvkkText && (
-              <div className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg p-3 max-h-40 overflow-y-auto leading-relaxed space-y-2">
+              <div className="text-xs text-[var(--text-secondary)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl p-3 max-h-40 overflow-y-auto leading-relaxed space-y-2">
                 <p>
                   <strong>Veri Sorumlusu:</strong> Çorum İkbalspor Kulübü. 6698
                   sayılı Kişisel Verilerin Korunması Kanunu (&ldquo;KVKK&rdquo;)
@@ -241,12 +241,12 @@ export function MembershipModal({
               </div>
             )}
 
-            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[var(--text-primary)]">
               <input
                 type="checkbox"
                 checked={kvkkAccepted}
                 onChange={(e) => setKvkkAccepted(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[#02274c]"
+                className="mt-0.5 h-4 w-4 accent-[var(--brand-navy)]"
               />
               <span>
                 6698 sayılı KVKK kapsamında{" "}
@@ -254,12 +254,12 @@ export function MembershipModal({
               </span>
             </label>
 
-            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-slate-700">
+            <label className="flex items-start gap-2.5 cursor-pointer text-xs text-[var(--text-primary)]">
               <input
                 type="checkbox"
                 checked={consentAccepted}
                 onChange={(e) => setConsentAccepted(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[#a60513]"
+                className="mt-0.5 h-4 w-4 accent-[var(--brand-red)]"
               />
               <span>
                 <strong>Açık Rıza Formu:</strong>{" "}
@@ -274,8 +274,8 @@ export function MembershipModal({
             <div
               className={`p-3 rounded-xl text-sm font-semibold ${
                 regResult.ok
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-red-50 text-red-700 border border-red-200"
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                  : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
               }`}
             >
               {regResult.text}
@@ -286,14 +286,14 @@ export function MembershipModal({
             <button
               type="button"
               onClick={onClose}
-              className="w-1/3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 text-sm transition cursor-pointer"
+              className="w-1/3 rounded-xl bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-strong)] text-[var(--text-primary)] font-bold py-3 text-sm transition cursor-pointer"
             >
               Kapat
             </button>
             <button
               type="submit"
               disabled={regLoading}
-              className="w-2/3 rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-bold py-3 text-sm transition disabled:opacity-50 cursor-pointer"
+              className="w-2/3 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold py-3 text-sm transition disabled:opacity-50 cursor-pointer"
             >
               {regLoading ? "Gönderiliyor..." : "Üyelik Talebini Gönder"}
             </button>

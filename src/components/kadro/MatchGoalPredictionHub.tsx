@@ -103,7 +103,8 @@ export function MatchGoalPredictionHub({
     };
   }, [currentPlayerId]);
 
-  const effectivePredictorId = currentPlayerId || predictorId || players[0]?.id || "";
+  const effectivePredictorId =
+    currentPlayerId || predictorId || players[0]?.id || "";
 
   const selectedMatch = useMemo(
     () => matches.find((m) => m.id === selectedMatchId) || null,
@@ -137,7 +138,8 @@ export function MatchGoalPredictionHub({
 
   function handleSavePrediction(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedMatch || !effectivePredictorId || !effectivePredictedScorerId) return;
+    if (!selectedMatch || !effectivePredictorId || !effectivePredictedScorerId)
+      return;
 
     const record: GoalPredictionRecord = {
       id: `pred-${Date.now()}`,
@@ -157,9 +159,10 @@ export function MatchGoalPredictionHub({
       ),
     ]);
     const scorerName =
-      players.find((p) => p.id === effectivePredictedScorerId)?.full_name || "Oyuncu";
+      players.find((p) => p.id === effectivePredictedScorerId)?.full_name ||
+      "Oyuncu";
     setStatusBanner(
-      `✅ "${selectedMatch.title}" maçı için gol tahmininiz kaydedildi: ${scorerName}`
+      `"${selectedMatch.title}" maçı için gol tahmininiz kaydedildi: ${scorerName}`
     );
   }
 
@@ -170,7 +173,9 @@ export function MatchGoalPredictionHub({
 
   function updateGoalSlot(index: number, playerId: string) {
     setGoalScorerIds(
-      effectiveGoalScorerIds.map((item, idx) => (idx === index ? playerId : item))
+      effectiveGoalScorerIds.map((item, idx) =>
+        idx === index ? playerId : item
+      )
     );
   }
 
@@ -240,7 +245,7 @@ export function MatchGoalPredictionHub({
 
       setPlayers(updatedPlayers);
       setStatusBanner(
-        `🏆 ${selectedMatch.title} gol sonuçları işlendi (${validScorers.length} gol). Gol atanlara çarpan puanı, doğru tahmincilere +1 puan eklendi.`
+        `${selectedMatch.title} gol sonuçları işlendi (${validScorers.length} gol). Gol atanlara çarpan puanı, doğru tahmincilere +1 puan eklendi.`
       );
     } finally {
       setSaving(false);
@@ -261,9 +266,9 @@ export function MatchGoalPredictionHub({
   }, [players, playerGoalHistory]);
 
   return (
-    <div className="space-y-8 text-slate-900">
+    <div className="space-y-8 text-[var(--text-primary)] tabular-nums">
       {statusBanner && (
-        <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs sm:text-sm font-bold flex justify-between items-center gap-3">
+        <div className="p-3.5 rounded-2xl bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-xs sm:text-sm font-bold flex justify-between items-center gap-3">
           <span>{statusBanner}</span>
           <button
             type="button"
@@ -278,20 +283,20 @@ export function MatchGoalPredictionHub({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <form
           onSubmit={handleSavePrediction}
-          className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs"
+          className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 space-y-4 shadow-xs"
         >
-          <h3 className="text-base font-black text-[#02274c]">
-            ⚽ Maç Gol Tahmini Yap
+          <h3 className="text-base font-black text-[var(--text-primary)]">
+            Maç Gol Tahmini Yap
           </h3>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Maç Seçin
             </label>
             <select
               value={selectedMatchId}
               onChange={(e) => setSelectedMatchId(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold bg-white"
+              className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm font-bold"
             >
               {matches.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -303,13 +308,13 @@ export function MatchGoalPredictionHub({
 
           {!currentPlayerId && (
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Tahmin Yapan Kişi
               </label>
               <select
                 value={effectivePredictorId}
                 onChange={(e) => setPredictorId(e.target.value)}
-                className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold bg-white"
+                className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm font-bold"
               >
                 {players.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -321,13 +326,14 @@ export function MatchGoalPredictionHub({
           )}
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Bu Maçta Kim Gol Atar? ({selectedMatch?.age_group || "Grup"} Kadrosu)
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Bu Maçta Kim Gol Atar? ({selectedMatch?.age_group || "Grup"}{" "}
+              Kadrosu)
             </label>
             <select
               value={effectivePredictedScorerId}
               onChange={(e) => setPredictedScorerId(e.target.value)}
-              className="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm font-bold text-[#02274c] bg-white"
+              className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-sm font-bold"
             >
               {groupPlayers.map((gp) => (
                 <option key={gp.id} value={gp.id}>
@@ -337,13 +343,14 @@ export function MatchGoalPredictionHub({
             </select>
           </div>
 
-          <p className="text-[11px] text-slate-600">
-            Gol atan oyuncuyu doğru bilirseniz <strong>+1 puan</strong> kazanırsınız.
+          <p className="text-[11px] text-[var(--text-secondary)]">
+            Gol atan oyuncuyu doğru bilirseniz <strong>+1 puan</strong>{" "}
+            kazanırsınız.
           </p>
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-sm font-extrabold cursor-pointer"
+            className="w-full py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-extrabold cursor-pointer transition"
           >
             Gol Tahminimi Kaydet
           </button>
@@ -352,22 +359,22 @@ export function MatchGoalPredictionHub({
         {isAdmin ? (
           <form
             onSubmit={handleFinalizeMatchGoals}
-            className="bg-white rounded-2xl border-2 border-[#02274c]/20 p-5 space-y-4 shadow-xs"
+            className="bg-[var(--bg-surface)] rounded-2xl border-2 border-[var(--brand-navy)]/30 p-5 space-y-4 shadow-xs"
           >
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-base font-black text-[#02274c]">
-                📝 Admin: Maç Gollerini Tek Tek Gir
+              <h3 className="text-base font-black text-[var(--text-primary)]">
+                Admin: Maç Gollerini Tek Tek Gir
               </h3>
               <button
                 type="button"
                 onClick={addGoalSlot}
-                className="px-3 py-1 rounded-lg bg-[#02274c] text-white text-xs font-extrabold cursor-pointer"
+                className="px-3 py-1 rounded-lg bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer"
               >
                 + Gol Ekle
               </button>
             </div>
 
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-200 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] p-2.5 rounded-xl border border-[var(--border-subtle)] cursor-pointer">
               <input
                 type="checkbox"
                 checked={isFirstMatch}
@@ -379,13 +386,13 @@ export function MatchGoalPredictionHub({
             <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
               {effectiveGoalScorerIds.map((scorerId, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs font-black text-[#a60513] w-14 shrink-0">
+                  <span className="text-xs font-black text-[var(--brand-red)] w-14 shrink-0">
                     {idx + 1}. Gol
                   </span>
                   <select
                     value={scorerId}
                     onChange={(e) => updateGoalSlot(idx, e.target.value)}
-                    className="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold bg-white"
+                    className="flex-1 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs sm:text-sm font-bold"
                   >
                     {groupPlayers.map((gp) => (
                       <option key={gp.id} value={gp.id}>
@@ -397,17 +404,19 @@ export function MatchGoalPredictionHub({
                     <button
                       type="button"
                       onClick={() => removeGoalSlot(idx)}
-                      className="px-2.5 py-2 rounded-lg bg-red-100 text-red-700 text-xs font-bold cursor-pointer"
+                      className="px-2.5 py-2 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-bold cursor-pointer"
                     >
-                      ✕
+                      x
                     </button>
                   )}
                 </div>
               ))}
             </div>
 
-            <p className="text-[11px] text-slate-600">
-              Az gol atan oyunculara yüksek çarpan (en fazla <strong>3 puan</strong>, hiç gol atmayanda 3 puan) uygulanır; tüm kategoriler tek genel sıralamada yarışır.
+            <p className="text-[11px] text-[var(--text-secondary)]">
+              Az gol atan oyunculara yüksek çarpan (en fazla{" "}
+              <strong>3 puan</strong>, hiç gol atmayanda 3 puan) uygulanır; tüm
+              kategoriler tek genel sıralamada yarışır.
             </p>
 
             <button
@@ -415,22 +424,31 @@ export function MatchGoalPredictionHub({
               disabled={saving}
               className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold cursor-pointer"
             >
-              {saving ? "Puanlar İşleniyor..." : "✓ Golleri Kaydet & Genel Puanları Güncelle"}
+              {saving
+                ? "Puanlar İşleniyor..."
+                : "Golleri Kaydet & Genel Puanları Güncelle"}
             </button>
           </form>
         ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2 shadow-xs">
-            <h3 className="text-base font-black text-[#02274c]">
-              🏆 Genel (Overall) Puan Sistemi Nasıl Çalışır?
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 space-y-2 shadow-xs">
+            <h3 className="text-base font-black text-[var(--text-primary)]">
+              Genel (Overall) Puan Sistemi Nasıl Çalışır?
             </h3>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              - Maçtaki golcüyü doğru tahmin ettiğinizde <strong>+1 puan</strong> kazanırsınız.
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              - Maçtaki golcüyü doğru tahmin ettiğinizde{" "}
+              <strong>+1 puan</strong> kazanırsınız.
             </p>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              - Golcü çarpanı <strong>1 ile 3 puan</strong> arasındadır; hiç gol atmayan bir oyuncu gol attığında <strong>3 puan</strong> kazandırır.
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              - Golcü çarpanı <strong>1 ile 3 puan</strong> arasındadır; hiç
+              gol atmayan bir oyuncu gol attığında <strong>3 puan</strong>{" "}
+              kazandırır.
             </p>
-            <p className="text-xs text-slate-700 leading-relaxed">
-              - Kategoriler kendi içinde ayrılmadan <strong>U11 ile U17 ve diğer tüm kategoriler aynı genel sıralamada</strong> yarışır.
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              - Kategoriler kendi içinde ayrılmadan{" "}
+              <strong>
+                U11 ile U17 ve diğer tüm kategoriler aynı genel sıralamada
+              </strong>{" "}
+              yarışır.
             </p>
           </div>
         )}

@@ -1,3 +1,4 @@
+// CoachesTab.tsx
 "use client";
 
 import { useState } from "react";
@@ -59,7 +60,7 @@ export function CoachesTab({
       `${coach.full_name} grubu "${groups.join(", ")}" yapıldı.`
     );
     onFeedback(
-      `✅ ${coach.full_name} grubu "${groups.join(", ")}" olarak güncellendi.`
+      `${coach.full_name} grubu "${groups.join(", ")}" olarak güncellendi.`
     );
     await onRefreshCoaches();
   }
@@ -89,7 +90,7 @@ export function CoachesTab({
       `${newCoach.full_name} (${code}) — Kapsam: ${groupsToSave.join(", ")}`
     );
     onFeedback(
-      `✅ ${newCoach.full_name} eklendi (Kod: ${code}, Kapsam: ${groupsToSave.join(
+      `${newCoach.full_name} eklendi (Kod: ${code}, Kapsam: ${groupsToSave.join(
         ", "
       )}).`
     );
@@ -114,12 +115,12 @@ export function CoachesTab({
   }
 
   return (
-    <div className="space-y-6 text-slate-900">
+    <div className="space-y-6 text-[var(--text-primary)]">
       <form
         onSubmit={addCoach}
-        className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3"
+        className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3"
       >
-        <h2 className="font-bold text-[#02274c]">
+        <h2 className="font-black text-[var(--text-primary)]">
           Yeni Antrenör / Temsilci Ekle (Önyüklü: Tüm Takım)
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -130,7 +131,7 @@ export function CoachesTab({
             onChange={(e) =>
               setNewCoach({ ...newCoach, full_name: e.target.value })
             }
-            className="border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm"
           />
           <input
             placeholder="Kod (Boşsa ANT-XXXX)"
@@ -138,19 +139,19 @@ export function CoachesTab({
             onChange={(e) =>
               setNewCoach({ ...newCoach, coach_code: e.target.value })
             }
-            className="border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm uppercase"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm uppercase"
           />
           <input
             placeholder="Giriş Şifresi (PIN)"
             value={newCoach.pin}
             onChange={(e) => setNewCoach({ ...newCoach, pin: e.target.value })}
-            className="border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm"
           />
           <input
             placeholder="Telefon"
             value={newCoach.phone}
             onChange={(e) => setNewCoach({ ...newCoach, phone: e.target.value })}
-            className="border border-slate-300 bg-white rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm"
           />
         </div>
 
@@ -162,13 +163,12 @@ export function CoachesTab({
                 key={g}
                 type="button"
                 onClick={() => toggleGroup(g)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
+                className={`px-3 py-1 rounded-lg text-xs font-bold border cursor-pointer transition ${
                   active
-                    ? "bg-[#02274c] text-white border-[#02274c]"
-                    : "bg-slate-50 text-slate-700 border-slate-200"
+                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
                 }`}
               >
-                {active ? "✓ " : ""}
                 {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
               </button>
             );
@@ -177,13 +177,13 @@ export function CoachesTab({
 
         <button
           type="submit"
-          className="bg-[#02274c] hover:bg-[#033669] text-white font-bold px-5 py-2 rounded-lg text-sm cursor-pointer"
+          className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold px-5 py-2.5 rounded-xl text-sm cursor-pointer transition"
         >
           Kaydet
         </button>
       </form>
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-2">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-2.5">
         {coaches.map((c) => {
           const currentGroup =
             Array.isArray(c.assigned_groups) && c.assigned_groups.length > 0
@@ -192,18 +192,26 @@ export function CoachesTab({
           return (
             <div
               key={c.id}
-              className="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-2 text-sm"
+              className="flex flex-wrap justify-between items-center gap-2 border-b border-[var(--border-subtle)] last:border-b-0 pb-2.5 last:pb-0 text-sm"
             >
               <div>
-                <strong>{c.full_name}</strong> — Kod:{" "}
-                <span className="font-mono">{c.coach_code}</span> | Şifre:{" "}
-                <span className="font-mono">{c.pin}</span>
+                <strong className="text-[var(--text-primary)]">
+                  {c.full_name}
+                </strong>{" "}
+                — Kod:{" "}
+                <span className="font-mono text-[var(--text-secondary)]">
+                  {c.coach_code}
+                </span>{" "}
+                | Şifre:{" "}
+                <span className="font-mono text-[var(--text-secondary)]">
+                  {c.pin}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <select
                   value={currentGroup}
                   onChange={(e) => updateCoachGroups(c, e.target.value)}
-                  className="border border-slate-300 bg-white rounded-lg px-2.5 py-1 text-xs font-bold text-[#02274c]"
+                  className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2.5 py-1 text-xs font-bold text-[var(--text-primary)]"
                 >
                   <option value="Tümü">Tüm Takım</option>
                   {AGE_GROUPS.map((g) => (
@@ -215,7 +223,7 @@ export function CoachesTab({
                 <button
                   type="button"
                   onClick={() => deleteCoach(c)}
-                  className="text-xs text-red-700 font-bold cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer"
                 >
                   Sil
                 </button>

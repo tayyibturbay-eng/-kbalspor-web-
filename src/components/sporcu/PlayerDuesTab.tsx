@@ -1,3 +1,6 @@
+// PlayerDuesTab.tsx
+"use client";
+
 import { useMemo } from "react";
 
 export type DueDisplayItem = {
@@ -19,25 +22,27 @@ export function PlayerDuesTab({ dueItems, overdueCount }: PlayerDuesTabProps) {
   }, [dueItems]);
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-xs">
+    <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-black text-[#02274c]">Aidat Durumum</h2>
-        <div className="flex flex-wrap gap-2 text-xs font-extrabold">
-          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+        <h2 className="text-lg font-black text-[var(--text-primary)]">
+          Aidat Durumum
+        </h2>
+        <div className="flex flex-wrap gap-2 text-xs font-extrabold tabular-nums">
+          <span className="px-2.5 py-1 rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)]">
             Ödendi: {summary.paidCount}
           </span>
-          <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900">
+          <span className="px-2.5 py-1 rounded-full bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]">
             Güncel: {summary.unpaidCount}
           </span>
-          <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800">
+          <span className="px-2.5 py-1 rounded-full bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]">
             Gecikmiş: {overdueCount}
           </span>
         </div>
       </div>
 
       {overdueCount > 0 && (
-        <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-extrabold">
-          ⚠️ Geçmiş dönemden gecikmiş {overdueCount} adet aidat ödemeniz
+        <div className="p-3.5 rounded-2xl bg-[var(--status-danger-bg)] border border-[var(--status-danger-text)]/25 text-[var(--status-danger-text)] text-xs font-extrabold">
+          Geçmiş dönemden gecikmiş {overdueCount} adet aidat ödemeniz
           bulunmaktadır. Lütfen yöneticinizle iletişime geçin.
         </div>
       )}
@@ -48,17 +53,17 @@ export function PlayerDuesTab({ dueItems, overdueCount }: PlayerDuesTabProps) {
             key={item.monthLabel}
             className={`flex items-center justify-between p-4 rounded-2xl border ${
               item.state === "overdue"
-                ? "bg-red-50 border-red-200"
+                ? "bg-[var(--status-danger-bg)]/55 border-[var(--status-danger-text)]/25"
                 : item.state === "unpaid"
-                ? "bg-amber-50 border-amber-200"
-                : "bg-slate-50 border-slate-200"
+                ? "bg-[var(--status-warning-bg)]/55 border-[var(--status-warning-text)]/25"
+                : "bg-[var(--bg-subtle)] border-[var(--border-subtle)]"
             }`}
           >
             <div>
-              <div className="font-extrabold text-slate-900">
+              <div className="font-extrabold text-[var(--text-primary)]">
                 {item.monthLabel}
               </div>
-              <div className="text-xs text-slate-600">
+              <div className="text-xs text-[var(--text-secondary)] tabular-nums">
                 {item.amount} TL
                 {item.state === "overdue" && " • Ödeme süresi geçti"}
                 {item.state === "unpaid" && " • Güncel dönem ödemesi"}
@@ -66,22 +71,22 @@ export function PlayerDuesTab({ dueItems, overdueCount }: PlayerDuesTabProps) {
             </div>
 
             {item.state === "paid" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-800">
-                ✓ Ödendi
+              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--status-success-bg)] text-[var(--status-success-text)]">
+                Ödendi
               </span>
             )}
             {item.state === "unpaid" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-200 text-amber-950">
+              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]">
                 Ödenmedi
               </span>
             )}
             {item.state === "overdue" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-red-600 text-white">
-                ⚠️ Gecikti
+              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--status-danger-text)] text-white">
+                Gecikti
               </span>
             )}
             {item.state === "upcoming" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-slate-200 text-slate-700">
+              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--bg-canvas)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">
                 Bekleniyor
               </span>
             )}

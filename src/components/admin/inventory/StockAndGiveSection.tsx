@@ -37,9 +37,14 @@ function buildDefaultPieces(
   });
 }
 
-async function uploadPhoto(folder: "jerseys" | "stock", file: File): Promise<string | null> {
+async function uploadPhoto(
+  folder: "jerseys" | "stock",
+  file: File
+): Promise<string | null> {
   const ext = file.name.split(".").pop() || "jpg";
-  const filePath = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+  const filePath = `${folder}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}.${ext}`;
   const { error: upErr } = await supabase.storage
     .from("jersey-photos")
     .upload(filePath, file);
@@ -92,14 +97,19 @@ export function StockAndGiveSection({
   const [savingCreate, setSavingCreate] = useState(false);
 
   const [editingStock, setEditingStock] = useState<StockItem | null>(null);
-  const [missingQtyById, setMissingQtyById] = useState<Record<string, number>>({});
+  const [missingQtyById, setMissingQtyById] = useState<Record<string, number>>(
+    {}
+  );
 
-  const [playerCategoryFilter, setPlayerCategoryFilter] = useState<string>("Tümü");
+  const [playerCategoryFilter, setPlayerCategoryFilter] =
+    useState<string>("Tümü");
   const [playerQuery, setPlayerQuery] = useState<string>("");
 
   const [selPlayer, setSelPlayer] = useState("");
   const [giveMode, setGiveMode] = useState<"forma" | "malzeme">("forma");
-  const [handoverType, setHandoverType] = useState<"emanet" | "tam_teslim">("emanet");
+  const [handoverType, setHandoverType] = useState<"emanet" | "tam_teslim">(
+    "emanet"
+  );
   const [selJerseySet, setSelJerseySet] = useState("");
   const [selStockName, setSelStockName] = useState("Yağmurluk");
   const [itemSize, setItemSize] = useState("M");
@@ -110,7 +120,8 @@ export function StockAndGiveSection({
     return players.filter((p) => {
       const catOk =
         playerCategoryFilter === "Tümü" || p.age_group === playerCategoryFilter;
-      const nameOk = !q || p.full_name.toLocaleLowerCase("tr-TR").includes(q);
+      const nameOk =
+        !q || p.full_name.toLocaleLowerCase("tr-TR").includes(q);
       return catOk && nameOk;
     });
   }, [players, playerCategoryFilter, playerQuery]);
@@ -177,7 +188,7 @@ export function StockAndGiveSection({
           setSetName("");
           setSetPhotoFile(null);
           onStatus(
-            `✅ ${created.set_name} forma takımı eklendi (1-${created.total_quantity}).`
+            `${created.set_name} forma takımı eklendi (1-${created.total_quantity}).`
           );
         }
       } else {
@@ -216,7 +227,7 @@ export function StockAndGiveSection({
           setProdNumberInfo("");
           setHasNumberField(false);
           setProdPhotoFile(null);
-          onStatus("✅ Yeni malzeme stoğu eklendi.");
+          onStatus("Yeni malzeme stoğu eklendi.");
         }
       }
     } finally {
@@ -244,7 +255,7 @@ export function StockAndGiveSection({
         prev.map((s) => (s.id === editingStock.id ? (data as StockItem) : s))
       );
       setEditingStock(null);
-      onStatus("✅ Ürün bilgileri güncellendi.");
+      onStatus("Ürün bilgileri güncellendi.");
     }
   }
 
@@ -262,7 +273,7 @@ export function StockAndGiveSection({
       setStockItems((prev) =>
         prev.map((s) => (s.id === stockId ? { ...s, photo_url: url } : s))
       );
-      onStatus("✅ Ürün görseli güncellendi.");
+      onStatus("Ürün görseli güncellendi.");
     }
   }
 
@@ -276,7 +287,9 @@ export function StockAndGiveSection({
   async function handleMarkStockMissing(stockItem: StockItem) {
     const targetPlayerId = effectivePlayerId || players[0]?.id;
     if (!targetPlayerId) {
-      onStatus("Eksik/kayıp kaydı için önce en az 1 sporcu kaydı bulunmalıdır.");
+      onStatus(
+        "Eksik/kayıp kaydı için önce en az 1 sporcu kaydı bulunmalıdır."
+      );
       return;
     }
 
@@ -300,7 +313,9 @@ export function StockAndGiveSection({
     }
     if (data) {
       setLogs((prev) => [data as EquipmentLog, ...prev]);
-      onStatus(`⚠️ "${stockItem.product_name}" tekil olarak Eksik / Kayıp işaretlendi.`);
+      onStatus(
+        `"${stockItem.product_name}" tekil olarak Eksik / Kayıp işaretlendi.`
+      );
     }
   }
 
@@ -318,9 +333,11 @@ export function StockAndGiveSection({
           l.jersey_number_given === parsedNum
       );
       if (existingHolderLog) {
-        const holder = players.find((p) => p.id === existingHolderLog.player_id);
+        const holder = players.find(
+          (p) => p.id === existingHolderLog.player_id
+        );
         const proceed = confirm(
-          `⚠️ #${parsedNum} numaralı forma şu an "${
+          `#${parsedNum} numaralı forma şu an "${
             holder?.full_name || "başka bir sporcu"
           }" üzerinde görünüyor. Yine de teslim etmek istiyor musunuz?`
         );
@@ -389,7 +406,7 @@ export function StockAndGiveSection({
       }
 
       setJerseyNo("");
-      onStatus(`✅ ${handoverLabel} kaydı oluşturuldu.`);
+      onStatus(`${handoverLabel} kaydı oluşturuldu.`);
     }
   }
 
@@ -399,14 +416,14 @@ export function StockAndGiveSection({
     : [];
 
   return (
-    <div className="space-y-6 text-slate-900">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       <form
         onSubmit={handleGiveItem}
-        className="bg-white rounded-2xl border-2 border-[#02274c]/25 p-6 space-y-4 shadow-xs"
+        className="bg-[var(--bg-surface)] rounded-2xl border-2 border-[var(--brand-navy)]/30 p-6 space-y-4 shadow-xs"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-extrabold text-[#02274c]">
-            ⚡ Hızlı Forma / Malzeme Teslim Et
+          <h3 className="text-lg font-black text-[var(--text-primary)]">
+            Hızlı Forma / Malzeme Teslim Et
           </h3>
           <div className="flex gap-2">
             <button
@@ -414,8 +431,8 @@ export function StockAndGiveSection({
               onClick={() => setGiveMode("forma")}
               className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer ${
                 giveMode === "forma"
-                  ? "bg-[#a60513] text-white"
-                  : "border border-slate-300 bg-white text-slate-800"
+                  ? "bg-[var(--brand-red)] text-white"
+                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
               }`}
             >
               Forma Ver
@@ -425,8 +442,8 @@ export function StockAndGiveSection({
               onClick={() => setGiveMode("malzeme")}
               className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer ${
                 giveMode === "malzeme"
-                  ? "bg-[#a60513] text-white"
-                  : "border border-slate-300 bg-white text-slate-800"
+                  ? "bg-[var(--brand-red)] text-white"
+                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
               }`}
             >
               Diğer Malzeme Ver
@@ -434,11 +451,11 @@ export function StockAndGiveSection({
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+        <div className="grid sm:grid-cols-3 gap-3 bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-subtle)]">
           <select
             value={playerCategoryFilter}
             onChange={(e) => setPlayerCategoryFilter(e.target.value)}
-            className="min-h-[42px] px-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm font-bold text-[#02274c]"
+            className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] text-xs sm:text-sm font-bold text-[var(--text-primary)]"
           >
             <option value="Tümü">Kategori: Tüm Yaş Grupları</option>
             {AGE_GROUPS.map((g) => (
@@ -453,7 +470,7 @@ export function StockAndGiveSection({
             value={playerQuery}
             onChange={(e) => setPlayerQuery(e.target.value)}
             placeholder="Oyuncu adı yazarak hızlı bul..."
-            className="sm:col-span-2 min-h-[42px] px-3 rounded-xl border border-slate-300 bg-white text-xs sm:text-sm text-slate-900"
+            className="sm:col-span-2 min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] text-xs sm:text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
           />
         </div>
 
@@ -461,7 +478,7 @@ export function StockAndGiveSection({
           <select
             value={effectivePlayerId}
             onChange={(e) => setSelPlayer(e.target.value)}
-            className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+            className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
           >
             {filteredPlayers.length === 0 ? (
               <option value="">Eşleşen oyuncu bulunamadı</option>
@@ -479,17 +496,17 @@ export function StockAndGiveSection({
             onChange={(e) =>
               setHandoverType(e.target.value as "emanet" | "tam_teslim")
             }
-            className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+            className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
           >
-            <option value="emanet">🔄 Emanet</option>
-            <option value="tam_teslim">✅ Tam Teslim</option>
+            <option value="emanet">Emanet</option>
+            <option value="tam_teslim">Tam Teslim</option>
           </select>
 
           {giveMode === "forma" ? (
             <select
               value={effectiveJerseySetId}
               onChange={(e) => setSelJerseySet(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
             >
               {jerseySets.map((j) => (
                 <option key={j.id} value={j.id}>
@@ -501,7 +518,7 @@ export function StockAndGiveSection({
             <select
               value={effectiveStockName}
               onChange={(e) => setSelStockName(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
             >
               {stockItems.map((s) => (
                 <option key={s.id} value={s.product_name}>
@@ -522,7 +539,7 @@ export function StockAndGiveSection({
                 );
                 if (found) setItemSize(found.size || "M");
               }}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
             >
               <option value="">-- Forma No Seç --</option>
               {selectedSetPieces.map((piece) => {
@@ -538,7 +555,7 @@ export function StockAndGiveSection({
                 return (
                   <option key={piece.id} value={piece.number}>
                     #{piece.number} ({piece.size || "M"}){" "}
-                    {piece.is_goalkeeper ? "🧤 Kaleci" : ""}{" "}
+                    {piece.is_goalkeeper ? "[Kaleci]" : ""}{" "}
                     {holder ? `[Zimmetli: ${holder.full_name}]` : "[Boşta]"}
                   </option>
                 );
@@ -556,14 +573,14 @@ export function StockAndGiveSection({
               }
               value={jerseyNo}
               onChange={(e) => setJerseyNo(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 text-sm bg-white"
+              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
             />
           )}
 
           <select
             value={itemSize}
             onChange={(e) => setItemSize(e.target.value)}
-            className="min-h-[46px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+            className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
           >
             {SIZE_OPTIONS.map((sz) => (
               <option key={sz} value={sz}>
@@ -585,15 +602,16 @@ export function StockAndGiveSection({
 
       <form
         onSubmit={handleUnifiedCreate}
-        className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4"
+        className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-extrabold text-[#02274c]">
+            <h3 className="text-base font-black text-[var(--text-primary)]">
               Yeni Kayıt Ekle (Forma Takımı veya Malzeme Stok)
             </h3>
-            <p className="text-xs text-slate-500">
-              Eklemek istediğiniz türü seçin; diğer malzemelerde isterseniz numara bilgisi ekleyin.
+            <p className="text-xs text-[var(--text-secondary)]">
+              Eklemek istediğiniz türü seçin; diğer malzemelerde isterseniz
+              numara bilgisi ekleyin.
             </p>
           </div>
           <div className="flex gap-2">
@@ -602,22 +620,22 @@ export function StockAndGiveSection({
               onClick={() => setCreateType("forma_takimi")}
               className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer ${
                 createType === "forma_takimi"
-                  ? "bg-[#02274c] text-white"
-                  : "border border-slate-300 bg-slate-50 text-slate-800"
+                  ? "bg-[var(--brand-navy)] text-white"
+                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
               }`}
             >
-              👕 Forma Takımı Oluştur
+              Forma Takımı Oluştur
             </button>
             <button
               type="button"
               onClick={() => setCreateType("malzeme_stok")}
               className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer ${
                 createType === "malzeme_stok"
-                  ? "bg-[#a60513] text-white"
-                  : "border border-slate-300 bg-slate-50 text-slate-800"
+                  ? "bg-[var(--brand-red)] text-white"
+                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
               }`}
             >
-              📦 Yeni Malzeme Stok
+              Yeni Malzeme Stok
             </button>
           </div>
         </div>
@@ -631,14 +649,14 @@ export function StockAndGiveSection({
                 placeholder="Forma Takımı Adı (Örn: 2026 Çubuklu)"
                 value={setName}
                 onChange={(e) => setSetName(e.target.value)}
-                className="sm:col-span-2 min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+                className="sm:col-span-2 min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
               />
               <select
                 value={kitType}
                 onChange={(e) =>
                   setKitType(e.target.value as JerseySet["kit_type"])
                 }
-                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 font-bold text-sm bg-white"
+                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
               >
                 <option value="Ev">Ev Forması</option>
                 <option value="Deplasman">Deplasman Forması</option>
@@ -652,19 +670,19 @@ export function StockAndGiveSection({
                 placeholder="Adet (1..N)"
                 value={setQty}
                 onChange={(e) => setSetQty(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
               />
             </div>
 
             <div className="grid sm:grid-cols-3 gap-3 items-center">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                   Varsayılan Beden
                 </label>
                 <select
                   value={defaultJerseySize}
                   onChange={(e) => setDefaultJerseySize(e.target.value)}
-                  className="w-full min-h-[42px] px-3 rounded-xl border-2 border-slate-300 text-sm font-bold bg-white"
+                  className="w-full min-h-[42px] px-3 rounded-xl border-2 border-[var(--border-strong)] text-sm font-bold bg-[var(--bg-subtle)] text-[var(--text-primary)]"
                 >
                   {SIZE_OPTIONS.map((sz) => (
                     <option key={sz} value={sz}>
@@ -674,24 +692,24 @@ export function StockAndGiveSection({
                 </select>
               </div>
 
-              <label className="flex items-center gap-2 text-xs font-bold text-[#02274c] bg-slate-50 p-3 rounded-xl border border-slate-200 cursor-pointer">
+              <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-subtle)] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={gkDefault1And12}
                   onChange={(e) => setGkDefault1And12(e.target.checked)}
                 />
-                🧤 1 ve 12 numaralar ön tanımlı Kaleci Forması olsun
+                1 ve 12 numaralar ön tanımlı Kaleci Forması olsun
               </label>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                   Forma Görseli (İsteğe Bağlı)
                 </label>
                 <input
                   type="file"
                   accept="image/*"
                   onChange={(e) => setSetPhotoFile(e.target.files?.[0] || null)}
-                  className="w-full text-xs text-slate-700"
+                  className="w-full text-xs text-[var(--text-secondary)]"
                 />
               </div>
             </div>
@@ -699,7 +717,7 @@ export function StockAndGiveSection({
             <button
               type="submit"
               disabled={savingCreate}
-              className="px-6 min-h-[44px] rounded-xl bg-[#a60513] text-white font-extrabold text-sm cursor-pointer"
+              className="px-6 min-h-[44px] rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold text-sm cursor-pointer"
             >
               {savingCreate
                 ? "Oluşturuluyor..."
@@ -715,28 +733,28 @@ export function StockAndGiveSection({
                 placeholder="Ürün Adı (Örn: Eşofman Takımı, Yağmurluk)"
                 value={prodName}
                 onChange={(e) => setProdName(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
               />
               <input
                 type="text"
                 placeholder="Kategori (Dış Giyim, Eşofman...)"
                 value={prodCat}
                 onChange={(e) => setProdCat(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
               />
               <input
                 type="number"
                 placeholder="Stok Adedi"
                 value={prodCount}
                 onChange={(e) => setProdCount(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
               />
               <input
                 type="text"
                 placeholder="Bedenler (Örn: S, M, L, XL)"
                 value={prodSizeInfo}
                 onChange={(e) => setProdSizeInfo(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-slate-300 text-sm"
+                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
               />
             </div>
 
@@ -746,11 +764,11 @@ export function StockAndGiveSection({
                 onClick={() => setHasNumberField((prev) => !prev)}
                 className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border cursor-pointer ${
                   hasNumberField
-                    ? "bg-[#02274c] text-white border-[#02274c]"
-                    : "bg-slate-50 text-[#02274c] border-slate-300"
+                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-strong)]"
                 }`}
               >
-                {hasNumberField ? "✕ Numara Alanını Kapat" : "+ Numara Ekle"}
+                {hasNumberField ? "Numara Alanını Kapat" : "+ Numara Ekle"}
               </button>
 
               {hasNumberField && (
@@ -759,7 +777,7 @@ export function StockAndGiveSection({
                   placeholder="Numara bilgisi girin (Örn: #1-#20 veya #5)"
                   value={prodNumberInfo}
                   onChange={(e) => setProdNumberInfo(e.target.value)}
-                  className="min-h-[40px] px-3 rounded-xl border-2 border-[#02274c]/40 text-xs sm:text-sm font-bold text-[#02274c] bg-sky-50/40"
+                  className="min-h-[40px] px-3 rounded-xl border-2 border-[var(--brand-navy)]/40 text-xs sm:text-sm font-bold text-[var(--text-primary)] bg-[var(--brand-navy-soft)]"
                 />
               )}
             </div>
@@ -769,12 +787,12 @@ export function StockAndGiveSection({
                 type="file"
                 accept="image/*"
                 onChange={(e) => setProdPhotoFile(e.target.files?.[0] || null)}
-                className="text-xs text-slate-700"
+                className="text-xs text-[var(--text-secondary)]"
               />
               <button
                 type="submit"
                 disabled={savingCreate}
-                className="px-6 min-h-[44px] rounded-xl bg-[#02274c] text-white font-extrabold text-sm cursor-pointer"
+                className="px-6 min-h-[44px] rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold text-sm cursor-pointer"
               >
                 {savingCreate ? "Ekleniyor..." : "Yeni Ürün Stoğu Ekle"}
               </button>
@@ -786,16 +804,16 @@ export function StockAndGiveSection({
       {editingStock && (
         <form
           onSubmit={handleSaveStockEdit}
-          className="bg-white rounded-2xl border-2 border-[#a60513] p-5 space-y-3"
+          className="bg-[var(--bg-surface)] rounded-2xl border-2 border-[var(--brand-red)] p-5 space-y-3"
         >
           <div className="flex justify-between items-center">
-            <h4 className="font-extrabold text-[#02274c] text-sm">
+            <h4 className="font-black text-[var(--text-primary)] text-sm">
               Ürün Düzenle: {editingStock.product_name}
             </h4>
             <button
               type="button"
               onClick={() => setEditingStock(null)}
-              className="text-xs text-slate-600 underline cursor-pointer"
+              className="text-xs text-[var(--text-secondary)] underline cursor-pointer"
             >
               Vazgeç
             </button>
@@ -811,7 +829,7 @@ export function StockAndGiveSection({
                   product_name: e.target.value,
                 })
               }
-              className="min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm"
+              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
             />
             <input
               type="text"
@@ -819,7 +837,7 @@ export function StockAndGiveSection({
               onChange={(e) =>
                 setEditingStock({ ...editingStock, category: e.target.value })
               }
-              className="min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm"
+              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
             />
             <input
               type="number"
@@ -830,7 +848,7 @@ export function StockAndGiveSection({
                   stock_count: Number(e.target.value),
                 })
               }
-              className="min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm"
+              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
             />
             <input
               type="text"
@@ -839,14 +857,14 @@ export function StockAndGiveSection({
               onChange={(e) =>
                 setEditingStock({ ...editingStock, size_info: e.target.value })
               }
-              className="min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm"
+              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
             />
           </div>
           <button
             type="submit"
-            className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-extrabold cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer"
           >
-            ✓ Değişiklikleri Kaydet
+            Değişiklikleri Kaydet
           </button>
         </form>
       )}
@@ -855,48 +873,48 @@ export function StockAndGiveSection({
         {stockItems.map((s) => (
           <div
             key={s.id}
-            className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm"
+            className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden shadow-xs"
           >
             {s.photo_url ? (
               <img
                 src={s.photo_url}
                 alt={s.product_name}
-                className="w-full h-36 object-cover bg-slate-100"
+                className="w-full h-36 object-cover bg-[var(--bg-subtle)]"
               />
             ) : (
-              <div className="w-full h-24 bg-slate-100 flex items-center justify-center text-slate-500 text-xs font-bold">
+              <div className="w-full h-24 bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--text-muted)] text-xs font-bold">
                 Görsel Yok
               </div>
             )}
             <div className="p-4 space-y-2">
               <div className="flex justify-between items-start gap-2">
                 <div>
-                  <span className="text-[11px] font-bold text-[#a60513] uppercase">
+                  <span className="text-[11px] font-bold text-[var(--brand-red)] uppercase">
                     {s.category}
                   </span>
-                  <h4 className="font-extrabold text-[#02274c]">
+                  <h4 className="font-black text-[var(--text-primary)]">
                     {s.product_name}
                   </h4>
                 </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-xs font-extrabold text-slate-800">
+                <span className="px-2.5 py-0.5 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)]">
                   {s.stock_count} adet
                 </span>
               </div>
               {s.size_info && (
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-[var(--text-secondary)]">
                   Bedenler: {s.size_info}
                 </p>
               )}
 
-              <div className="pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 items-center">
+              <div className="pt-2 border-t border-[var(--border-subtle)] flex flex-wrap gap-1.5 items-center">
                 <button
                   type="button"
                   onClick={() => setEditingStock({ ...s })}
-                  className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-bold cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold cursor-pointer"
                 >
-                  ✏️ Düzenle
+                  Düzenle
                 </button>
-                                <div className="inline-flex items-center gap-1">
+                <div className="inline-flex items-center gap-1">
                   <select
                     aria-label={`${s.product_name} eksik/kayıp adet`}
                     value={missingQtyById[s.id] || 1}
@@ -906,7 +924,7 @@ export function StockAndGiveSection({
                         [s.id]: Number(e.target.value) || 1,
                       }))
                     }
-                    className="rounded-lg border border-amber-300 bg-white text-slate-900 px-2 py-1 text-xs font-extrabold"
+                    className="rounded-lg border border-amber-400/70 bg-[var(--bg-subtle)] text-[var(--text-primary)] px-2 py-1 text-xs font-extrabold"
                   >
                     {Array.from(
                       { length: Math.max(1, Number(s.stock_count) || 1) },
@@ -920,13 +938,13 @@ export function StockAndGiveSection({
                   <button
                     type="button"
                     onClick={() => handleMarkStockMissing(s)}
-                    className="px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-950 text-xs font-extrabold cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-[var(--status-warning-bg)] hover:opacity-85 text-[var(--status-warning-text)] text-xs font-extrabold cursor-pointer"
                   >
-                    ⚠️ Eksik / Kayıp
+                    Eksik / Kayıp
                   </button>
                 </div>
-                <label className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer">
-                  📷 Görsel {s.photo_url ? "Değiştir" : "Ekle"}
+                <label className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs font-bold cursor-pointer">
+                  Görsel {s.photo_url ? "Değiştir" : "Ekle"}
                   <input
                     type="file"
                     accept="image/*"
@@ -940,7 +958,7 @@ export function StockAndGiveSection({
                 <button
                   type="button"
                   onClick={() => handleDeleteStock(s.id, s.product_name)}
-                  className="px-2.5 py-1 rounded-lg bg-red-100 text-red-800 text-xs font-bold cursor-pointer ml-auto"
+                  className="px-2.5 py-1 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-bold cursor-pointer ml-auto"
                 >
                   Sil
                 </button>

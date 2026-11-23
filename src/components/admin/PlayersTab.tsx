@@ -1,3 +1,4 @@
+// PlayersTab.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -28,7 +29,7 @@ interface PlayersTabProps {
 }
 
 const fieldClass =
-  "border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[#02274c] focus:border-[#02274c]";
+  "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]";
 
 export function PlayersTab({
   role,
@@ -127,7 +128,7 @@ export function PlayersTab({
       `${p.full_name} oyuncusuna ${label} puan uygulandı (Yeni puan: ${nextPts}).`
     );
     onFeedback(
-      `✅ ${p.full_name} puanı ${nextPts} olarak güncellendi (${label}).`
+      `${p.full_name} puanı ${nextPts} olarak güncellendi (${label}).`
     );
   }
 
@@ -152,7 +153,7 @@ export function PlayersTab({
       `${player.full_name} mevkisi "${newPosition}" yapıldı.`
     );
     onFeedback(
-      `✅ ${player.full_name} mevkisi "${newPosition}" olarak güncellendi.`
+      `${player.full_name} mevkisi "${newPosition}" olarak güncellendi.`
     );
   }
 
@@ -185,7 +186,7 @@ export function PlayersTab({
       `${player.full_name} için ikinci kategori: ${cleanSecond || "Yok"}`
     );
     onFeedback(
-      `✅ ${player.full_name} ikinci kategorisi güncellendi (${
+      `${player.full_name} ikinci kategorisi güncellendi (${
         cleanSecond || "Yok"
       }).`
     );
@@ -219,7 +220,7 @@ export function PlayersTab({
       "Temsilci Grubu Güncelleme",
       `${player.full_name} temsilcilik kapsamı: ${repGroup || "Tümü"}`
     );
-    onFeedback(`✅ ${player.full_name} temsilci grubu: ${repGroup || "Tümü"}`);
+    onFeedback(`${player.full_name} temsilci grubu: ${repGroup || "Tümü"}`);
   }
 
   async function addPlayer(e: React.FormEvent) {
@@ -273,7 +274,7 @@ export function PlayersTab({
       }) eklendi — ID: ${autoCode} | Ön yüklü 20 puan`
     );
     onFeedback(
-      `✅ ${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin} | 20 Puan`
+      `${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin} | 20 Puan`
     );
     setNewPlayer({
       full_name: "",
@@ -339,7 +340,7 @@ export function PlayersTab({
       }) bilgileri güncellendi.`
     );
     onFeedback(
-      `✅ ${editingPlayer.full_name} bilgileri güncellendi (${updatedAgeGroup}${
+      `${editingPlayer.full_name} bilgileri güncellendi (${updatedAgeGroup}${
         cleanSecondGroup ? ` / ${cleanSecondGroup}` : ""
       }).`
     );
@@ -353,15 +354,15 @@ export function PlayersTab({
     await supabase.from("players").delete().eq("id", id);
     await onLogActivity("Oyuncu Silme", `${name} kadrodan silindi.`);
     setPlayers((prev) => prev.filter((p) => p.id !== id));
-    onFeedback(`🗑️ ${name} kadrodan silindi.`);
+    onFeedback(`${name} kadrodan silindi.`);
   }
 
   return (
-    <div className="space-y-6 text-slate-900">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       {role === "admin" && flaggedPlayersCount > 0 && (
-        <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-sm font-medium">
+        <div className="p-4 rounded-2xl bg-[var(--status-warning-bg)]/55 border border-amber-400/50 text-[var(--text-primary)] text-sm font-medium">
           <strong>
-            ⚠️ Kontrol Edilmesi Gereken {flaggedPlayersCount} Oyuncu Var:
+            Kontrol Edilmesi Gereken {flaggedPlayersCount} Oyuncu Var:
           </strong>{" "}
           Doğum tarihi eksik, isim hatalı veya çift kayıtlar aşağıda
           işaretlendi.
@@ -371,23 +372,23 @@ export function PlayersTab({
       {canManageCategories && editingPlayer && (
         <form
           onSubmit={savePlayerEdit}
-          className="bg-white p-5 rounded-2xl shadow-md border-2 border-[#a60513] space-y-4 text-slate-900"
+          className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-md border-2 border-[var(--brand-red)] space-y-4 text-[var(--text-primary)]"
         >
           <div className="flex justify-between items-center">
-            <h2 className="text-lg font-extrabold text-[#02274c]">
-              Oyuncu Bilgilerini & Kategorilerini Düzenle
+            <h2 className="text-lg font-black text-[var(--text-primary)]">
+              Oyuncu Bilgilerini &amp; Kategorilerini Düzenle
             </h2>
             <button
               type="button"
               onClick={() => setEditingPlayer(null)}
-              className="text-sm font-semibold text-slate-700 hover:text-slate-950 underline cursor-pointer"
+              className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline cursor-pointer"
             >
               Vazgeç
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Ad Soyad
               </label>
               <input
@@ -404,7 +405,7 @@ export function PlayersTab({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Doğum Tarihi (Kadro Yaş Kuralı)
               </label>
               <input
@@ -421,7 +422,7 @@ export function PlayersTab({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Ana Kategori
               </label>
               <select
@@ -442,7 +443,7 @@ export function PlayersTab({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 İkinci Kategori (Bildirim İçin)
               </label>
               <select
@@ -466,7 +467,7 @@ export function PlayersTab({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Telefon
               </label>
               <input
@@ -483,7 +484,7 @@ export function PlayersTab({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Mevki
               </label>
               <select
@@ -504,7 +505,7 @@ export function PlayersTab({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Forma No
               </label>
               <input
@@ -524,7 +525,7 @@ export function PlayersTab({
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Lisans No
               </label>
               <input
@@ -545,7 +546,7 @@ export function PlayersTab({
           {role === "admin" && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                   Oyuncu ID
                 </label>
                 <input
@@ -561,7 +562,7 @@ export function PlayersTab({
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                   Şifre
                 </label>
                 <input
@@ -577,7 +578,7 @@ export function PlayersTab({
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                   Temsilci Grubu (Varsayılan: Tüm Takım)
                 </label>
                 <select
@@ -614,13 +615,13 @@ export function PlayersTab({
                         bound_device_id: null,
                       })
                     }
-                    className="border border-amber-400 bg-amber-50 text-amber-950 rounded-lg px-3 py-2 text-xs font-bold cursor-pointer"
+                    className="border border-amber-400 bg-[var(--status-warning-bg)]/50 text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-bold cursor-pointer"
                   >
                     {editingPlayer.bound_device_id
-                      ? "📱 Cihaz Kilidini Sıfırla"
-                      : "📱 Cihaz Bağlı Değil"}
+                      ? "Cihaz Kilidini Sıfırla"
+                      : "Cihaz Bağlı Değil"}
                   </button>
-                  <label className="flex items-center gap-2 text-sm font-bold text-[#02274c] cursor-pointer">
+                  <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={Boolean(editingPlayer.is_representative)}
@@ -642,7 +643,7 @@ export function PlayersTab({
             </div>
             <button
               type="submit"
-              className="bg-[#02274c] hover:bg-[#033669] text-white font-bold px-6 py-2 rounded-lg text-sm cursor-pointer"
+              className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
             >
               Değişiklikleri Kaydet
             </button>
@@ -653,9 +654,9 @@ export function PlayersTab({
       {role === "admin" && (
         <form
           onSubmit={addPlayer}
-          className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3 text-slate-900"
+          className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3"
         >
-          <h2 className="font-bold text-[#02274c]">
+          <h2 className="font-black text-[var(--text-primary)]">
             Yeni Oyuncu Ekle (Ön Yüklü 20 Puan)
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
@@ -753,7 +754,7 @@ export function PlayersTab({
             <div className="md:col-span-3 flex justify-end">
               <button
                 type="submit"
-                className="bg-[#a60513] hover:bg-red-700 text-white font-bold rounded-lg px-5 py-2 text-sm cursor-pointer"
+                className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold rounded-xl px-5 py-2.5 text-sm cursor-pointer"
               >
                 Oyuncu Ekle
               </button>
@@ -762,7 +763,7 @@ export function PlayersTab({
         </form>
       )}
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4 text-slate-900">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div className="flex flex-wrap gap-1.5">
             {["Tümü", ...AGE_GROUPS].map((g) => (
@@ -772,8 +773,8 @@ export function PlayersTab({
                 onClick={() => setSelectedGroupFilter(g)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
                   selectedGroupFilter === g
-                    ? "bg-[#02274c] text-white border-[#02274c]"
-                    : "bg-white text-slate-800 border-slate-300 hover:bg-slate-50"
+                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
                 }`}
               >
                 {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
@@ -783,8 +784,8 @@ export function PlayersTab({
 
           <div className="flex flex-wrap items-center gap-2">
             {role === "admin" && (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
-                <span className="text-xs font-bold text-slate-700">
+              <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl px-2.5 py-1.5">
+                <span className="text-xs font-bold text-[var(--text-secondary)]">
                   Puan Miktarı:
                 </span>
                 <input
@@ -795,7 +796,7 @@ export function PlayersTab({
                   onChange={(e) =>
                     setPointStep(Math.max(1, Number(e.target.value) || 1))
                   }
-                  className="w-14 border border-slate-300 bg-white rounded px-2 py-0.5 text-xs font-bold text-slate-900"
+                  className="w-14 border border-[var(--border-strong)] bg-[var(--bg-surface)] rounded px-2 py-0.5 text-xs font-bold text-[var(--text-primary)]"
                 />
               </div>
             )}
@@ -811,15 +812,15 @@ export function PlayersTab({
         {groupedPlayers.map(({ group, items }) => (
           <div
             key={group}
-            className="border border-slate-200 rounded-xl overflow-hidden"
+            className="border border-[var(--border-subtle)] rounded-xl overflow-hidden"
           >
-            <div className="bg-[#02274c] text-white px-4 py-2 font-bold text-sm flex justify-between">
+            <div className="bg-[var(--brand-navy)] text-white px-4 py-2 font-bold text-sm flex justify-between">
               <span>{group} Kategorisi</span>
               <span>{items.length} Oyuncu</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left text-slate-900">
-                <thead className="bg-slate-100 text-[#02274c] text-xs font-extrabold">
+              <table className="w-full text-sm text-left text-[var(--text-primary)]">
+                <thead className="bg-[var(--bg-subtle)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold border-b border-[var(--border-subtle)]">
                   <tr>
                     <th className="p-2.5">Ad Soyad</th>
                     <th className="p-2.5">Doğum Tarihi</th>
@@ -830,7 +831,7 @@ export function PlayersTab({
                     {canManageCategories && <th className="p-2.5">İşlem</th>}
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-[var(--border-subtle)]">
                   {items.map((rawP) => {
                     const p = rawP as ExtendedPlayer;
                     const warnings =
@@ -840,33 +841,33 @@ export function PlayersTab({
                     return (
                       <tr
                         key={p.id}
-                        className={`border-b border-slate-200 ${
+                        className={
                           warnings.length > 0
-                            ? "bg-amber-50/70"
-                            : "bg-white hover:bg-slate-50"
-                        }`}
+                            ? "bg-[var(--status-warning-bg)]/35"
+                            : "bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]/70"
+                        }
                       >
-                        <td className="p-2.5 font-bold text-[#02274c]">
+                        <td className="p-2.5 font-bold text-[var(--text-primary)]">
                           {p.full_name}
                           {p.is_representative && (
-                            <span className="ml-2 text-[11px] bg-blue-100 text-blue-900 font-bold px-2 py-0.5 rounded-full">
+                            <span className="ml-2 text-[11px] bg-[var(--status-info-bg)] text-[var(--status-info-text)] font-bold px-2 py-0.5 rounded-full">
                               Temsilci ({p.representative_group || "Tüm Takım"})
                             </span>
                           )}
                           {warnings.map((w) => (
                             <span
                               key={w}
-                              className="inline-block ml-1 text-[11px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded"
+                              className="inline-block ml-1 text-[11px] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] font-bold px-2 py-0.5 rounded"
                             >
-                              ⚠️ {w}
+                              {w}
                             </span>
                           ))}
                         </td>
-                        <td className="p-2.5 text-xs font-medium text-slate-800">
+                        <td className="p-2.5 text-xs font-medium text-[var(--text-secondary)]">
                           {p.birth_date || "Eksik"}
                         </td>
                         <td className="p-2.5 text-xs space-y-1">
-                          <div className="font-bold text-[#02274c]">
+                          <div className="font-bold text-[var(--text-primary)]">
                             Ana: {p.age_group}
                           </div>
                           <select
@@ -875,7 +876,7 @@ export function PlayersTab({
                               updatePlayerSecondaryGroup(p, e.target.value)
                             }
                             aria-label={`${p.full_name} ikinci kategori`}
-                            className="border border-slate-300 bg-white rounded-lg px-2 py-1 text-[11px] font-bold text-slate-800"
+                            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                           >
                             <option value="">+ 2. Kategori Yok</option>
                             {AGE_GROUPS.filter((g) => g !== p.age_group).map(
@@ -893,7 +894,7 @@ export function PlayersTab({
                                 onChange={(e) =>
                                   updateRepresentativeGroup(p, e.target.value)
                                 }
-                                className="border border-blue-300 bg-blue-50 rounded-lg px-2 py-1 text-[11px] font-bold text-blue-950"
+                                className="border border-[var(--border-strong)] bg-[var(--status-info-bg)]/40 rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                               >
                                 <option value="Tümü">Temsil: Tüm Takım</option>
                                 {AGE_GROUPS.map((g) => (
@@ -905,14 +906,14 @@ export function PlayersTab({
                             </div>
                           )}
                         </td>
-                        <td className="p-2.5 text-xs text-slate-900">
+                        <td className="p-2.5 text-xs text-[var(--text-primary)]">
                           <div className="flex items-center gap-1.5">
                             <select
                               value={p.position || "Orta Saha"}
                               onChange={(e) =>
                                 updatePlayerPosition(p, e.target.value)
                               }
-                              className="border border-slate-300 bg-white rounded-lg px-2 py-1 text-xs font-bold text-[#02274c]"
+                              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-primary)]"
                             >
                               {POSITIONS.map((pos) => (
                                 <option key={pos} value={pos}>
@@ -921,17 +922,17 @@ export function PlayersTab({
                               ))}
                             </select>
                             {p.jersey_number ? (
-                              <span className="font-bold text-slate-800">
+                              <span className="font-bold text-[var(--text-secondary)]">
                                 #{p.jersey_number}
                               </span>
                             ) : null}
                           </div>
                         </td>
-                        <td className="p-2.5 text-xs font-extrabold text-[#02274c]">
+                        <td className="p-2.5 text-xs font-extrabold text-[var(--text-primary)]">
                           {p.skill_points ?? 20}p
                         </td>
                         {role === "admin" && (
-                          <td className="p-2.5 font-mono text-xs font-semibold text-slate-900">
+                          <td className="p-2.5 font-mono text-xs font-semibold text-[var(--text-secondary)]">
                             {p.player_code} / {p.player_pin || "1234"}
                           </td>
                         )}
@@ -960,7 +961,7 @@ export function PlayersTab({
                             <button
                               type="button"
                               onClick={() => setEditingPlayer(p)}
-                              className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                              className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
                             >
                               Düzenle
                             </button>
@@ -968,7 +969,7 @@ export function PlayersTab({
                               <button
                                 type="button"
                                 onClick={() => deletePlayer(p.id, p.full_name)}
-                                className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
                               >
                                 Sil
                               </button>

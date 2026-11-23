@@ -1,3 +1,4 @@
+// TasksTab.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -129,14 +130,15 @@ export function TasksTab({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: corumfitUrl.trim() || "https://corumfit.org/index.asp?id=hft_prg",
+          url:
+            corumfitUrl.trim() || "https://corumfit.org/index.asp?id=hft_prg",
           html: corumfitHtml.trim() ? corumfitHtml : undefined,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
         onFeedback(
-          `⚠️ Corumfit senkronizasyonu başarısız: ${
+          `Corumfit senkronizasyonu başarısız: ${
             data.error || "Bilinmeyen hata"
           }`
         );
@@ -151,13 +153,13 @@ export function TasksTab({
       );
       await onRefreshTasks();
       onFeedback(
-        `✅ Corumfit tarandı: ${data.foundUpcomingMatches ?? 0} güncel İkbalspor maçı bulundu, ${
+        `Corumfit tarandı: ${data.foundUpcomingMatches ?? 0} güncel İkbalspor maçı bulundu, ${
           data.insertedCount ?? 0
         } yeni maç eklendi.`
       );
     } catch (err) {
       onFeedback(
-        `⚠️ Senkronizasyon hatası: ${
+        `Senkronizasyon hatası: ${
           err instanceof Error ? err.message : "Bilinmeyen hata"
         }`
       );
@@ -207,13 +209,23 @@ export function TasksTab({
       has_shuttle: newTask.has_shuttle,
       age_group: newTask.age_group,
     });
-    const msg = `${baseMsg}\n📍 Konum Haritası: ${mapsLink}`;
+    const msg = `${baseMsg}\nKonum Haritası: ${mapsLink}`;
 
-    const taskCombined = `⚽ MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${newTask.title} (${newTask.age_group})\n${msg}`; await supabase.from("club_messages").insert({ body: taskCombined, message_text: taskCombined, age_group: newTask.age_group || "Tümü", sender_name: role === "coach" && activeCoach ? `Antrenör ${activeCoach.full_name}` : adminName || "Yönetici", created_at: new Date().toISOString() });
+    const taskCombined = `MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${newTask.title} (${newTask.age_group})\n${msg}`;
+    await supabase.from("club_messages").insert({
+      body: taskCombined,
+      message_text: taskCombined,
+      age_group: newTask.age_group || "Tümü",
+      sender_name:
+        role === "coach" && activeCoach
+          ? `Antrenör ${activeCoach.full_name}`
+          : adminName || "Yönetici",
+      created_at: new Date().toISOString(),
+    });
 
     const pushRes = await sendPushViaApi(
       ["Tümü"],
-      `⚽ Yeni Maç / Etkinlik: ${newTask.title}`,
+      `Yeni Maç / Etkinlik: ${newTask.title}`,
       `${formattedDate} ${newTask.match_time} • ${newTask.age_group} • ${finalLocation}`
     );
 
@@ -226,7 +238,7 @@ export function TasksTab({
       targets: players,
     });
     onFeedback(
-      `✅ Maç ve harita bağlantısı kaydedildi, tüm oyunculara bildirim gönderildi (${pushRes.sentCount} telefon)!`
+      `Maç ve harita bağlantısı kaydedildi, tüm oyunculara bildirim gönderildi (${pushRes.sentCount} telefon).`
     );
     setNewTask({
       title: "",
@@ -262,7 +274,7 @@ export function TasksTab({
       "Maç / Etkinlik Silme",
       `"${task.title}" (${task.age_group}, ${formatDisplayDate(task.event_date)}) silindi.`
     );
-    onFeedback(`🗑️ "${task.title}" silindi.`);
+    onFeedback(`"${task.title}" silindi.`);
     await onRefreshTasks();
   }
 
@@ -277,12 +289,19 @@ export function TasksTab({
       has_shuttle: t.has_shuttle ?? true,
       age_group: t.age_group,
     });
-    const msg = `${baseMsg}\n📍 Konum Haritası: ${mapsLink}`;
+    const msg = `${baseMsg}\nKonum Haritası: ${mapsLink}`;
 
-    const remCombined = `⏰ YARIN MAÇ VAR! ${t.title}\n${msg}`; await supabase.from("club_messages").insert({ body: remCombined, message_text: remCombined, age_group: t.age_group || "Tümü", sender_name: "Maç Hatırlatma", created_at: new Date().toISOString() });
+    const remCombined = `YARIN MAÇ VAR: ${t.title}\n${msg}`;
+    await supabase.from("club_messages").insert({
+      body: remCombined,
+      message_text: remCombined,
+      age_group: t.age_group || "Tümü",
+      sender_name: "Maç Hatırlatma",
+      created_at: new Date().toISOString(),
+    });
     const pushRes = await sendPushViaApi(
       ["Tümü"],
-      `⏰ YARIN MAÇ VAR! ${t.title}`,
+      `YARIN MAÇ VAR: ${t.title}`,
       `${formattedDate} ${t.match_time || "14:00"} • ${t.age_group} • ${t.location}`
     );
     await onLogActivity(
@@ -295,19 +314,19 @@ export function TasksTab({
       targets: players,
     });
     onFeedback(
-      `✅ Hatırlatma bildirimi tüm oyunculara gönderildi (${pushRes.sentCount} telefon)!`
+      `Hatırlatma bildirimi tüm oyunculara gönderildi (${pushRes.sentCount} telefon).`
     );
   }
 
   return (
-    <div className="space-y-6 text-slate-900">
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-base font-extrabold text-[#02274c]">
-              🔄 Corumfit Haftalık Maç Senkronizasyon Ajanı
+            <h2 className="text-base font-black text-[var(--text-primary)]">
+              Corumfit Haftalık Maç Senkronizasyon Ajanı
             </h2>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-[var(--text-secondary)]">
               Verilen sayfadaki güncel İkbalspor maçlarını çeker; bozuk/geçmiş
               tarihli maçları atlar ve çift kayıt oluşturmadan sisteme ekler.
             </p>
@@ -316,7 +335,7 @@ export function TasksTab({
             type="button"
             disabled={syncingCorumfit}
             onClick={handleSyncCorumfit}
-            className="bg-[#02274c] hover:bg-[#04376b] disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-lg cursor-pointer shrink-0"
+            className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] disabled:opacity-50 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer shrink-0 transition"
           >
             {syncingCorumfit ? "Taranıyor..." : "İkbalspor Maçlarını Çek"}
           </button>
@@ -327,28 +346,29 @@ export function TasksTab({
           value={corumfitUrl}
           onChange={(e) => setCorumfitUrl(e.target.value)}
           placeholder="https://corumfit.org/index.asp?id=hft_prg"
-          className="w-full border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-xs sm:text-sm"
+          className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs sm:text-sm"
         />
 
-        <details className="text-xs text-slate-600">
-          <summary className="cursor-pointer font-semibold text-[#02274c]">
-            Site sunucudan doğrudan çekilemezse sayfa HTML kaynağını buraya yapıştır
+        <details className="text-xs text-[var(--text-secondary)]">
+          <summary className="cursor-pointer font-semibold text-[var(--brand-navy)] dark:text-sky-300">
+            Site sunucudan doğrudan çekilemezse sayfa HTML kaynağını buraya
+            yapıştır
           </summary>
           <textarea
             rows={3}
             value={corumfitHtml}
             onChange={(e) => setCorumfitHtml(e.target.value)}
             placeholder="İsteğe bağlı: Corumfit sayfasının HTML kodu..."
-            className="mt-2 w-full border border-slate-300 bg-white text-slate-900 rounded-lg p-2.5 text-xs font-mono"
+            className="mt-2 w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl p-2.5 text-xs font-mono"
           />
         </details>
       </div>
 
       <form
         onSubmit={addTask}
-        className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4"
+        className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4"
       >
-        <h2 className="text-lg font-extrabold text-[#02274c]">
+        <h2 className="text-lg font-black text-[var(--text-primary)]">
           Yeni Maç / Etkinlik Ekle
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -357,14 +377,14 @@ export function TasksTab({
             placeholder="Başlık (Örn: İkbalspor - Çorumspor)"
             value={newTask.title}
             onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm md:col-span-2"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"
           />
           <select
             value={newTask.task_type}
             onChange={(e) =>
               setNewTask({ ...newTask, task_type: e.target.value })
             }
-            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
           >
             <option value="mac">Maç</option>
             <option value="etkinlik">Etkinlik</option>
@@ -374,7 +394,7 @@ export function TasksTab({
             onChange={(e) =>
               setNewTask({ ...newTask, age_group: e.target.value })
             }
-            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
           >
             {AGE_GROUPS.map((g) => (
               <option key={g}>{g}</option>
@@ -388,7 +408,7 @@ export function TasksTab({
               onChange={(e) =>
                 setNewTask({ ...newTask, event_date: e.target.value })
               }
-              className="border border-slate-300 bg-white text-slate-900 rounded-lg px-2 py-2 text-xs"
+              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-2 py-2 text-xs"
             />
             <input
               type="time"
@@ -397,7 +417,7 @@ export function TasksTab({
               onChange={(e) =>
                 setNewTask({ ...newTask, match_time: e.target.value })
               }
-              className="border border-slate-300 bg-white text-slate-900 rounded-lg px-2 py-2 text-xs"
+              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-2 py-2 text-xs"
             />
           </div>
         </div>
@@ -408,7 +428,7 @@ export function TasksTab({
             onChange={(e) =>
               setNewTask({ ...newTask, field_choice: e.target.value })
             }
-            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
           >
             {MATCH_FIELDS.map((f) => (
               <option key={f}>{f}</option>
@@ -423,11 +443,11 @@ export function TasksTab({
               onChange={(e) =>
                 setNewTask({ ...newTask, custom_location: e.target.value })
               }
-              className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
+              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
             />
           )}
 
-          <label className="flex items-center gap-2 text-sm font-bold text-[#02274c] bg-slate-50 p-2.5 rounded-lg border border-slate-200 cursor-pointer">
+          <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] p-2.5 rounded-xl border border-[var(--border-subtle)] cursor-pointer">
             <input
               type="checkbox"
               checked={newTask.has_shuttle}
@@ -436,13 +456,13 @@ export function TasksTab({
               }
             />
             {newTask.has_shuttle
-              ? "🚌 Servis Var (2 saat önce Nazmi Avluca'da)"
-              : "🚶 Servis Yok (1 saat önce maç sahasında)"}
+              ? "Servis Var (2 saat önce Nazmi Avluca'da)"
+              : "Servis Yok (1 saat önce maç sahasında)"}
           </label>
         </div>
 
-        <div className="text-xs text-slate-600 flex items-center gap-2">
-          <span>📍 Otomatik Harita Bağlantısı:</span>
+        <div className="text-xs text-[var(--text-secondary)] flex items-center gap-2">
+          <span>Otomatik Harita Bağlantısı:</span>
           <a
             href={buildMapsUrl(
               newTask.field_choice === "Diğer"
@@ -451,7 +471,7 @@ export function TasksTab({
             )}
             target="_blank"
             rel="noreferrer"
-            className="text-[#02274c] font-bold underline"
+            className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
           >
             Google Maps&apos;te Önizle
           </a>
@@ -459,17 +479,17 @@ export function TasksTab({
 
         <button
           type="submit"
-          className="bg-[#a60513] hover:bg-[#8a0410] text-white font-bold rounded-lg px-6 py-2.5 text-sm cursor-pointer"
+          className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold rounded-xl px-6 py-2.5 text-sm cursor-pointer transition"
         >
           Maçı / Etkinliği Kaydet &amp; Tüm Oyunculara Bildirim Gönder
         </button>
       </form>
 
       {matchWaPreview && (
-        <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl space-y-3">
+        <div className="bg-[var(--status-success-bg)]/60 border border-[var(--status-success-text)]/30 p-4 rounded-2xl space-y-3">
           <div className="flex flex-wrap justify-between items-center gap-2">
-            <h3 className="font-bold text-emerald-950">
-              📲 Maç / Etkinlik WhatsApp Mesajı
+            <h3 className="font-bold text-[var(--status-success-text)]">
+              Maç / Etkinlik WhatsApp Mesajı
             </h3>
             <a
               href={`https://wa.me/?text=${encodeURIComponent(
@@ -477,28 +497,30 @@ export function TasksTab({
               )}`}
               target="_blank"
               rel="noreferrer"
-              className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
+              className="bg-emerald-600 text-white text-xs font-extrabold px-4 py-2 rounded-xl"
             >
               WhatsApp Grubunda Paylaş
             </a>
           </div>
-          <pre className="text-xs bg-white p-3 rounded-lg border border-emerald-200 whitespace-pre-wrap text-slate-800">
+          <pre className="text-xs bg-[var(--bg-surface)] p-3 rounded-xl border border-[var(--border-subtle)] whitespace-pre-wrap text-[var(--text-primary)]">
             {matchWaPreview.message}
           </pre>
         </div>
       )}
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-        <h3 className="font-extrabold text-[#02274c] text-base">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
+        <h3 className="font-black text-[var(--text-primary)] text-base">
           Yaklaşan Maçlar &amp; Etkinlikler ({upcomingTasks.length})
         </h3>
         {upcomingTasks.length === 0 ? (
-          <p className="text-xs text-slate-500">Yaklaşan kayıt yok.</p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Yaklaşan kayıt yok.
+          </p>
         ) : (
           upcomingTasks.map((t) => (
             <div
               key={t.id}
-              className="border-b border-slate-100 pb-3 text-sm flex flex-wrap justify-between items-center gap-2"
+              className="border-b border-[var(--border-subtle)] last:border-b-0 pb-3 last:pb-0 text-sm flex flex-wrap justify-between items-center gap-2"
             >
               <div className="space-y-0.5">
                 <div>
@@ -506,14 +528,14 @@ export function TasksTab({
                   {formatDisplayDate(t.event_date)}{" "}
                   {t.match_time ? `• ${t.match_time}` : ""}
                 </div>
-                <div className="text-xs text-slate-600 flex flex-wrap items-center gap-2">
-                  <span>📍 {t.location || "Konum belirtilmedi"}</span>
+                <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center gap-2">
+                  <span>Yer: {t.location || "Konum belirtilmedi"}</span>
                   {t.location && (
                     <a
                       href={buildMapsUrl(t.location)}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[#02274c] font-bold underline"
+                      className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
                     >
                       Haritada Aç
                     </a>
@@ -526,13 +548,13 @@ export function TasksTab({
                   onClick={() => sendOneDayBeforeReminder(t)}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
                 >
-                  ⏰ Bildirim &amp; WP Gönder
+                  Bildirim &amp; WP Gönder
                 </button>
                 <button
                   type="button"
                   disabled={deletingId === t.id}
                   onClick={() => deleteTask(t)}
-                  className="bg-red-50 hover:bg-red-100 text-[#a60513] border border-red-200 text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
+                  className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--brand-red)] text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
                 >
                   {deletingId === t.id ? "Siliniyor..." : "Sil"}
                 </button>
@@ -543,18 +565,20 @@ export function TasksTab({
       </div>
 
       {pastTasks.length > 0 && (
-        <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2.5">
-          <h3 className="font-extrabold text-slate-700 text-sm">
+        <div className="bg-[var(--bg-subtle)] p-5 rounded-2xl border border-[var(--border-subtle)] space-y-2.5">
+          <h3 className="font-extrabold text-[var(--text-secondary)] text-sm">
             Geçmiş Maçlar &amp; Etkinlikler ({pastTasks.length})
           </h3>
           {pastTasks.slice(0, 20).map((t) => (
             <div
               key={t.id}
-              className="border-b border-slate-200/70 pb-2 text-xs text-slate-600 flex flex-wrap justify-between items-center gap-2"
+              className="border-b border-[var(--border-subtle)] last:border-b-0 pb-2 last:pb-0 text-xs text-[var(--text-secondary)] flex flex-wrap justify-between items-center gap-2"
             >
               <span>
-                <strong className="text-slate-800">{t.title}</strong> (
-                {t.age_group}) — {t.location || "-"}
+                <strong className="text-[var(--text-primary)]">
+                  {t.title}
+                </strong>{" "}
+                ({t.age_group}) — {t.location || "-"}
               </span>
               <div className="flex items-center gap-3">
                 <span className="font-mono">
@@ -565,7 +589,7 @@ export function TasksTab({
                   type="button"
                   disabled={deletingId === t.id}
                   onClick={() => deleteTask(t)}
-                  className="text-[#a60513] hover:underline font-bold cursor-pointer disabled:opacity-50"
+                  className="text-[var(--brand-red)] hover:underline font-bold cursor-pointer disabled:opacity-50"
                 >
                   Sil
                 </button>

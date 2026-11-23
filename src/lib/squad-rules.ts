@@ -1,6 +1,11 @@
 import { Player } from "@/types/club";
 import { calcAgeFromBirthDate } from "@/lib/club-utils";
 
+export const MIN_SQUAD_PLAYERS = 16;
+export const MAX_SQUAD_PLAYERS = 21;
+export const MIN_JERSEY_NUMBER = 1;
+export const MAX_JERSEY_NUMBER = 99;
+
 export type SquadPlayer = Pick<
   Player,
   | "id"
@@ -11,7 +16,9 @@ export type SquadPlayer = Pick<
   | "position"
   | "jersey_number"
   | "photo_url"
->;
+> & {
+  own_category_matches_count?: number | null;
+};
 
 export const SQUAD_CATEGORIES = [
   { key: "Minikler", label: "Minikler" },
@@ -221,19 +228,63 @@ export type EligibilityResult = {
   reason?: string;
 };
 
+function normalizeCategoryKey(category: string): string {
+  switch (category) {
+    case "SAL":
+    case "Çorum Süper Amatör Ligi":
+    case "Çorum Süper Amatör Ligi-GENEL":
+      return "Çorum Süper Amatör Ligi-GENEL";
+    case "U19":
+    case "Çorum Süper Amatör Ligi-U19":
+      return "Çorum Süper Amatör Ligi-U19";
+    case "U17":
+    case "Çorum Süper Amatör Ligi-U17":
+      return "Çorum Süper Amatör Ligi-U17";
+    case "U16":
+    case "Çorum Süper Amatör Ligi-U16":
+      return "Çorum Süper Amatör Ligi-U16";
+    case "U15":
+    case "Çorum Süper Amatör Ligi-U15":
+      return "Çorum Süper Amatör Ligi-U15";
+    case "U14":
+    case "Çorum Süper Amatör Ligi-U14":
+      return "Çorum Süper Amatör Ligi-U14";
+    case "U13":
+    case "Çorum Süper Amatör Ligi-U13":
+      return "Çorum Süper Amatör Ligi-U13";
+    default:
+      return category;
+  }
+}
+
+export function getCategoryQuotaLimit(categoryKey: string): number | null {
+  switch (normalizeCategoryKey(categoryKey)) {
+    case "Çorum Süper Amatör Ligi-U19":
+      return 3;
+    case "Çorum Süper Amatör Ligi-U15":
+    case "Çorum Süper Amatör Ligi-U14":
+      return 2;
+    default:
+      return null;
+  }
+}
+
 export function checkPlayerEligibility(
   player: SquadPlayer,
   categoryKey: string
 ): EligibilityResult {
-  const d = player.birth_date;
-  if (categoryKey === "Çorum Süper Amatör Ligi-GENEL") {
+  const normalized = normalizeCategoryKey(categoryKey);
+  const d = (player.birth_date || "").slice(0, 10);
+  const ownMatches = Number(player.own_category_matches_count ?? 0);
+
+  if (normalized === "Çorum Süper Amatör Ligi-GENEL") {
     return { eligible: true, isQuota: false };
   }
   if (!d) {
     return { eligible: false, isQuota: false, reason: "Doğum tarihi girilmemiş" };
   }
 
-  switch (categoryKey) {
+  switch (normalized) {
     case "Minikler": {
       const age = calcAgeFromBirthDate(d);
       const isTenOrUnder =
@@ -242,38 +293,89 @@ export function checkPlayerEligibility(
       return { eligible: isTenOrUnder, isQuota: false };
     }
 
+    case "Çorum Süper Amatör Ligi-U19":
+      if (d >= "2008-01-01" && d <= "2011-12-31") {
+        return { eligible: true, isQuota: false };
+      }
+      if (d >= "2007-01-01" && d <= "2007-12-31") {
+        return {
+          eligible: true,
+          isQuota: true,
+          reason: "2007 Kontenjan (En fazla 3 oyuncu)",
+        };
+      }
+      return {
+        eligible: false,
+        isQuota: false,
+        reason: "U19 için 2008–2011 doğum aralığı (veya 2007 kontenjan) gerekir",
+      };
+
+    case "Çorum Süper Amatör Ligi-U17":
+      return {
+        eligible: d >= "2010-01-01",
+        isQuota: false,
+        reason: d >= "2010-01-01" ? undefined : "U17 için 01.01.2010 ve sonrası gerekir",
+      };
+
+    case "Çorum Süper Amatör Ligi-U16":
+      return {
+        eligible: d >= "2011-01-01",
+        isQuota: false,
+        reason: d >= "2011-01-01" ? undefined : "U16 için 01.01.2011 ve sonrası gerekir",
+      };
+
+    case "Çorum Süper Amatör Ligi-U15":
+      if (d >= "2012-01-01") {
+        return { eligible: true, isQuota: false };
+      }
+      if (d >= "2011-10-01" && d <= "2011-12-31") {
+        if (ownMatches >= 6) {
+          return {
+            eligible: false,
+            isQuota: false,
+            reason: "Kendi kategorisinde 6+ maç oynadığı için alt yaşta oynayamaz",
+          };
+        }
+        return {
+          eligible: true,
+          isQuota: true,
+          reason: "Ekim–Aralık 2011 Kontenjan (En fazla 2 oyuncu)",
+        };
+      }
+      return {
+        eligible: false,
+        isQuota: false,
+        reason: "U15 için 01.01.2012 ve sonrası (veya 10–12.2011 kontenjan) gerekir",
+      };
+
+    case "Çorum Süper Amatör Ligi-U14":
+      if (d >= "2013-01-01") {
+        return { eligible: true, isQuota: false };
+      }
+      if (d >= "2012-10-01" && d <= "2012-12-31") {
+        if (ownMatches >= 6) {
+          return {
+            eligible: false,
+            isQuota: false,
+            reason: "Kendi kategorisinde 6+ maç oynadığı için alt yaşta oynayamaz",
+          };
+        }
+        return {
+          eligible: true,
+          isQuota: true,
+          reason: "Ekim–Aralık 2012 Kontenjan (En fazla 2 oyuncu)",
+        };
+      }
+      return {
+        eligible: false,
+        isQuota: false,
+        reason: "U14 için 01.01.2013 ve sonrası (veya 10–12.2012 kontenjan) gerekir",
+      };
+
     case "Çorum Süper Amatör Ligi-U13":
       if (d >= "2013-01-01") return { eligible: true, isQuota: false };
       if (d >= "2012-10-01" && d <= "2012-12-31") {
         return { eligible: true, isQuota: true, reason: "2012 Son Çeyrek Kontenjan" };
-      }
-      return { eligible: false, isQuota: false };
-
-    case "Çorum Süper Amatör Ligi-U14":
-      if (d >= "2012-01-01") return { eligible: true, isQuota: false };
-      if (d >= "2011-10-01" && d <= "2011-12-31") {
-        return { eligible: true, isQuota: true, reason: "2011 Son Çeyrek Kontenjan" };
-      }
-      return { eligible: false, isQuota: false };
-
-    case "Çorum Süper Amatör Ligi-U15":
-      if (d >= "2011-01-01") return { eligible: true, isQuota: false };
-      if (d >= "2010-10-01" && d <= "2010-12-31") {
-        return { eligible: true, isQuota: true, reason: "2010 Son Çeyrek Kontenjan" };
-      }
-      return { eligible: false, isQuota: false };
-
-    case "Çorum Süper Amatör Ligi-U16":
-      return { eligible: d >= "2010-01-01", isQuota: false };
-
-    case "Çorum Süper Amatör Ligi-U17":
-      return { eligible: d >= "2009-01-01", isQuota: false };
-
-    case "Çorum Süper Amatör Ligi-U19":
-      if (d >= "2007-01-01" && d <= "2010-12-31")
-        return { eligible: true, isQuota: false };
-      if (d >= "2006-01-01" && d <= "2006-12-31") {
-        return { eligible: true, isQuota: true, reason: "2006 Kontenjan" };
       }
       return { eligible: false, isQuota: false };
 

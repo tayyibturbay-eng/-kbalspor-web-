@@ -5,20 +5,62 @@ import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import {
   FORMATIONS,
+  MAX_SQUAD_PLAYERS,
+  MIN_SQUAD_PLAYERS,
   SQUAD_CATEGORIES,
   SquadPlayer,
   TACTIC_PLANS,
   checkPlayerEligibility,
+  getCategoryQuotaLimit,
 } from "@/lib/squad-rules";
 import { PitchBoard } from "@/components/kadro/PitchBoard";
 
 const supabase = createClient();
 
+function resolveDefaultFormationForCategory(category: string): string {
+  const lower = category.toLowerCase();
+  if (
+    lower.includes("minikler") ||
+    lower.includes("u11") ||
+    lower.includes("u12")
+  ) {
+    if (FORMATIONS["2-3-1"]) return "2-3-1";
+    const firstYouth = Object.entries(FORMATIONS).find(
+      ([, v]) => v.group === "altyapi"
+    );
+    if (firstYouth) return firstYouth[0];
+  }
+  return FORMATIONS["4-3-3"]
+    ? "4-3-3"
+    : Object.keys(FORMATIONS)[0] || "4-3-3";
+}
+
+function SquadListSkeleton() {
+  return (
+    <div className="space-y-2.5 animate-pulse py-2">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <div
+          key={n}
+          className="h-16 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] px-3 flex items-center gap-3"
+        >
+          <div className="w-10 h-10 rounded-full bg-[var(--bg-canvas)] shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3.5 w-32 rounded bg-[var(--bg-canvas)]" />
+            <div className="h-2.5 w-20 rounded bg-[var(--bg-canvas)]" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function SquadBuilderPage() {
   const [selectedCategory, setSelectedCategory] = useState(
     "Çorum Süper Amatör Ligi-U19"
   );
-  const [formation, setFormation] = useState("4-3-3");
+  const [formation, setFormation] = useState(() =>
+    resolveDefaultFormationForCategory("Çorum Süper Amatör Ligi-U19")
+  );
   const [tacticPlan, setTacticPlan] = useState<string>(TACTIC_PLANS[0]);
   const [tacticNote, setTacticNote] = useState("");
   const [playerSearch, setPlayerSearch] = useState("");
@@ -80,6 +122,7 @@ export default function SquadBuilderPage() {
   const handleCategoryChange = (cat: string) => {
     setQuotaWarning("");
     setSelectedCategory(cat);
+    const defaultForm = resolveDefaultFormationForCategory(cat);
 
     if (typeof window !== "undefined") {
       try {
@@ -89,7 +132,7 @@ export default function SquadBuilderPage() {
           setFormation(
             parsed.formation && FORMATIONS[parsed.formation]
               ? parsed.formation
-              : "4-3-3"
+              : defaultForm
           );
           setSlots(parsed.slots || {});
           setSquadNumbers(parsed.squadNumbers || {});
@@ -102,6 +145,7 @@ export default function SquadBuilderPage() {
       }
     }
 
+    setFormation(defaultForm);
     setSlots({});
     setSquadNumbers({});
     setTacticPlan(TACTIC_PLANS[0]);
@@ -129,6 +173,7 @@ export default function SquadBuilderPage() {
   const quotaOutfieldCount = quotaPlayersInLineup.filter(
     (p) => p.position !== "Kaleci"
   ).length;
+  const categoryQuotaLimit = getCategoryQuotaLimit(selectedCategory);
 
   const getEffectiveNumber = (player: SquadPlayer): number | "" => {
     if (Object.prototype.hasOwnProperty.call(squadNumbers, player.id)) {
@@ -155,13 +200,64 @@ export default function SquadBuilderPage() {
     );
     if (conflict) {
       setQuotaWarning(
-        `#${num} forma numarası bu kadroda zaten ${conflict.full_name} adlı oyuncuya verilmiş! Farklı bir numara seçin.`
+        `#${num} forma numarası bu kadroda zaten ${conflict.full_name} adlı oyuncuya verilmiş. Farklı bir numara seçin.`
       );
       return false;
     }
 
     setSquadNumbers((prev) => ({ ...prev, [playerId]: num }));
     return true;
+  };
+
+  const canPlacePlayerIntoSquad = (
+    player: SquadPlayer,
+    targetSlotKey: string,
+    fromSlotKey: string | null
+  ): string | null => {
+    const info = checkPlayerEligibility(player, selectedCategory);
+    if (!info.eligible) {
+      return (
+        info.reason ||
+        `${player.full_name} bu kategorinin yaş kurallarına uygun değil.`
+      );
+    }
+
+    const alreadyOnPitch = currentLineup.some((p) => p.id === player.id);
+    const targetOccupant = slots[targetSlotKey] || null;
+    const isReplacingEmpty = !fromSlotKey && !alreadyOnPitch && !targetOccupant;
+
+    if (isReplacingEmpty && currentLineup.length >= MAX_SQUAD_PLAYERS) {
+      return `Müsabaka kadrosu en fazla ${MAX_SQUAD_PLAYERS} futbolcudan oluşabilir (Madde 20/1).`;
+    }
+
+    if (info.isQuota && !alreadyOnPitch) {
+      if (
+        [
+          "Çorum Süper Amatör Ligi-U13",
+          "Çorum Süper Amatör Ligi-U14",
+          "Çorum Süper Amatör Ligi-U15",
+        ].includes(selectedCategory)
+      ) {
+        const limit = categoryQuotaLimit ?? 2;
+        if (quotaPlayersInLineup.length >= limit) {
+          return `${selectedCategory} kategorisinde en fazla ${limit} kontenjan futbolcu kadroda yer alabilir (Madde 18/5–6).`;
+        }
+      }
+      if (selectedCategory === "Çorum Süper Amatör Ligi-U19") {
+        const limit = categoryQuotaLimit ?? 3;
+        if (quotaPlayersInLineup.length >= limit) {
+          return `U19 kategorisinde toplam en fazla ${limit} (2 saha + 1 kaleci) 2007 kontenjanı yazılabilir (Madde 18/1).`;
+        }
+        if (player.position === "Kaleci" && quotaGkCount >= 1) {
+          return "U19 kategorisinde 2007 doğumlu en fazla 1 kaleci kontenjanı yazılabilir (Madde 18/1).";
+        }
+        if (player.position !== "Kaleci" && quotaOutfieldCount >= 2) {
+          return "U19 kategorisinde 2007 doğumlu en fazla 2 saha oyuncusu kontenjanı yazılabilir (Madde 18/1).";
+        }
+      }
+    }
+
+    return null;
   };
 
   const assignToSlot = (
@@ -184,52 +280,13 @@ export default function SquadBuilderPage() {
       return;
     }
 
-    const info = checkPlayerEligibility(player, selectedCategory);
-    if (!info.eligible) {
-      setQuotaWarning(
-        `${player.full_name} bu kategorinin yaş kurallarına uygun değil.`
-      );
+    const ruleError = canPlacePlayerIntoSquad(player, targetSlotKey, fromSlotKey);
+    if (ruleError) {
+      setQuotaWarning(ruleError);
       return;
     }
 
     const alreadyOnPitch = currentLineup.some((p) => p.id === player.id);
-
-    if (info.isQuota && !alreadyOnPitch) {
-      if (
-        [
-          "Çorum Süper Amatör Ligi-U13",
-          "Çorum Süper Amatör Ligi-U14",
-          "Çorum Süper Amatör Ligi-U15",
-        ].includes(selectedCategory)
-      ) {
-        if (quotaPlayersInLineup.length >= 2) {
-          setQuotaWarning(
-            `${selectedCategory} kategorisinde en fazla 2 kontenjan futbolcu sahada yer alabilir!`
-          );
-          return;
-        }
-      }
-      if (selectedCategory === "Çorum Süper Amatör Ligi-U19") {
-        if (quotaPlayersInLineup.length >= 3) {
-          setQuotaWarning(
-            "U19 kategorisinde toplam en fazla 3 (2 saha + 1 kaleci) 2006 kontenjanı yer alabilir!"
-          );
-          return;
-        }
-        if (player.position === "Kaleci" && quotaGkCount >= 1) {
-          setQuotaWarning(
-            "U19 kategorisinde 2006 doğumlu en fazla 1 kaleci kontenjanı yazılabilir!"
-          );
-          return;
-        }
-        if (player.position !== "Kaleci" && quotaOutfieldCount >= 2) {
-          setQuotaWarning(
-            "U19 kategorisinde 2006 doğumlu en fazla 2 saha oyuncusu kontenjanı yazılabilir!"
-          );
-          return;
-        }
-      }
-    }
 
     if (!alreadyOnPitch && player.jersey_number !== null) {
       const numConflict = currentLineup.find(
@@ -269,7 +326,8 @@ export default function SquadBuilderPage() {
       return;
     }
 
-    const rows = FORMATIONS[formation].rows;
+    const activeForm = FORMATIONS[formation] || Object.values(FORMATIONS)[0];
+    const rows = activeForm?.rows || [];
     const allSlotKeys: { key: string; role: string }[] = [];
     rows.forEach((r, rIdx) => {
       for (let c = 0; c < r.count; c++) {
@@ -309,15 +367,22 @@ export default function SquadBuilderPage() {
     SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label ||
     selectedCategory;
 
+  const activeFormationObj =
+    FORMATIONS[formation] || Object.values(FORMATIONS)[0];
+
   const buildSquadSummaryText = () => {
     const lines = currentLineup.map((p) => {
       const num = getEffectiveNumber(p);
       return `#${num === "" ? "-" : num} ${p.full_name} (${p.position || "-"})`;
     });
+    const squadStatusLine =
+      currentLineup.length < MIN_SQUAD_PLAYERS
+        ? `Kadro Sayısı: ${currentLineup.length} (En az ${MIN_SQUAD_PLAYERS} oyuncu önerilir)`
+        : `Kadro Sayısı: ${currentLineup.length}/${MAX_SQUAD_PLAYERS}`;
     return (
-      `⚽ Çorum İkbalspor — ${activeCategoryLabel} (${FORMATIONS[formation].label}) Kadrosu\n` +
-      `📋 Oyun Planı: ${tacticPlan}` +
-      (tacticNote.trim() ? `\n📝 Not: ${tacticNote.trim()}` : "") +
+      `Çorum İkbalspor — ${activeCategoryLabel} (${activeFormationObj?.label || formation}) Kadrosu\n` +
+      `Oyun Planı: ${tacticPlan} • ${squadStatusLine}` +
+      (tacticNote.trim() ? `\nNot: ${tacticNote.trim()}` : "") +
       `\n\n` +
       lines.join("\n")
     );
@@ -336,7 +401,9 @@ export default function SquadBuilderPage() {
     } catch {
       // fallback aşağıda
     }
-    setShareStatus("Kopyalama desteklenmedi; paylaşım penceresinden metni alabilirsiniz.");
+    setShareStatus(
+      "Kopyalama desteklenmedi; paylaşım penceresinden metni alabilirsiniz."
+    );
   };
 
   const renderPitchFormationCanvas = (): string | null => {
@@ -347,10 +414,10 @@ export default function SquadBuilderPage() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    ctx.fillStyle = "#06203a";
+    ctx.fillStyle = "#0b2545";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    ctx.fillStyle = "#a60513";
+    ctx.fillStyle = "#b91c1c";
     ctx.fillRect(0, 0, canvas.width, 165);
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 40px sans-serif";
@@ -358,7 +425,7 @@ export default function SquadBuilderPage() {
     ctx.fillStyle = "#fde68a";
     ctx.font = "bold 26px sans-serif";
     ctx.fillText(
-      `${activeCategoryLabel} • Diziliş: ${FORMATIONS[formation]?.label || formation} • ${currentLineup.length} Oyuncu`,
+      `${activeCategoryLabel} • Diziliş: ${activeFormationObj?.label || formation} • ${currentLineup.length} Oyuncu`,
       48,
       124
     );
@@ -392,7 +459,7 @@ export default function SquadBuilderPage() {
     ctx.strokeRect(px + pw / 2 - 220, py + 20, 440, 155);
     ctx.strokeRect(px + pw / 2 - 220, py + ph - 175, 440, 155);
 
-    const rowsSpec = FORMATIONS[formation]?.rows || [];
+    const rowsSpec = activeFormationObj?.rows || [];
     const totalSlots =
       rowsSpec.reduce((acc, r) => acc + r.count, 0) || currentLineup.length;
     const visualRows =
@@ -406,7 +473,8 @@ export default function SquadBuilderPage() {
       const slice = currentLineup.slice(cursor, cursor + r.count);
       cursor += r.count;
       const countInRow = Math.max(1, slice.length);
-      const yPos = py + 145 + (rIdx * (ph - 270)) / Math.max(1, rowCount - 1);
+      const yPos =
+        py + 145 + (rIdx * (ph - 270)) / Math.max(1, rowCount - 1);
 
       slice.forEach((pl, idx) => {
         const xPos = px + ((idx + 1) * pw) / (countInRow + 1);
@@ -414,7 +482,7 @@ export default function SquadBuilderPage() {
         const numText =
           effNum !== "" ? `#${effNum}` : `${cursor - slice.length + idx + 1}`;
 
-        ctx.fillStyle = "#02274c";
+        ctx.fillStyle = "#0b2545";
         ctx.beginPath();
         ctx.arc(xPos, yPos - 14, 34, 0, Math.PI * 2);
         ctx.fill();
@@ -427,7 +495,7 @@ export default function SquadBuilderPage() {
         ctx.textAlign = "center";
         ctx.fillText(numText, xPos, yPos - 6);
 
-        ctx.fillStyle = "rgba(2, 39, 76, 0.92)";
+        ctx.fillStyle = "rgba(11, 37, 69, 0.92)";
         ctx.fillRect(xPos - 95, yPos + 26, 190, 34);
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 19px sans-serif";
@@ -442,7 +510,7 @@ export default function SquadBuilderPage() {
       extra.forEach((pl, idx) => {
         const xPos = px + ((idx + 1) * pw) / (extra.length + 1);
         const effNum = getEffectiveNumber(pl);
-        ctx.fillStyle = "#02274c";
+        ctx.fillStyle = "#0b2545";
         ctx.fillRect(xPos - 95, extraY - 18, 190, 34);
         ctx.fillStyle = "#fde68a";
         ctx.font = "bold 18px sans-serif";
@@ -478,9 +546,9 @@ export default function SquadBuilderPage() {
       if (!ctx) return null;
 
       const grad = ctx.createLinearGradient(0, 0, 1080, 1350);
-      grad.addColorStop(0, "#02274c");
+      grad.addColorStop(0, "#0b2545");
       grad.addColorStop(0.55, "#053b6e");
-      grad.addColorStop(1, "#a60513");
+      grad.addColorStop(1, "#b91c1c");
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, 1080, 1350);
 
@@ -507,7 +575,7 @@ export default function SquadBuilderPage() {
       ctx.fillStyle = "#fde68a";
       ctx.font = "700 26px sans-serif";
       ctx.fillText(
-        `${activeCategoryLabel} • Diziliş: ${FORMATIONS[formation].label}`,
+        `${activeCategoryLabel} • Diziliş: ${activeFormationObj?.label || formation}`,
         190,
         142
       );
@@ -645,10 +713,10 @@ export default function SquadBuilderPage() {
   const summaryText = buildSquadSummaryText();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24 lg:pb-16">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-24 lg:pb-16 transition-colors">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[#02274c] via-[#04376b] to-[#a60513] text-white py-6 px-4 shadow-sm">
+      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[#04376b] to-[var(--brand-red)] text-white py-6 px-4 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
@@ -672,15 +740,15 @@ export default function SquadBuilderPage() {
 
       <main
         ref={squadCardRef}
-        className="max-w-7xl mx-auto px-4 pt-6 space-y-5"
+        className="max-w-7xl mx-auto px-4 pt-6 space-y-5 page-transition"
       >
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-5 shadow-xs space-y-4">
           <div>
             <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider">
+              <span className="text-[11px] font-extrabold text-[var(--text-muted)] uppercase tracking-wider">
                 Kategori / Yaş Grubu Seçimi
               </span>
-              <span className="text-xs font-extrabold text-[#a60513]">
+              <span className="text-xs font-extrabold text-[var(--brand-red)]">
                 Aktif: {activeCategoryLabel}
               </span>
             </div>
@@ -694,8 +762,8 @@ export default function SquadBuilderPage() {
                     onClick={() => handleCategoryChange(cat.key)}
                     className={`py-2.5 px-3 rounded-xl font-extrabold text-xs border transition cursor-pointer text-center ${
                       active
-                        ? "bg-[#02274c] text-white border-[#02274c] shadow-sm"
-                        : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-[#02274c]"
+                        ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)] shadow-sm"
+                        : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
                     }`}
                   >
                     {cat.label}
@@ -705,9 +773,9 @@ export default function SquadBuilderPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[var(--border-subtle)]">
             <div>
-              <label className="block text-[11px] font-extrabold text-slate-500 uppercase mb-1.5">
+              <label className="block text-[11px] font-extrabold text-[var(--text-muted)] uppercase mb-1.5">
                 Diziliş (Formasyon)
               </label>
               <select
@@ -717,7 +785,7 @@ export default function SquadBuilderPage() {
                   setSlots({});
                   setSquadNumbers({});
                 }}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-extrabold text-[#02274c] bg-white focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] text-xs sm:text-sm font-extrabold text-[var(--text-primary)] bg-[var(--bg-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
               >
                 <optgroup label="11'li Dizilişler">
                   {Object.entries(FORMATIONS)
@@ -741,13 +809,13 @@ export default function SquadBuilderPage() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold text-slate-500 uppercase mb-1.5">
+              <label className="block text-[11px] font-extrabold text-[var(--text-muted)] uppercase mb-1.5">
                 Oyun Planı
               </label>
               <select
                 value={tacticPlan}
                 onChange={(e) => setTacticPlan(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm font-bold text-[#02274c] bg-white focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] text-xs sm:text-sm font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
               >
                 {TACTIC_PLANS.map((plan) => (
                   <option key={plan} value={plan}>
@@ -758,7 +826,7 @@ export default function SquadBuilderPage() {
             </div>
 
             <div>
-              <label className="block text-[11px] font-extrabold text-slate-500 uppercase mb-1.5">
+              <label className="block text-[11px] font-extrabold text-[var(--text-muted)] uppercase mb-1.5">
                 Taktik Notu (Opsiyonel)
               </label>
               <input
@@ -766,19 +834,20 @@ export default function SquadBuilderPage() {
                 value={tacticNote}
                 onChange={(e) => setTacticNote(e.target.value)}
                 placeholder="Örn: Duran toplarda ön direk koşusu..."
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] text-xs sm:text-sm text-[var(--text-primary)] bg-[var(--bg-subtle)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
               />
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-bold text-[#02274c]">
-              <span className="px-3 py-1 rounded-full bg-slate-100">
-                Sahadaki Oyuncu: <strong>{currentLineup.length}</strong>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--border-subtle)] tabular-nums">
+            <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-bold text-[var(--text-primary)]">
+              <span className="px-3 py-1 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+                Kadrodaki Oyuncu: <strong>{currentLineup.length}</strong> /{" "}
+                {MAX_SQUAD_PLAYERS} (Min. {MIN_SQUAD_PLAYERS})
               </span>
               {selectedCategory === "Çorum Süper Amatör Ligi-U19" && (
-                <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs">
-                  2006 Kontenjanı: Saha <strong>{quotaOutfieldCount}/2</strong> •
+                <span className="px-3 py-1 rounded-full bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-xs">
+                  2007 Kontenjanı: Saha <strong>{quotaOutfieldCount}/2</strong> •
                   Kaleci <strong>{quotaGkCount}/1</strong>
                 </span>
               )}
@@ -787,9 +856,11 @@ export default function SquadBuilderPage() {
                 "Çorum Süper Amatör Ligi-U14",
                 "Çorum Süper Amatör Ligi-U15",
               ].includes(selectedCategory) && (
-                <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs">
+                <span className="px-3 py-1 rounded-full bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-xs">
                   Son Çeyrek Kontenjanı:{" "}
-                  <strong>{quotaPlayersInLineup.length} / 2</strong>
+                  <strong>
+                    {quotaPlayersInLineup.length} / {categoryQuotaLimit ?? 2}
+                  </strong>
                 </span>
               )}
             </div>
@@ -800,17 +871,17 @@ export default function SquadBuilderPage() {
                 onClick={copySquadText}
                 className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer transition shadow-xs"
               >
-                {copiedBanner ? "✓ Kopyalandı!" : "📋 Metin Kopyala"}
+                {copiedBanner ? "Kopyalandı" : "Metin Kopyala"}
               </button>
               <button
                 type="button"
                 disabled={generatingImage}
                 onClick={handleOpenShareMenu}
-                className="px-4 py-2 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-xs font-extrabold cursor-pointer transition shadow-xs"
+                className="px-4 py-2 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer transition shadow-xs"
               >
                 {generatingImage
                   ? "Görsel Hazırlanıyor..."
-                  : "🖼️ Görsel & Uygulama Seçerek Paylaş"}
+                  : "Görsel & Uygulama Seçerek Paylaş"}
               </button>
               <button
                 type="button"
@@ -820,7 +891,7 @@ export default function SquadBuilderPage() {
                   setQuotaWarning("");
                   localStorage.removeItem(`ikbal_squad_${selectedCategory}`);
                 }}
-                className="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-xs font-extrabold cursor-pointer transition"
+                className="px-4 py-2 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] hover:opacity-85 text-xs font-extrabold cursor-pointer transition"
               >
                 Sahayı Temizle
               </button>
@@ -829,24 +900,24 @@ export default function SquadBuilderPage() {
         </div>
 
         {quotaWarning && (
-          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-[#a60513] font-extrabold text-xs sm:text-sm">
-            ⚠️ {quotaWarning}
+          <div className="p-3.5 rounded-2xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] font-extrabold text-xs sm:text-sm">
+            {quotaWarning}
           </div>
         )}
 
         {shareStatus && (
-          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 font-bold text-xs">
+          <div className="p-3 rounded-2xl bg-[var(--status-success-bg)] text-[var(--status-success-text)] font-bold text-xs">
             {shareStatus}
           </div>
         )}
 
         <div className="grid lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200 p-4 shadow-xs space-y-3">
+          <div className="lg:col-span-4 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-4 shadow-xs space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-black text-[#02274c]">
+              <h2 className="text-base font-black text-[var(--text-primary)] tabular-nums">
                 Uygun Oyuncular ({eligibleList.length})
               </h2>
-              <span className="text-[11px] font-bold text-slate-400">
+              <span className="text-[11px] font-bold text-[var(--text-muted)]">
                 Sürükle veya Tıkla
               </span>
             </div>
@@ -856,17 +927,17 @@ export default function SquadBuilderPage() {
               value={playerSearch}
               onChange={(e) => setPlayerSearch(e.target.value)}
               placeholder="Oyuncu ismi ara..."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
             />
 
             {loading ? (
-              <p className="text-sm text-slate-500 py-4 text-center">
-                Oyuncular yükleniyor...
-              </p>
+              <SquadListSkeleton />
             ) : eligibleList.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4 text-center">
-                Bu kategoriye veya aramaya uygun kayıtlı oyuncu yok.
-              </p>
+              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center">
+                <p className="text-sm font-bold text-[var(--text-secondary)]">
+                  Bu kategoriye veya aramaya uygun kayıtlı oyuncu yok.
+                </p>
+              </div>
             ) : (
               <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
                 {eligibleList.map(({ player: p, info }) => {
@@ -882,14 +953,14 @@ export default function SquadBuilderPage() {
                       }}
                       className={`p-2.5 rounded-2xl border cursor-pointer flex items-center justify-between gap-2.5 transition ${
                         isUsed
-                          ? "border-emerald-500 bg-emerald-50/80"
+                          ? "border-emerald-500 bg-[var(--status-success-bg)]/45"
                           : info.isQuota
-                          ? "border-amber-300 bg-amber-50/40 hover:border-amber-500"
-                          : "border-slate-200 bg-white hover:border-[#02274c] hover:bg-slate-50"
+                          ? "border-amber-400/70 bg-[var(--status-warning-bg)]/35 hover:border-amber-500"
+                          : "border-[var(--border-subtle)] bg-[var(--bg-subtle)] hover:border-[var(--brand-navy)]"
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-[#02274c] text-white overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                        <div className="w-10 h-10 rounded-full bg-[var(--brand-navy)] text-white overflow-hidden flex items-center justify-center shrink-0 border border-[var(--border-subtle)]">
                           {p.photo_url ? (
                             <img
                               src={p.photo_url}
@@ -904,20 +975,20 @@ export default function SquadBuilderPage() {
                         </div>
 
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.5 rounded bg-[#a60513]/10 text-[#a60513] font-black text-[11px] shrink-0">
+                          <div className="flex items-center gap-1.5 tabular-nums">
+                            <span className="px-1.5 py-0.5 rounded bg-[var(--brand-red-soft)] text-[var(--brand-red)] font-black text-[11px] shrink-0">
                               #{p.jersey_number ?? "-"}
                             </span>
-                            <strong className="text-[#02274c] text-xs sm:text-sm truncate">
+                            <strong className="text-[var(--text-primary)] text-xs sm:text-sm truncate">
                               {p.full_name}
                             </strong>
                           </div>
-                          <div className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                          <div className="text-[11px] text-[var(--text-secondary)] font-semibold mt-0.5 tabular-nums">
                             {p.position} •{" "}
                             {p.birth_date ? p.birth_date.slice(0, 4) : "-"}
                           </div>
                           {info.isQuota && (
-                            <span className="inline-block mt-1 px-2 py-0.5 rounded bg-amber-200 text-amber-900 text-[10px] font-extrabold">
+                            <span className="inline-block mt-1 px-2 py-0.5 rounded bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-[10px] font-extrabold">
                               {info.reason}
                             </span>
                           )}
@@ -927,11 +998,11 @@ export default function SquadBuilderPage() {
                       <span
                         className={`px-2.5 py-1 rounded-full text-[11px] font-extrabold shrink-0 ${
                           isUsed
-                            ? "bg-emerald-600 text-white"
-                            : "bg-slate-100 text-slate-600"
+                            ? "bg-[var(--status-success-text)] text-white"
+                            : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
                         }`}
                       >
-                        {isUsed ? "Sahada ✓" : "+ Ekle"}
+                        {isUsed ? "Sahada" : "+ Ekle"}
                       </span>
                     </div>
                   );
@@ -960,25 +1031,25 @@ export default function SquadBuilderPage() {
       </main>
 
       {showShareModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[var(--bg-surface)] rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-[var(--border-subtle)]">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
                 <img
                   src="/logo.png"
                   alt="Çorum İkbalspor"
-                  className="w-8 h-8 rounded-lg object-contain border border-slate-200 p-0.5"
+                  className="w-8 h-8 rounded-lg object-contain border border-[var(--border-subtle)] bg-white p-0.5"
                 />
-                <h3 className="text-base font-black text-[#02274c]">
+                <h3 className="text-base font-black text-[var(--text-primary)]">
                   Kadroyu Paylaş — Uygulama Seçin
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setShowShareModal(false)}
-                className="text-xs font-extrabold text-slate-500 hover:text-slate-900 cursor-pointer"
+                className="text-xs font-extrabold text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               >
-                Kapat ✕
+                Kapat
               </button>
             </div>
 
@@ -988,8 +1059,8 @@ export default function SquadBuilderPage() {
                 onClick={() => setShareVisualMode("card")}
                 className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold border cursor-pointer ${
                   shareVisualMode === "card"
-                    ? "bg-[#02274c] text-white border-[#02274c]"
-                    : "bg-slate-50 text-slate-700 border-slate-200"
+                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
                 }`}
               >
                 1. Görsel: Kadro Kartı
@@ -1003,8 +1074,8 @@ export default function SquadBuilderPage() {
                 }}
                 className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold border cursor-pointer ${
                   shareVisualMode === "pitch"
-                    ? "bg-[#a60513] text-white border-[#a60513]"
-                    : "bg-slate-50 text-slate-700 border-slate-200"
+                    ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
                 }`}
               >
                 2. Görsel: Saha Diziliş Planı
@@ -1012,7 +1083,7 @@ export default function SquadBuilderPage() {
             </div>
 
             {(shareVisualMode === "pitch" ? pitchImageUrl : generatedImageUrl) && (
-              <div className="rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 max-h-64 flex items-center justify-center">
+              <div className="rounded-2xl overflow-hidden border border-[var(--border-subtle)] bg-[var(--bg-subtle)] max-h-64 flex items-center justify-center">
                 <img
                   src={
                     (shareVisualMode === "pitch"
@@ -1029,9 +1100,9 @@ export default function SquadBuilderPage() {
               <button
                 type="button"
                 onClick={() => void downloadGeneratedImage()}
-                className="px-4 py-3 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold cursor-pointer text-center"
+                className="px-4 py-3 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer text-center"
               >
-                ⬇️ Görsel Olarak İndir (PNG)
+                Görsel Olarak İndir (PNG)
               </button>
 
               <a
@@ -1040,7 +1111,7 @@ export default function SquadBuilderPage() {
                 rel="noreferrer"
                 className="px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold text-center"
               >
-                💬 WhatsApp&apos;ta Paylaş
+                WhatsApp&apos;ta Paylaş
               </a>
 
               <a
@@ -1050,7 +1121,7 @@ export default function SquadBuilderPage() {
                 onClick={() => void downloadGeneratedImage()}
                 className="px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white text-xs font-extrabold text-center"
               >
-                📸 Instagram (Görseli İndir &amp; Aç)
+                Instagram (Görseli İndir &amp; Aç)
               </a>
 
               <button
@@ -1059,9 +1130,9 @@ export default function SquadBuilderPage() {
                   void copySquadText();
                   setShowShareModal(false);
                 }}
-                className="px-4 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#02274c] text-xs font-extrabold cursor-pointer text-center"
+                className="px-4 py-3 rounded-xl bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-strong)] text-[var(--text-primary)] text-xs font-extrabold cursor-pointer text-center"
               >
-                📋 Metni Kopyala &amp; Kapat
+                Metni Kopyala &amp; Kapat
               </button>
             </div>
           </div>

@@ -66,8 +66,8 @@ export function PlayerRankingBadge({
   if (!playerId || !myRankInfo) return null;
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl bg-gradient-to-r from-[#02274c] to-[#a60513] text-white p-4 flex items-center justify-between gap-4 shadow-sm">
+    <div className="space-y-4 tabular-nums">
+      <div className="rounded-2xl bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-red)] text-white p-4 flex items-center justify-between gap-4 shadow-xs">
         <div>
           <div className="text-[11px] uppercase tracking-wider text-amber-200 font-extrabold">
             Üyelere Özel Genel Sıralama

@@ -1,3 +1,4 @@
+// PlayerLogin.tsx
 "use client";
 
 import { useState } from "react";
@@ -85,21 +86,23 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
   }
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8">
+    <div className="max-w-md mx-auto bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] shadow-xs p-6 sm:p-8">
       <div className="text-center mb-6">
-        <span className="inline-block px-3 py-1 rounded-full bg-[#02274c]/10 text-[#02274c] text-xs font-extrabold uppercase tracking-wider mb-2">
+        <span className="inline-block px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold uppercase tracking-wider mb-2">
           Sporcu Portalı
         </span>
-        <h1 className="text-2xl font-black text-[#02274c]">Sporcu Girişi</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Uygulama indirmeden tarayıcıdan QR yoklama verin, malzemelerinizi,
-          aidat ve programınızı görün.
+        <h1 className="text-2xl font-black text-[var(--text-primary)]">
+          Sporcu Girişi
+        </h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">
+          Tarayıcıdan QR yoklama verin, malzemelerinizi, aidat ve programınızı
+          görüntüleyin.
         </p>
       </div>
 
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1">
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
             Sporcu Kodu
           </label>
           <input
@@ -107,12 +110,12 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Örn: IKB-101"
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+            className="w-full px-4 py-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-600 mb-1">
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
             PIN Kodu
           </label>
           <input
@@ -121,12 +124,12 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             placeholder="••••"
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+            className="w-full px-4 py-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
           />
         </div>
 
         {authError && (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-semibold">
+          <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] border border-[var(--status-danger-text)]/25 text-[var(--status-danger-text)] text-sm font-semibold">
             {authError}
           </div>
         )}
@@ -134,7 +137,7 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
         <button
           type="submit"
           disabled={authLoading}
-          className="w-full py-3.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white font-extrabold transition cursor-pointer disabled:opacity-60"
+          className="w-full py-3.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold transition cursor-pointer disabled:opacity-60"
         >
           {authLoading ? "Giriş Yapılıyor..." : "Giriş Yap"}
         </button>

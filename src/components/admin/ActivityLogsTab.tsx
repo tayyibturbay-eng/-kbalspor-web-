@@ -1,3 +1,4 @@
+// ActivityLogsTab.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -59,9 +60,9 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
   });
 
   return (
-    <div className="bg-white text-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+    <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-3">
-        <h2 className="text-lg font-extrabold text-[#02274c]">
+        <h2 className="text-lg font-black text-[var(--text-primary)]">
           Son İşlemler (Gün &amp; Saat Kayıtları)
         </h2>
 
@@ -70,7 +71,7 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
             aria-label="İşlem kategorisi seç"
-            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-1.5 text-xs font-bold"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs font-bold"
           >
             {categories.map((cat) => (
               <option key={cat} value={cat}>
@@ -83,21 +84,21 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
             type="date"
             value={logDateFilter}
             onChange={(e) => setLogDateFilter(e.target.value)}
-            className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-1.5 text-xs font-medium"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs font-medium tabular-nums"
           />
 
           <input
             placeholder="İşlem, kişi veya detay ara..."
             value={logSearch}
             onChange={(e) => setLogSearch(e.target.value)}
-            className="border border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 rounded-lg px-3 py-1.5 text-xs font-medium w-56"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg px-3 py-1.5 text-xs font-medium w-56"
           />
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm text-left text-slate-900">
-          <thead className="bg-slate-100 text-[#02274c] text-xs font-extrabold">
+      <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+        <table className="w-full text-sm text-left text-[var(--text-primary)]">
+          <thead className="bg-[var(--bg-subtle)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold border-b border-[var(--border-subtle)]">
             <tr>
               <th className="p-2.5">Tarih &amp; Saat</th>
               <th className="p-2.5">Yapan</th>
@@ -105,12 +106,12 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
               <th className="p-2.5">Detay</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-[var(--border-subtle)]">
             {filteredLogs.length === 0 ? (
               <tr>
                 <td
                   colSpan={4}
-                  className="p-4 text-center text-xs text-slate-500"
+                  className="p-5 text-center text-xs text-[var(--text-secondary)]"
                 >
                   Filtre kriterlerine uygun işlem kaydı bulunamadı.
                 </td>
@@ -120,20 +121,20 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
                 const cat = getLogCategory(l);
                 const badgeStyle =
                   cat === "Oyuncu Silme" || cat === "Silme İşlemi"
-                    ? "bg-red-100 text-red-900"
+                    ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
                     : cat === "Üyelik İşlemleri"
-                    ? "bg-amber-100 text-amber-900"
-                    : "bg-blue-50 text-blue-900";
+                    ? "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
+                    : "bg-[var(--status-info-bg)] text-[var(--status-info-text)]";
 
                 return (
                   <tr
                     key={l.id}
-                    className="border-b border-slate-200 hover:bg-slate-50"
+                    className="hover:bg-[var(--bg-subtle)]/70 transition-colors"
                   >
-                    <td className="p-2.5 text-xs font-mono font-semibold text-slate-800 whitespace-nowrap">
+                    <td className="p-2.5 text-xs font-mono font-semibold text-[var(--text-secondary)] whitespace-nowrap tabular-nums">
                       {formatDateTimeTR(l.created_at)}
                     </td>
-                    <td className="p-2.5 text-xs font-bold text-[#02274c]">
+                    <td className="p-2.5 text-xs font-bold text-[var(--text-primary)]">
                       {l.actor}
                     </td>
                     <td className="p-2.5">
@@ -143,7 +144,7 @@ export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
                         {l.action}
                       </span>
                     </td>
-                    <td className="p-2.5 text-xs text-slate-800">
+                    <td className="p-2.5 text-xs text-[var(--text-secondary)]">
                       {l.details}
                     </td>
                   </tr>

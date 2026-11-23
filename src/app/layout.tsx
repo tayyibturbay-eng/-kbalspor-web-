@@ -5,16 +5,16 @@ import "./globals.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
 
 export const viewport: Viewport = {
-  themeColor: "#02274c",
+  themeColor: "#0b2545",
   width: "device-width",
   initialScale: 1,
 };
@@ -66,14 +66,35 @@ export const metadata: Metadata = {
   },
 };
 
+const themeInitScript = `
+  (function() {
+    try {
+      var saved = localStorage.getItem("ikbalspor_theme");
+      var theme = saved === "dark" || saved === "light" ? saved : "light";
+      document.documentElement.setAttribute("data-theme", theme);
+      if (theme === "dark") {
+        document.documentElement.classList.add("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+      }
+    } catch (e) {}
+  })();
+`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="tr"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased overflow-x-clip`}
     >
-      <body className="min-h-full w-full max-w-full overflow-x-clip flex flex-col pb-16 lg:pb-0">
-        {children}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="min-h-full w-full max-w-full overflow-x-clip flex flex-col pb-16 lg:pb-0 bg-[var(--bg-canvas)] text-[var(--text-primary)] font-sans transition-colors duration-150">
+        <div className="page-transition min-h-full w-full flex-1 flex flex-col">
+          {children}
+        </div>
       </body>
     </html>
   );

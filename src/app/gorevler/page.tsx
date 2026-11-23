@@ -65,6 +65,26 @@ function buildMapsUrl(location?: string | null): string {
   )}`;
 }
 
+function TrainingsSkeleton() {
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+      {[1, 2, 3].map((n) => (
+        <div
+          key={n}
+          className="h-36 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 space-y-3"
+        >
+          <div className="flex justify-between">
+            <div className="h-5 w-24 rounded-lg bg-[var(--bg-subtle)]" />
+            <div className="h-5 w-20 rounded bg-[var(--bg-subtle)]" />
+          </div>
+          <div className="h-4 w-40 rounded bg-[var(--bg-subtle)]" />
+          <div className="h-3 w-28 rounded bg-[var(--bg-subtle)]" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function GorevlerPage() {
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
@@ -174,11 +194,11 @@ export default function GorevlerPage() {
   }, [tasks, selectedGroup, nowMs]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8">
-        <div className="bg-gradient-to-r from-[#02274c] to-[#04376b] text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-8 space-y-8 page-transition">
+        <div className="bg-gradient-to-r from-[var(--brand-navy)] via-[#04376b] to-[var(--brand-red)] text-white rounded-3xl p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
           <div className="space-y-1.5">
             <span className="inline-block px-3 py-1 rounded-full bg-white/15 text-xs font-extrabold uppercase tracking-wider">
               Kulüp Programı
@@ -194,7 +214,7 @@ export default function GorevlerPage() {
           </div>
           <Link
             href="/kayit"
-            className="shrink-0 px-5 py-3 rounded-xl bg-[#a60513] hover:bg-[#8a0410] text-white text-sm font-extrabold text-center transition shadow"
+            className="shrink-0 px-5 py-3 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] border border-white/20 text-white text-sm font-extrabold text-center transition shadow"
           >
             Üyelik Başvurusu
           </Link>
@@ -204,11 +224,12 @@ export default function GorevlerPage() {
           {["Tümü", ...AGE_GROUPS].map((g) => (
             <button
               key={g}
+              type="button"
               onClick={() => setSelectedGroup(g)}
               className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
                 selectedGroup === g
-                  ? "bg-[#02274c] text-white border-[#02274c]"
-                  : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                  ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                  : "bg-[var(--bg-surface)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
               }`}
             >
               {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
@@ -217,58 +238,66 @@ export default function GorevlerPage() {
         </div>
 
         <section className="space-y-4">
-          <h2 className="text-xl font-black text-[#02274c]">
+          <h2 className="text-xl font-black text-[var(--text-primary)] tabular-nums">
             Haftalık Antrenman Saatleri ({filteredTrainings.length})
           </h2>
 
           {loading ? (
-            <p className="text-sm text-slate-500">Program yükleniyor...</p>
+            <TrainingsSkeleton />
           ) : filteredTrainings.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
-              Bu yaş grubu için henüz yayınlanmış antrenman saati bulunmuyor.
+            <div className="bg-[var(--bg-surface)] rounded-2xl border border-dashed border-[var(--border-strong)] p-6 text-center space-y-1">
+              <p className="text-sm font-extrabold text-[var(--text-primary)]">
+                Bu yaş grubu için henüz yayınlanmış antrenman saati bulunmuyor.
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Farklı bir yaş grubu seçebilir veya yeni program eklendiğinde
+                buradan takip edebilirsiniz.
+              </p>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredTrainings.map((tr) => (
                 <div
                   key={tr.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2.5 shadow-sm"
+                  className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 space-y-2.5 shadow-xs"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-extrabold">
+                  <div className="flex items-center justify-between gap-2 tabular-nums">
+                    <span className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-extrabold">
                       {tr.day_of_week ||
                         formatDisplayDate(tr.training_date) ||
                         "Program"}
                     </span>
-                    <span className="text-sm font-black text-[#a60513]">
+                    <span className="text-sm font-black text-[var(--brand-red)]">
                       {tr.start_time}
                       {tr.end_time ? ` - ${tr.end_time}` : ""}
                     </span>
                   </div>
-                  <h3 className="font-extrabold text-slate-900">{tr.title}</h3>
+                  <h3 className="font-extrabold text-[var(--text-primary)]">
+                    {tr.title}
+                  </h3>
                   <div className="flex flex-wrap gap-1">
                     {(tr.age_groups || []).map((ag) => (
                       <span
                         key={ag}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold"
+                        className="px-2 py-0.5 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[var(--text-secondary)] text-[11px] font-bold"
                       >
                         {ag}
                       </span>
                     ))}
                   </div>
                   {tr.coach_name && (
-                    <p className="text-xs font-bold text-[#02274c]">
-                      👨‍🏫 Antrenör: {tr.coach_name}
+                    <p className="text-xs font-bold text-[var(--brand-navy)] dark:text-sky-300">
+                      Antrenör: {tr.coach_name}
                     </p>
                   )}
                   {tr.location && (
-                    <div className="text-xs text-slate-600 pt-1 flex flex-wrap items-center justify-between gap-2">
-                      <span>📍 {tr.location}</span>
+                    <div className="text-xs text-[var(--text-secondary)] pt-1 flex flex-wrap items-center justify-between gap-2">
+                      <span>Saha: {tr.location}</span>
                       <a
                         href={buildMapsUrl(tr.location)}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-[#02274c] font-extrabold underline"
+                        className="text-[var(--brand-navy)] dark:text-sky-300 font-extrabold underline"
                       >
                         Haritada Aç
                       </a>
@@ -281,48 +310,55 @@ export default function GorevlerPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-xl font-black text-[#a60513]">
+          <h2 className="text-xl font-black text-[var(--brand-red)] tabular-nums">
             Yaklaşan Maçlar &amp; Etkinlikler ({upcomingTasks.length})
           </h2>
 
-          {upcomingTasks.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
-              Yaklaşan planlanmış maç veya etkinlik bulunmuyor.
+          {loading ? (
+            <TrainingsSkeleton />
+          ) : upcomingTasks.length === 0 ? (
+            <div className="bg-[var(--bg-surface)] rounded-2xl border border-dashed border-[var(--border-strong)] p-6 text-center space-y-1">
+              <p className="text-sm font-extrabold text-[var(--text-primary)]">
+                Yaklaşan planlanmış maç veya etkinlik bulunmuyor.
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Yeni maç veya kulüp etkinliği planlandığında burada görüntülenecek.
+              </p>
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
               {upcomingTasks.map((task) => (
                 <div
                   key={task.id}
-                  className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between gap-4 shadow-sm"
+                  className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 flex items-center justify-between gap-4 shadow-xs"
                 >
-                  <div className="space-y-1.5">
-                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-red-50 text-[#a60513] text-xs font-extrabold">
+                  <div className="space-y-1.5 min-w-0">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full bg-[var(--brand-red-soft)] text-[var(--brand-red)] text-xs font-extrabold">
                       {task.age_group}
                     </span>
-                    <h3 className="font-extrabold text-slate-900">
+                    <h3 className="font-extrabold text-[var(--text-primary)] truncate">
                       {task.title}
                     </h3>
-                    <div className="text-xs text-slate-600 flex flex-wrap items-center gap-2">
-                      <span>📍 {task.location || "Belirtilmedi"}</span>
+                    <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center gap-2">
+                      <span>Yer: {task.location || "Belirtilmedi"}</span>
                       {task.location && (
                         <a
                           href={buildMapsUrl(task.location)}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[#02274c] font-extrabold underline"
+                          className="text-[var(--brand-navy)] dark:text-sky-300 font-extrabold underline"
                         >
                           Haritada Aç
                         </a>
                       )}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
-                    <div className="text-sm font-black text-[#02274c]">
+                  <div className="text-right shrink-0 tabular-nums">
+                    <div className="text-sm font-black text-[var(--text-primary)]">
                       {formatDisplayDate(task.event_date)}
                     </div>
                     {task.match_time && (
-                      <div className="text-xs font-bold text-slate-500">
+                      <div className="text-xs font-bold text-[var(--text-muted)]">
                         {task.match_time}
                       </div>
                     )}
@@ -335,7 +371,7 @@ export default function GorevlerPage() {
 
         {(pastTasks.length > 0 || pastTrainings.length > 0) && (
           <section className="space-y-3 opacity-85">
-            <h3 className="text-base font-extrabold text-slate-700">
+            <h3 className="text-base font-extrabold text-[var(--text-secondary)] tabular-nums">
               Geçmiş Etkinlikler, Antrenmanlar &amp; Maçlar (
               {pastTasks.length + pastTrainings.length})
             </h3>
@@ -343,22 +379,22 @@ export default function GorevlerPage() {
               {pastTasks.slice(0, 10).map((task) => (
                 <div
                   key={task.id}
-                  className="bg-slate-100/90 rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4"
+                  className="bg-[var(--bg-subtle)] rounded-2xl border border-[var(--border-subtle)] p-4 flex items-center justify-between gap-4"
                 >
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-500">
+                  <div className="min-w-0">
+                    <span className="text-[11px] font-bold text-[var(--text-muted)]">
                       {task.age_group} • Maç/Etkinlik
                     </span>
-                    <div className="font-bold text-sm text-slate-800">
+                    <div className="font-bold text-sm text-[var(--text-primary)] truncate">
                       {task.title}
                     </div>
                     {task.location && (
-                      <div className="text-[11px] text-slate-500">
-                        📍 {task.location}
+                      <div className="text-[11px] text-[var(--text-secondary)] truncate">
+                        Yer: {task.location}
                       </div>
                     )}
                   </div>
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="text-xs font-bold text-[var(--text-muted)] shrink-0 tabular-nums">
                     {formatDisplayDate(task.event_date)}
                   </span>
                 </div>
@@ -366,17 +402,17 @@ export default function GorevlerPage() {
               {pastTrainings.slice(0, 10).map((tr) => (
                 <div
                   key={tr.id}
-                  className="bg-slate-100/90 rounded-2xl border border-slate-200 p-4 flex items-center justify-between gap-4"
+                  className="bg-[var(--bg-subtle)] rounded-2xl border border-[var(--border-subtle)] p-4 flex items-center justify-between gap-4"
                 >
-                  <div>
-                    <span className="text-[11px] font-bold text-slate-500">
+                  <div className="min-w-0">
+                    <span className="text-[11px] font-bold text-[var(--text-muted)]">
                       {(tr.age_groups || []).join(", ")} • Antrenman
                     </span>
-                    <div className="font-bold text-sm text-slate-800">
+                    <div className="font-bold text-sm text-[var(--text-primary)] truncate">
                       {tr.title}
                     </div>
                   </div>
-                  <span className="text-xs font-bold text-slate-500">
+                  <span className="text-xs font-bold text-[var(--text-muted)] shrink-0 tabular-nums">
                     {formatDisplayDate(tr.training_date)}
                   </span>
                 </div>

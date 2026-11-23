@@ -1,92 +1,285 @@
 "use client";
 
+import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
+import { createClient } from "@/lib/supabase/client";
+import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 
-export default function IletisimPage() {
-  const facilityName = "Nazmi Avluca Spor Tesisi";
-  const facilityAddress =
-    "Ulukavak Mah., Çiftlik Çayırı 2. Cad. (Çiftlik Çayırı - Küçük Evler Yolu civarı), Merkez / Çorum";
-  const mapsUrl =
-    "https://www.google.com/maps/search/?api=1&query=Nazmi+Avluca+Futbol+Sahas%C4%B1+%C3%87orum";
-  const mapsEmbedUrl =
-    "https://maps.google.com/maps?q=Nazmi%20Avluca%20Futbol%20Sahas%C4%B1%20%C3%87orum&t=&z=16&ie=UTF8&iwloc=&output=embed";
+const supabase = createClient();
+
+interface ClubSettingItem {
+  key: string;
+  value: string;
+}
+
+export default function ContactPage() {
+  const [clubPhone, setClubPhone] = useState<string>("");
+  const [clubEmail, setClubEmail] = useState<string>("");
+  const [senderName, setSenderName] = useState<string>("");
+  const [senderContact, setSenderContact] = useState<string>("");
+  const [targetGroup, setTargetGroup] = useState<string>("Genel");
+  const [messageText, setMessageText] = useState<string>("");
+  const [sending, setSending] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<{
+    ok: boolean;
+    text: string;
+  } | null>(null);
+
+  const loadClubContactSettings = useCallback(async () => {
+    const { data } = await supabase
+      .from("club_settings")
+      .select("key, value")
+      .in("key", ["club_phone", "club_email", "contact_phone", "contact_email"]);
+
+    const rows = (data as ClubSettingItem[] | null) || [];
+    for (const r of rows) {
+      if (r.key === "club_phone" || r.key === "contact_phone") {
+        if (r.value) setClubPhone(r.value);
+      }
+      if (r.key === "club_email" || r.key === "contact_email") {
+        if (r.value) setClubEmail(r.value);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      const { data } = await supabase
+        .from("club_settings")
+        .select("key, value")
+        .in("key", ["club_phone", "club_email", "contact_phone", "contact_email"]);
+      if (!active) return;
+      const rows = (data as ClubSettingItem[] | null) || [];
+      for (const r of rows) {
+        if (r.key === "club_phone" || r.key === "contact_phone") {
+          if (r.value) setClubPhone(r.value);
+        }
+        if (r.key === "club_email" || r.key === "contact_email") {
+          if (r.value) setClubEmail(r.value);
+        }
+      }
+    })();
+
+    const unsubscribe = subscribeClubLiveUpdates(
+      supabase,
+      () => {
+        if (active) {
+          void loadClubContactSettings();
+        }
+      },
+      "web-contact-live"
+    );
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [loadClubContactSettings]);
+
+  async function handleSendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    setFeedback(null);
+
+    if (!senderName.trim() || !messageText.trim()) {
+      setFeedback({
+        ok: false,
+        text: "Lütfen adınızı ve iletmek istediğiniz mesajı yazın.",
+      });
+      return;
+    }
+
+    setSending(true);
+    const composedBody = `[${targetGroup}] ${senderName.trim()}${
+      senderContact.trim() ? ` (${senderContact.trim()})` : ""
+    }: ${messageText.trim()}`;
+
+    const { error } = await supabase.from("club_messages").insert({
+      title: `İletişim Mesajı — ${targetGroup}`,
+      body: composedBody,
+      message_text: composedBody,
+      age_group: "Tümü",
+      sender_name: senderName.trim(),
+      created_at: new Date().toISOString(),
+    });
+    setSending(false);
+
+    if (error) {
+      setFeedback({
+        ok: false,
+        text: "Mesaj gönderilemedi: " + error.message,
+      });
+      return;
+    }
+
+    setFeedback({
+      ok: true,
+      text: "Mesajınız kulüp yönetimine iletildi. En kısa sürede dönüş yapılacaktır.",
+    });
+    setSenderName("");
+    setSenderContact("");
+    setMessageText("");
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
-      <main className="flex-1 py-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <div className="bg-[#02274c] text-white rounded-2xl p-6 sm:p-8 shadow-lg border-b-4 border-[#a60513]">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest bg-[#a60513] px-3 py-1 rounded-full mb-3">
-              Çorum İkbalspor
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold">
-              İletişim ve Tesis Konumu
-            </h1>
-            <p className="text-slate-200 mt-2 text-sm sm:text-base">
-              Antrenman tesisimiz ve konum bilgimiz için aşağıdaki detayları
-              kullanabilirsiniz.
-            </p>
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-slate-200 flex flex-col justify-between space-y-6">
-              <div className="space-y-5">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wider text-[#a60513]">
-                    Antrenman Tesisi
-                  </p>
-                  <h2 className="text-xl font-bold text-[#02274c] mt-1">
-                    {facilityName}
-                  </h2>
-                </div>
+      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white py-6 px-4 shadow-sm">
+        <div className="max-w-5xl mx-auto">
+          <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
+            Çorum İkbalspor • İletişim &amp; Tesisler
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-1">
+            Kulüp İletişim &amp; Saha Bilgileri
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
+            Antrenman sahaları, maç organizasyonları ve veli/sporcu iletişim
+            kanalları.
+          </p>
+        </div>
+      </section>
 
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Açık Adres
-                  </p>
-                  <p className="text-sm font-medium text-slate-800 leading-relaxed">
-                    {facilityAddress}
-                  </p>
-                </div>
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="lg:col-span-5 space-y-4">
+          <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
+            <h2 className="text-base font-black text-[var(--text-primary)]">
+              Tesis &amp; İletişim Noktaları
+            </h2>
 
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
-                  <p className="text-xs font-semibold text-slate-500 uppercase mb-1">
-                    Konum Notu
-                  </p>
-                  <p className="text-sm text-slate-700 leading-relaxed">
-                    Servisli maç günlerinde buluşma noktası maç saatinden 2 saat
-                    önce Nazmi Avluca Spor Tesisi&apos;dir.
-                  </p>
-                </div>
+            <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-1">
+              <div className="text-xs font-black text-[var(--brand-navy)] dark:text-sky-300">
+                Nazmi Avluca Spor Tesisi
               </div>
-
-              <a
-                href={mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-full rounded-xl bg-[#02274c] hover:bg-[#033669] text-white font-semibold py-3 px-4 text-sm transition shadow-sm"
-              >
-                Google Haritalar&apos;da Yol Tarifi Al
-              </a>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum
+              </p>
             </div>
 
-            <div className="lg:col-span-3 bg-white rounded-2xl p-3 shadow-sm border border-slate-200">
-              <div className="w-full h-[360px] sm:h-[420px] rounded-xl overflow-hidden bg-slate-100">
-                <iframe
-                  title="Nazmi Avluca Spor Tesisi Konumu"
-                  src={mapsEmbedUrl}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  allowFullScreen
-                />
+            <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-1">
+              <div className="text-xs font-black text-[var(--brand-red)]">
+                Mimar Sinan Amatör Futbol Sahası
               </div>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Mimar Sinan Mah., Merkez / Çorum
+              </p>
             </div>
+
+            {(clubPhone || clubEmail) && (
+              <div className="pt-2 border-t border-[var(--border-subtle)] space-y-1.5 text-xs">
+                {clubPhone && (
+                  <div>
+                    <span className="font-bold text-[var(--text-muted)]">
+                      Telefon:{" "}
+                    </span>
+                    <span className="font-extrabold text-[var(--text-primary)]">
+                      {clubPhone}
+                    </span>
+                  </div>
+                )}
+                {clubEmail && (
+                  <div>
+                    <span className="font-bold text-[var(--text-muted)]">
+                      E-posta:{" "}
+                    </span>
+                    <span className="font-extrabold text-[var(--text-primary)]">
+                      {clubEmail}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
+
+        <form
+          onSubmit={handleSendMessage}
+          className="lg:col-span-7 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4"
+        >
+          <h2 className="text-base font-black text-[var(--text-primary)]">
+            Kulübe Mesaj Gönder
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Ad Soyad *
+              </label>
+              <input
+                type="text"
+                required
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                placeholder="Adınız ve soyadınız"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm text-[var(--text-primary)]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Telefon veya E-posta
+              </label>
+              <input
+                type="text"
+                value={senderContact}
+                onChange={(e) => setSenderContact(e.target.value)}
+                placeholder="05XX... veya e-posta"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm text-[var(--text-primary)]"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Konu / Birim
+            </label>
+            <select
+              value={targetGroup}
+              onChange={(e) => setTargetGroup(e.target.value)}
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
+            >
+              <option value="Genel">Genel Bilgi</option>
+              <option value="Altyapı">Altyapı &amp; Antrenman</option>
+              <option value="Aidat & Malzeme">Aidat &amp; Malzeme</option>
+              <option value="Maç & Organizasyon">Maç &amp; Organizasyon</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Mesajınız *
+            </label>
+            <textarea
+              rows={4}
+              required
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              placeholder="Sorunuzu veya iletmek istediğiniz notu yazın..."
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm text-[var(--text-primary)]"
+            />
+          </div>
+
+          {feedback && (
+            <div
+              className={`p-3.5 rounded-2xl text-xs font-bold ${
+                feedback.ok
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                  : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
+              }`}
+            >
+              {feedback.text}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={sending}
+            className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-black cursor-pointer disabled:opacity-50"
+          >
+            {sending ? "Gönderiliyor..." : "Mesajı Gönder"}
+          </button>
+        </form>
       </main>
     </div>
   );

@@ -1,3 +1,4 @@
+// DuesTab.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -123,17 +124,23 @@ export function DuesTab({
       return;
     }
 
-    const msg = `📢 AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbalspor aylık kulüp aidat ücreti ${feeNum}₺ olarak güncellenmiştir. Bilginize sunarız. 🔴🔵`;
-    await supabase.from("club_messages").insert({ body: msg, message_text: msg, age_group: "Tüm Kulüp", sender_name: adminName || "Yönetici", created_at: new Date().toISOString() });
+    const msg = `AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbalspor aylık kulüp aidat ücreti ${feeNum} TL olarak güncellenmiştir.`;
+    await supabase.from("club_messages").insert({
+      body: msg,
+      message_text: msg,
+      age_group: "Tüm Kulüp",
+      sender_name: adminName || "Yönetici",
+      created_at: new Date().toISOString(),
+    });
 
     await onLogActivity(
       "Aidat Ücreti Güncelleme",
-      `Aylık aidat ücreti ${feeNum}₺ yapıldı ve duyuru gönderildi.`
+      `Aylık aidat ücreti ${feeNum} TL yapıldı ve duyuru gönderildi.`
     );
     setFeeWaMsg(msg);
     setManualPayAmount(String(feeNum));
     onFeedback(
-      `✅ Aidat ücreti ${feeNum}₺ olarak güncellendi ve bildirim yayınlandı.`
+      `Aidat ücreti ${feeNum} TL olarak güncellendi ve bildirim yayınlandı.`
     );
   }
 
@@ -192,11 +199,11 @@ export function DuesTab({
 
     await onLogActivity(
       "Aidat Tahsilatı",
-      `${target.full_name} — ${manualPayMonth} (${amountNum}₺) Ödendi`
+      `${target.full_name} — ${manualPayMonth} (${amountNum} TL) Ödendi`
     );
     setSelectedDueMonth(manualPayMonth);
     onFeedback(
-      `✅ ${target.full_name} için ${manualPayMonth} ödemesi (${amountNum}₺) Ödendi olarak kaydedildi.`
+      `${target.full_name} için ${manualPayMonth} ödemesi (${amountNum} TL) Ödendi olarak kaydedildi.`
     );
     setManualPayPlayerId("");
   }
@@ -223,10 +230,10 @@ export function DuesTab({
       if (data) setDues((prev) => [data as Due, ...prev]);
       await onLogActivity(
         "Aidat Tahsilatı",
-        `${player.full_name} — ${selectedDueMonth} (${feeNum}₺) Ödendi`
+        `${player.full_name} — ${selectedDueMonth} (${feeNum} TL) Ödendi`
       );
       onFeedback(
-        `✅ ${player.full_name} (${selectedDueMonth}) Ödendi olarak işaretlendi.`
+        `${player.full_name} (${selectedDueMonth}) Ödendi olarak işaretlendi.`
       );
     } else {
       const isPaid =
@@ -256,10 +263,10 @@ export function DuesTab({
       );
       await onLogActivity(
         "Aidat Güncelleme",
-        `${player.full_name} — ${selectedDueMonth} → ${nextStatus}`
+        `${player.full_name} — ${selectedDueMonth} -> ${nextStatus}`
       );
       onFeedback(
-        `✅ ${player.full_name} (${selectedDueMonth}) durumu: ${nextStatus}`
+        `${player.full_name} (${selectedDueMonth}) durumu: ${nextStatus}`
       );
     }
   }
@@ -271,9 +278,15 @@ export function DuesTab({
     }
     const bodyText =
       pastDueCustomNote.trim() ||
-      `📢 AİDAT HATIRLATMA (${pastDueMonth})\nSayın velilerimiz ve sporcularımız, ${pastDueMonth} dönemine ait kulüp aidat ödemesini henüz gerçekleştirmeyen sporcularımızın ödemelerini en kısa sürede tamamlamalarını rica ederiz. 🔴🔵`;
+      `AİDAT HATIRLATMA (${pastDueMonth})\nSayın velilerimiz ve sporcularımız, ${pastDueMonth} dönemine ait kulüp aidat ödemesini henüz gerçekleştirmeyen sporcularımızın ödemelerini en kısa sürede tamamlamalarını rica ederiz.`;
 
-    const { error } = await supabase.from("club_messages").insert({ body: bodyText, message_text: bodyText, age_group: "Tümü", sender_name: adminName || "Yönetici", created_at: new Date().toISOString() });
+    const { error } = await supabase.from("club_messages").insert({
+      body: bodyText,
+      message_text: bodyText,
+      age_group: "Tümü",
+      sender_name: adminName || "Yönetici",
+      created_at: new Date().toISOString(),
+    });
 
     if (error) {
       onFeedback("Bildirim gönderilemedi: " + error.message);
@@ -282,7 +295,7 @@ export function DuesTab({
 
     const pushRes = await sendPushViaApi(
       ["Tümü"],
-      `⚠️ ${pastDueMonth} Aidat Hatırlatması`,
+      `${pastDueMonth} Aidat Hatırlatması`,
       bodyText
     );
     await onLogActivity(
@@ -290,36 +303,36 @@ export function DuesTab({
       `${pastDueMonth} dönemi için ödemesi kalan ${pastUnpaidPlayers.length} sporcuya kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz).`
     );
     onFeedback(
-      `✅ ${pastDueMonth} ödemesi kalan ${pastUnpaidPlayers.length} sporcu için toplu kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz)!`
+      `${pastDueMonth} ödemesi kalan ${pastUnpaidPlayers.length} sporcu için toplu kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz).`
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white p-5 rounded-2xl shadow-sm border flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="font-extrabold text-[#02274c]">
+          <h2 className="font-black text-[var(--text-primary)]">
             Aylık Aidat Ücreti &amp; Dönem Seçimi
           </h2>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-[var(--text-secondary)]">
             Kasım 2026 itibarıyla her yeni ayda 3 ay sonrası otomatik açılır;
             ödemeyenler her zaman en üstte gösterilir.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-slate-600">
-            Güncel Ücret (₺):
+          <span className="text-xs font-bold text-[var(--text-secondary)]">
+            Güncel Ücret (TL):
           </span>
           <input
             type="number"
             value={monthlyFee}
             onChange={(e) => setMonthlyFee(e.target.value)}
-            className="w-24 border rounded-lg px-3 py-2 text-sm font-bold"
+            className="w-24 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm font-bold"
           />
           <button
             type="button"
             onClick={updateMonthlyFee}
-            className="bg-[#a60513] text-white text-xs font-bold px-4 py-2 rounded-lg cursor-pointer"
+            className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
           >
             Ücreti Güncelle &amp; Bildir
           </button>
@@ -327,24 +340,26 @@ export function DuesTab({
       </div>
 
       {feeWaMsg && (
-        <div className="bg-emerald-50 border border-emerald-300 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-          <span className="text-xs text-emerald-900 font-bold">{feeWaMsg}</span>
+        <div className="bg-[var(--status-success-bg)]/65 border border-[var(--status-success-text)]/30 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-3">
+          <span className="text-xs text-[var(--status-success-text)] font-bold">
+            {feeWaMsg}
+          </span>
           <a
             href={`https://wa.me/?text=${encodeURIComponent(feeWaMsg)}`}
             target="_blank"
             rel="noreferrer"
-            className="bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-lg"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl"
           >
-            📲 WhatsApp Grubunda Paylaş
+            WhatsApp Grubunda Paylaş
           </a>
         </div>
       )}
 
       <form
         onSubmit={handleManualDuePayment}
-        className="bg-white p-5 rounded-2xl shadow-sm border space-y-3"
+        className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3"
       >
-        <h3 className="font-extrabold text-[#02274c] text-sm">
+        <h3 className="font-black text-[var(--text-primary)] text-sm">
           Ödeme Ekle (Grup, Kişi, Ay ve Verilen Tutarı Seç)
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -354,7 +369,7 @@ export function DuesTab({
               setManualPayGroup(e.target.value);
               setManualPayPlayerId("");
             }}
-            className="border rounded-lg px-3 py-2 text-sm font-bold text-[#02274c] bg-slate-50"
+            className="border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)]"
           >
             <option value="Tümü">Tüm Gruplar</option>
             {AGE_GROUPS.map((g) => (
@@ -367,7 +382,7 @@ export function DuesTab({
             required
             value={manualPayPlayerId}
             onChange={(e) => setManualPayPlayerId(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm md:col-span-2"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"
           >
             <option value="">-- Ödeme Yapan Oyuncuyu Seç --</option>
             {playersByGroupForSelect.map(({ group, items }) => (
@@ -386,7 +401,7 @@ export function DuesTab({
           <select
             value={manualPayMonth}
             onChange={(e) => setManualPayMonth(e.target.value)}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
           >
             {DUE_MONTHS.map((m) => (
               <option key={m} value={m}>
@@ -398,28 +413,28 @@ export function DuesTab({
             <input
               type="number"
               required
-              placeholder="Tutar (₺)"
+              placeholder="Tutar (TL)"
               value={manualPayAmount}
               onChange={(e) => setManualPayAmount(e.target.value)}
-              className="w-24 border rounded-lg px-2.5 py-2 text-sm font-bold"
+              className="w-24 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-2.5 py-2 text-sm font-bold"
             />
             <button
               type="submit"
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg px-3 py-2 text-xs sm:text-sm cursor-pointer"
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl px-3 py-2 text-xs sm:text-sm cursor-pointer"
             >
-              ✓ Kaydet
+              Kaydet
             </button>
           </div>
         </div>
       </form>
 
-      <div className="bg-amber-50 border border-amber-300 p-5 rounded-2xl space-y-3">
+      <div className="bg-[var(--status-warning-bg)]/45 border border-amber-400/50 p-5 rounded-2xl space-y-3">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div>
-            <h3 className="font-extrabold text-amber-950 text-sm">
-              📢 Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim &amp; Mesaj
+            <h3 className="font-black text-[var(--text-primary)] text-sm">
+              Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim &amp; Mesaj
             </h3>
-            <p className="text-xs text-amber-800 mt-0.5">
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
               <strong>{pastDueMonth}</strong> döneminde ödemesi henüz alınmamış{" "}
               <strong>{pastUnpaidPlayers.length} sporcu</strong> bulunuyor.
             </p>
@@ -427,7 +442,7 @@ export function DuesTab({
           <select
             value={pastDueMonth}
             onChange={(e) => setPastDueMonth(e.target.value)}
-            className="border border-amber-400 bg-white rounded-lg px-3 py-1.5 text-xs font-bold"
+            className="border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-1.5 text-xs font-bold"
           >
             {DUE_MONTHS.map((m) => (
               <option key={m} value={m}>
@@ -442,33 +457,33 @@ export function DuesTab({
           value={pastDueCustomNote}
           onChange={(e) => setPastDueCustomNote(e.target.value)}
           placeholder={`Özel mesaj yaz (boş bırakırsan ${pastDueMonth} için otomatik aidat hatırlatma metni gönderilir)`}
-          className="w-full border border-amber-300 bg-white rounded-xl px-3 py-2 text-xs"
+          className="w-full border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3 py-2 text-xs"
         />
 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={sendBulkPastDueNotification}
-            className="bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-4 py-2.5 rounded-xl cursor-pointer"
+            className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
           >
-            🔔 Ödemeyenlere Toplu Kulüp Bildirimi Gönder (
+            Ödemeyenlere Toplu Kulüp Bildirimi Gönder (
             {pastUnpaidPlayers.length})
           </button>
           <a
             href={`https://wa.me/?text=${encodeURIComponent(
               pastDueCustomNote.trim() ||
-                `📢 ${pastDueMonth} Aidat Hatırlatması: Henüz ödemesini yapmayan sporcularımızın/velilerimizin aidatlarını tamamlamasını rica ederiz. 🔴🔵`
+                `${pastDueMonth} Aidat Hatırlatması: Henüz ödemesini yapmayan sporcularımızın/velilerimizin aidatlarını tamamlamasını rica ederiz.`
             )}`}
             target="_blank"
             rel="noreferrer"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl"
           >
-            📲 WhatsApp Grubunda Hatırlat
+            WhatsApp Grubunda Hatırlat
           </a>
         </div>
       </div>
 
-      <div className="bg-white p-5 rounded-2xl shadow-sm border space-y-4">
+      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {DUE_MONTHS.map((m) => (
@@ -476,13 +491,13 @@ export function DuesTab({
                 key={m}
                 type="button"
                 onClick={() => setSelectedDueMonth(m)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold border cursor-pointer ${
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
                   selectedDueMonth === m
-                    ? "bg-[#a60513] text-white"
-                    : "bg-slate-50 text-[#02274c]"
+                    ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
                 }`}
               >
-                📅 {m}
+                {m}
               </button>
             ))}
           </div>
@@ -495,8 +510,8 @@ export function DuesTab({
                 onClick={() => setDueGroupFilter(g)}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
                   dueGroupFilter === g
-                    ? "bg-[#02274c] text-white"
-                    : "bg-white text-slate-700"
+                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
                 }`}
               >
                 {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
@@ -506,42 +521,47 @@ export function DuesTab({
         </div>
 
         {groupedMonthlyDues.map(({ group, rows, paidCount, paidTotal }) => (
-          <div key={group} className="border rounded-xl overflow-hidden">
-            <div className="bg-[#02274c] text-white px-4 py-2 text-sm font-bold flex flex-wrap justify-between">
+          <div
+            key={group}
+            className="border border-[var(--border-subtle)] rounded-xl overflow-hidden"
+          >
+            <div className="bg-[var(--brand-navy)] text-white px-4 py-2 text-sm font-bold flex flex-wrap justify-between gap-2">
               <span>
                 {group} — {selectedDueMonth}
               </span>
               <span>
-                Ödeyen: {paidCount} / {rows.length} • Toplanan: {paidTotal}₺
+                Ödeyen: {paidCount} / {rows.length} • Toplanan: {paidTotal} TL
               </span>
             </div>
-            <div className="divide-y">
+            <div className="divide-y divide-[var(--border-subtle)]">
               {rows.map(({ player, due, isPaid }) => {
                 const waPhone = cleanWaPhone(player.parent_phone);
                 return (
                   <div
                     key={player.id}
                     className={`px-4 py-2.5 flex flex-wrap justify-between items-center gap-2 text-sm ${
-                      !isPaid ? "bg-amber-50/60" : "bg-white"
+                      !isPaid
+                        ? "bg-[var(--status-warning-bg)]/35"
+                        : "bg-[var(--bg-surface)]"
                     }`}
                   >
                     <div>
-                      <strong className="text-[#02274c]">
+                      <strong className="text-[var(--text-primary)]">
                         {player.full_name}
                       </strong>{" "}
-                      <span className="text-xs text-slate-500">
-                        ({due?.amount || monthlyFee}₺)
+                      <span className="text-xs text-[var(--text-muted)]">
+                        ({due?.amount || monthlyFee} TL)
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       {!isPaid && waPhone && (
                         <a
                           href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
-                            `Merhaba, ${player.full_name} için ${selectedDueMonth} kulüp aidatı (${monthlyFee}₺) beklenmektedir. Bilginize sunarız.`
+                            `Merhaba, ${player.full_name} için ${selectedDueMonth} kulüp aidatı (${monthlyFee} TL) beklenmektedir. Bilginize sunarız.`
                           )}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="bg-white border border-emerald-300 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg"
+                          className="bg-[var(--bg-surface)] border border-emerald-500/40 text-[var(--status-success-text)] text-xs font-bold px-2.5 py-1 rounded-lg"
                         >
                           WP Hatırlat
                         </a>
@@ -549,14 +569,14 @@ export function DuesTab({
                       <button
                         type="button"
                         onClick={() => togglePlayerMonthDue(player, due)}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer ${
+                        className={`px-3 py-1 rounded-lg text-xs font-extrabold cursor-pointer ${
                           isPaid
                             ? "bg-emerald-600 text-white"
-                            : "bg-amber-200 text-amber-950"
+                            : "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
                         }`}
                       >
                         {isPaid
-                          ? `✓ Ödendi (${due?.amount || monthlyFee}₺)`
+                          ? `Ödendi (${due?.amount || monthlyFee} TL)`
                           : "Bekleniyor (Ödendi Yap)"}
                       </button>
                     </div>

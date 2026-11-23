@@ -105,7 +105,7 @@ export function JerseySetsSection({
           )
         );
         onStatus(
-          `✅ ${setItem.set_name} #${piece.number} numaralı forma kayıp/eksik listesinden çıkarıldı.`
+          `${setItem.set_name} #${piece.number} numaralı forma kayıp/eksik listesinden çıkarıldı.`
         );
       }
       return;
@@ -130,7 +130,7 @@ export function JerseySetsSection({
           )
         );
         onStatus(
-          `⚠️ ${setItem.set_name} #${piece.number} numaralı forma Kayıp / Eksik işaretlendi.`
+          `${setItem.set_name} #${piece.number} numaralı forma Kayıp / Eksik işaretlendi.`
         );
       }
       return;
@@ -138,7 +138,9 @@ export function JerseySetsSection({
 
     const fallbackPlayerId = players[0]?.id;
     if (!fallbackPlayerId) {
-      onStatus("Kayıp/eksik kaydı oluşturmak için önce en az 1 sporcu kaydı olmalıdır.");
+      onStatus(
+        "Kayıp/eksik kaydı oluşturmak için önce en az 1 sporcu kaydı olmalıdır."
+      );
       return;
     }
 
@@ -159,7 +161,7 @@ export function JerseySetsSection({
     if (!error && data) {
       setLogs?.((prev) => [data as EquipmentLog, ...prev]);
       onStatus(
-        `⚠️ ${setItem.set_name} #${piece.number} numaralı forma tekil olarak Kayıp / Eksik işaretlendi.`
+        `${setItem.set_name} #${piece.number} numaralı forma tekil olarak Kayıp / Eksik işaretlendi.`
       );
     }
   }
@@ -205,7 +207,7 @@ export function JerseySetsSection({
         prev.map((j) => (j.id === editingSet.id ? (data as JerseySet) : j))
       );
       setEditingSet(null);
-      onStatus("✅ Forma takımı, numaralar ve bedenler kaydedildi.");
+      onStatus("Forma takımı, numaralar ve bedenler kaydedildi.");
     }
   }
 
@@ -225,7 +227,7 @@ export function JerseySetsSection({
       );
       if (editingSet?.id === setId)
         setEditingSet({ ...editingSet, photo_url: url });
-      onStatus("✅ Forma takımı görseli güncellendi.");
+      onStatus("Forma takımı görseli güncellendi.");
     }
   }
 
@@ -238,9 +240,9 @@ export function JerseySetsSection({
   }
 
   return (
-    <div className="space-y-6 text-slate-900">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-extrabold text-[#02274c]">
+        <h3 className="text-base font-black text-[var(--text-primary)]">
           Forma Takımları (Numara Bazlı Kayıp / Eksik İşaretleme)
         </h3>
       </div>
@@ -248,16 +250,16 @@ export function JerseySetsSection({
       {editingSet && (
         <form
           onSubmit={handleSaveSetEdit}
-          className="bg-white rounded-2xl border-2 border-[#a60513] p-6 space-y-4 shadow-md"
+          className="bg-[var(--bg-surface)] rounded-2xl border-2 border-[var(--brand-red)] p-6 space-y-4 shadow-md"
         >
           <div className="flex flex-wrap justify-between items-center gap-2">
-            <h3 className="text-base font-extrabold text-[#02274c]">
+            <h3 className="text-base font-black text-[var(--text-primary)]">
               Düzenle: {editingSet.set_name} ({editingPieces.length} Forma)
             </h3>
             <button
               type="button"
               onClick={() => setEditingSet(null)}
-              className="text-xs font-bold text-slate-600 underline cursor-pointer"
+              className="text-xs font-bold text-[var(--text-secondary)] underline cursor-pointer"
             >
               Kapat
             </button>
@@ -271,7 +273,7 @@ export function JerseySetsSection({
               onChange={(e) =>
                 setEditingSet({ ...editingSet, set_name: e.target.value })
               }
-              className="min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm font-bold"
+              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm font-bold"
             />
             <select
               value={editingSet.kit_type}
@@ -281,7 +283,7 @@ export function JerseySetsSection({
                   kit_type: e.target.value as JerseySet["kit_type"],
                 })
               }
-              className="min-h-[42px] px-3 rounded-xl border border-slate-300 text-sm font-bold"
+              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm font-bold"
             >
               <option value="Ev">Ev Forması</option>
               <option value="Deplasman">Deplasman Forması</option>
@@ -291,8 +293,9 @@ export function JerseySetsSection({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-            <p className="text-xs text-slate-700">
-              İstediğiniz forma numarasında (örneğin #5) &quot;Kayıp / Eksik&quot; butonuna basarak tek tek işaretleyebilirsiniz.
+            <p className="text-xs text-[var(--text-secondary)]">
+              İstediğiniz forma numarasında (örneğin #5) &quot;Kayıp /
+              Eksik&quot; butonuna basarak tek tek işaretleyebilirsiniz.
             </p>
             <button
               type="button"
@@ -310,7 +313,7 @@ export function JerseySetsSection({
                   },
                 ])
               }
-              className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold cursor-pointer"
+              className="px-3 py-1.5 rounded-lg bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer"
             >
               + Tek Forma Ekle
             </button>
@@ -326,45 +329,45 @@ export function JerseySetsSection({
                   key={piece.id}
                   className={`p-3 rounded-xl border space-y-2 ${
                     missing
-                      ? "bg-red-50 border-red-400"
+                      ? "bg-[var(--status-danger-bg)]/45 border-red-400"
                       : holderName
-                      ? "bg-amber-50 border-amber-300"
-                      : piece.is_goalkeeper
-                      ? "bg-sky-50 border-sky-200"
-                      : "bg-slate-50 border-slate-200"
+                      ? "bg-[var(--status-warning-bg)]/45 border-amber-400"
+                      : "bg-[var(--bg-subtle)] border-[var(--border-subtle)]"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span
                       className={`text-[11px] font-extrabold px-2 py-0.5 rounded ${
                         missing
-                          ? "bg-red-600 text-white"
+                          ? "bg-[var(--brand-red)] text-white"
                           : holderName
                           ? "bg-amber-600 text-white"
-                          : "bg-emerald-100 text-emerald-900"
+                          : "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
                       }`}
                     >
                       {missing
-                        ? "⚠️ Kayıp / Eksik"
+                        ? "Kayıp / Eksik"
                         : holderName
-                        ? `👤 ${holderName}`
-                        : "✓ Boşta"}
+                        ? holderName
+                        : "Boşta"}
                     </span>
                     <button
                       type="button"
                       onClick={() =>
-                        setEditingPieces((prev) => prev.filter((_, i) => i !== idx))
+                        setEditingPieces((prev) =>
+                          prev.filter((_, i) => i !== idx)
+                        )
                       }
-                      className="text-red-700 text-xs font-extrabold px-1 cursor-pointer"
+                      className="text-[var(--brand-red)] text-xs font-extrabold px-1 cursor-pointer"
                       title="Bu formayı çıkar"
                     >
-                      ✕
+                      x
                     </button>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <div className="w-16">
-                      <label className="block text-[10px] font-bold text-slate-600">
+                      <label className="block text-[10px] font-bold text-[var(--text-muted)]">
                         No
                       </label>
                       <input
@@ -380,12 +383,12 @@ export function JerseySetsSection({
                             )
                           );
                         }}
-                        className="w-full px-2 py-1 rounded-lg border border-slate-300 bg-white text-xs font-extrabold text-[#02274c]"
+                        className="w-full px-2 py-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] text-xs font-extrabold text-[var(--text-primary)]"
                       />
                     </div>
 
                     <div className="w-20">
-                      <label className="block text-[10px] font-bold text-slate-600">
+                      <label className="block text-[10px] font-bold text-[var(--text-muted)]">
                         Beden
                       </label>
                       <select
@@ -398,7 +401,7 @@ export function JerseySetsSection({
                             )
                           );
                         }}
-                        className="w-full px-1.5 py-1 rounded-lg border border-slate-300 bg-white text-xs font-bold"
+                        className="w-full px-1.5 py-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] text-xs font-bold"
                       >
                         {SIZE_OPTIONS.map((sz) => (
                           <option key={sz} value={sz}>
@@ -408,7 +411,7 @@ export function JerseySetsSection({
                       </select>
                     </div>
 
-                    <label className="flex items-center gap-1 text-[11px] font-extrabold text-slate-800 cursor-pointer mt-3">
+                    <label className="flex items-center gap-1 text-[11px] font-extrabold text-[var(--text-primary)] cursor-pointer mt-3">
                       <input
                         type="checkbox"
                         checked={piece.is_goalkeeper}
@@ -421,7 +424,7 @@ export function JerseySetsSection({
                           );
                         }}
                       />
-                      🧤 Kaleci
+                      Kaleci
                     </label>
                   </div>
 
@@ -431,12 +434,12 @@ export function JerseySetsSection({
                     className={`w-full py-1.5 rounded-lg text-[11px] font-extrabold cursor-pointer ${
                       missing
                         ? "bg-emerald-600 text-white"
-                        : "bg-red-100 hover:bg-red-200 text-red-900"
+                        : "bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)]"
                     }`}
                   >
                     {missing
-                      ? `✓ #${piece.number} Kayıp/Eksik Kaldır`
-                      : `⚠️ #${piece.number} Kayıp / Eksik İşaretle`}
+                      ? `#${piece.number} Kayıp/Eksik Kaldır`
+                      : `#${piece.number} Kayıp / Eksik İşaretle`}
                   </button>
                 </div>
               );
@@ -446,11 +449,11 @@ export function JerseySetsSection({
           <button
             type="submit"
             disabled={savingSetEdit}
-            className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-extrabold cursor-pointer"
+            className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-extrabold cursor-pointer"
           >
             {savingSetEdit
               ? "Kaydediliyor..."
-              : "✓ Forma Değişikliklerini Kaydet"}
+              : "Forma Değişikliklerini Kaydet"}
           </button>
         </form>
       )}
@@ -468,35 +471,35 @@ export function JerseySetsSection({
           return (
             <div
               key={j.id}
-              className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm flex flex-col"
+              className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden shadow-xs flex flex-col"
             >
               {j.photo_url ? (
                 <img
                   src={j.photo_url}
                   alt={j.set_name}
-                  className="w-full h-44 object-cover bg-slate-100"
+                  className="w-full h-44 object-cover bg-[var(--bg-subtle)]"
                 />
               ) : (
-                <div className="w-full h-32 bg-gradient-to-r from-[#02274c] to-[#a60513] flex items-center justify-center text-white font-black">
+                <div className="w-full h-32 bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-red)] flex items-center justify-center text-white font-black">
                   {j.kit_type} Forması
                 </div>
               )}
               <div className="p-4 space-y-2.5 flex-1 flex flex-col justify-between">
                 <div className="space-y-1.5">
-                  <span className="px-2.5 py-0.5 rounded bg-[#02274c] text-white text-xs font-extrabold">
+                  <span className="px-2.5 py-0.5 rounded bg-[var(--brand-navy)] text-white text-xs font-extrabold">
                     {j.kit_type}
                   </span>
-                  <h3 className="text-lg font-extrabold text-[#02274c]">
+                  <h3 className="text-lg font-black text-[var(--text-primary)]">
                     {j.set_name}
                   </h3>
-                  <p className="text-xs text-slate-700 font-semibold">
-                    Toplam: {j.total_quantity} • Zimmetli: {assignedCount} • Boşta:{" "}
-                    {Math.max(0, j.total_quantity - assignedCount)}
+                  <p className="text-xs text-[var(--text-secondary)] font-semibold">
+                    Toplam: {j.total_quantity} • Zimmetli: {assignedCount} •
+                    Boşta: {Math.max(0, j.total_quantity - assignedCount)}
                   </p>
 
                   {pieces.length > 0 && (
                     <div className="pt-1 space-y-1">
-                      <span className="block text-[11px] font-bold text-slate-600">
+                      <span className="block text-[11px] font-bold text-[var(--text-muted)]">
                         Numaralar (Tek tıkla Kayıp/Eksik işaretle):
                       </span>
                       <div className="flex flex-wrap gap-1">
@@ -517,37 +520,37 @@ export function JerseySetsSection({
                               }
                               className={`px-2 py-0.5 rounded text-[11px] font-extrabold border cursor-pointer ${
                                 miss
-                                  ? "bg-red-600 text-white border-red-700"
+                                  ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]"
                                   : h
-                                  ? "bg-amber-100 text-amber-950 border-amber-300"
-                                  : "bg-slate-50 text-slate-800 border-slate-200 hover:border-red-400"
+                                  ? "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] border-amber-400/60"
+                                  : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--brand-red)]"
                               }`}
                             >
                               #{x.number}
-                              {miss ? " ⚠️" : ""}
+                              {miss ? " !" : ""}
                             </button>
                           );
                         })}
                       </div>
                       {gkList.length > 0 && (
-                        <div className="text-[11px] text-amber-900 font-bold pt-0.5">
-                          🧤 Kaleci Formaları: {gkList.join(", ")}
+                        <div className="text-[11px] text-[var(--status-warning-text)] font-bold pt-0.5">
+                          Kaleci Formaları: {gkList.join(", ")}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex flex-wrap gap-2 items-center">
+                <div className="pt-3 border-t border-[var(--border-subtle)] flex flex-wrap gap-2 items-center">
                   <button
                     type="button"
                     onClick={() => openEditSet(j)}
-                    className="px-3 py-1.5 rounded-lg bg-[#02274c] text-white text-xs font-extrabold cursor-pointer"
+                    className="px-3 py-1.5 rounded-lg bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer"
                   >
-                    ✏️ Numara / Beden / Durum
+                    Numara / Beden / Durum
                   </button>
-                  <label className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-extrabold cursor-pointer">
-                    📷 Görsel {j.photo_url ? "Değiştir" : "Ekle"}
+                  <label className="px-3 py-1.5 rounded-lg bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs font-extrabold cursor-pointer">
+                    Görsel {j.photo_url ? "Değiştir" : "Ekle"}
                     <input
                       type="file"
                       accept="image/*"
@@ -561,7 +564,7 @@ export function JerseySetsSection({
                   <button
                     type="button"
                     onClick={() => handleDeleteJerseySet(j.id, j.set_name)}
-                    className="px-2.5 py-1.5 rounded-lg bg-red-100 text-red-800 text-xs font-extrabold cursor-pointer ml-auto"
+                    className="px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer ml-auto"
                   >
                     Sil
                   </button>

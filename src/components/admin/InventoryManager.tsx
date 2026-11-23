@@ -1,3 +1,4 @@
+// InventoryManager.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -52,9 +53,9 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
   const missingLogs = logs.filter((l) => l.status === "kayip_eksik");
 
   return (
-    <div className="space-y-6 text-slate-900">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       {statusMsg && (
-        <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex justify-between items-center gap-3">
+        <div className="p-3 rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-xs font-bold flex justify-between items-center gap-3">
           <span>{statusMsg}</span>
           <button
             type="button"
@@ -81,8 +82,8 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
             onClick={() => setSubTab(item.k as typeof subTab)}
             className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
               subTab === item.k
-                ? "bg-[#02274c] text-white border-[#02274c]"
-                : "bg-white text-[#02274c] border-slate-300 hover:bg-slate-50"
+                ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                : "bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:bg-[var(--bg-subtle)]"
             }`}
           >
             {item.l}
@@ -90,47 +91,49 @@ export function InventoryManager({ players }: { players: MiniPlayer[] }) {
         ))}
       </div>
 
-      {subTab === "inventory_all" && (
-        <div className="space-y-8">
-          <StockAndGiveSection
-            players={players}
-            jerseySets={jerseySets}
-            stockItems={stockItems}
-            setStockItems={setStockItems}
-            logs={logs}
-            setLogs={setLogs}
-            onStatus={setStatusMsg}
-          />
-          <div className="border-t border-slate-200 pt-6">
-            <JerseySetsSection
+      <div key={subTab} className="page-transition">
+        {subTab === "inventory_all" && (
+          <div className="space-y-8">
+            <StockAndGiveSection
+              players={players}
               jerseySets={jerseySets}
-              setJerseySets={setJerseySets}
+              stockItems={stockItems}
+              setStockItems={setStockItems}
               logs={logs}
               setLogs={setLogs}
-              players={players}
               onStatus={setStatusMsg}
             />
+            <div className="border-t border-[var(--border-subtle)] pt-6">
+              <JerseySetsSection
+                jerseySets={jerseySets}
+                setJerseySets={setJerseySets}
+                logs={logs}
+                setLogs={setLogs}
+                players={players}
+                onStatus={setStatusMsg}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {subTab === "unreturned" && (
-        <EquipmentLogsSection
-          mode="unreturned"
-          players={players}
-          logs={unreturnedLogs}
-          setLogs={setLogs}
-        />
-      )}
+        {subTab === "unreturned" && (
+          <EquipmentLogsSection
+            mode="unreturned"
+            players={players}
+            logs={unreturnedLogs}
+            setLogs={setLogs}
+          />
+        )}
 
-      {subTab === "missing" && (
-        <EquipmentLogsSection
-          mode="missing"
-          players={players}
-          logs={missingLogs}
-          setLogs={setLogs}
-        />
-      )}
+        {subTab === "missing" && (
+          <EquipmentLogsSection
+            mode="missing"
+            players={players}
+            logs={missingLogs}
+            setLogs={setLogs}
+          />
+        )}
+      </div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// PlayerCardSection.tsx
 "use client";
 
 import React, { useState } from "react";
@@ -21,7 +22,15 @@ interface PlayerCardSectionProps {
   onPlayerUpdated?: (updated: CardPlayerData) => void;
 }
 
-export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSectionProps) {
+function parsedBadgeInitial(name: string): string {
+  const clean = (name || "İ").trim();
+  return clean ? clean.charAt(0).toUpperCase() : "İ";
+}
+
+export function PlayerCardSection({
+  player,
+  onPlayerUpdated,
+}: PlayerCardSectionProps) {
   const [jerseyInput, setJerseyInput] = useState<string>(
     player.jersey_number ? String(player.jersey_number) : ""
   );
@@ -40,7 +49,10 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
     setSaving(true);
 
     const parsedJersey = jerseyInput.trim()
-      ? Math.max(1, Math.min(99, parseInt(jerseyInput.replace(/[^0-9]/g, ""), 10) || 1))
+      ? Math.max(
+          1,
+          Math.min(99, parseInt(jerseyInput.replace(/[^0-9]/g, ""), 10) || 1)
+        )
       : null;
 
     const { error } = await supabase
@@ -63,27 +75,27 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
       jersey_number: parsedJersey,
     };
     onPlayerUpdated?.(nextPlayer);
-    setMsg({ ok: true, text: "Futbolcu kartın güncellendi!" });
+    setMsg({ ok: true, text: "Futbolcu kartın güncellendi." });
   }
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+    <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
         <div>
-          <span className="text-[11px] font-black uppercase tracking-wider text-[#a60513]">
+          <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
             Resmi Kulüp Kartı
           </span>
-          <h2 className="text-lg font-black text-[#02274c]">
-            🃏 Futbolcu Kartım
+          <h2 className="text-lg font-black text-[var(--text-primary)]">
+            Futbolcu Kartım
           </h2>
         </div>
-        <span className="px-3 py-1 rounded-full bg-[#02274c] text-white text-xs font-black">
+        <span className="px-3 py-1 rounded-full bg-[var(--brand-navy)] text-white text-xs font-black tabular-nums">
           {ovr} OVR • {pts} Puan
         </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        <div className="rounded-3xl bg-gradient-to-br from-[#02274c] via-[#06396b] to-[#a60513] text-white p-6 shadow-md space-y-4">
+        <div className="rounded-3xl bg-gradient-to-br from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white p-6 shadow-md space-y-4 tabular-nums">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-3xl font-black leading-none">{ovr}</div>
@@ -123,13 +135,13 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
 
         <form onSubmit={handleSaveCard} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Mevki
             </label>
             <select
               value={positionInput}
               onChange={(e) => setPositionInput(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-bold text-slate-900"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
             >
               <option value="Kaleci">Kaleci</option>
               <option value="Defans">Defans</option>
@@ -139,7 +151,7 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Forma Numarası (1-99)
             </label>
             <input
@@ -150,11 +162,13 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
                 if (jerseyInput === "0") setJerseyInput("");
               }}
               onChange={(e) => {
-                const digits = e.target.value.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, "");
+                const digits = e.target.value
+                  .replace(/[^0-9]/g, "")
+                  .replace(/^0+(?=\d)/, "");
                 setJerseyInput(digits);
               }}
               placeholder="Örn: 10"
-              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-extrabold text-slate-900"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-extrabold text-[var(--text-primary)] tabular-nums"
             />
           </div>
 
@@ -162,8 +176,8 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
             <div
               className={`p-3 rounded-xl text-xs font-bold ${
                 msg.ok
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                  : "bg-red-50 text-red-800 border border-red-200"
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                  : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
               }`}
             >
               {msg.text}
@@ -173,7 +187,7 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
           <button
             type="submit"
             disabled={saving}
-            className="w-full py-2.5 px-5 rounded-xl bg-[#02274c] hover:bg-[#033669] text-white text-sm font-extrabold cursor-pointer disabled:opacity-50"
+            className="w-full py-2.5 px-5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-sm font-extrabold cursor-pointer disabled:opacity-50"
           >
             {saving ? "Kaydediliyor..." : "Kartımı Kaydet"}
           </button>
@@ -181,9 +195,4 @@ export function PlayerCardSection({ player, onPlayerUpdated }: PlayerCardSection
       </div>
     </section>
   );
-}
-
-function parsedBadgeInitial(name: string): string {
-  const clean = (name || "İ").trim();
-  return clean ? clean.charAt(0).toUpperCase() : "İ";
 }

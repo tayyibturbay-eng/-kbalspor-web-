@@ -1,3 +1,4 @@
+// PlayerProfileTab.tsx
 "use client";
 
 import { useState } from "react";
@@ -13,12 +14,12 @@ function makeAvatarSvg(bg: string, accent: string, emoji: string): string {
 }
 
 const PRESET_AVATARS = [
-  { id: "futbolcu", label: "Futbolcu", url: makeAvatarSvg("#02274c", "#a60513", "⚽") },
-  { id: "kaleci", label: "Kaleci", url: makeAvatarSvg("#0f766e", "#02274c", "🧤") },
-  { id: "yildiz", label: "Yıldız", url: makeAvatarSvg("#b45309", "#02274c", "⭐") },
-  { id: "kupa", label: "Şampiyon", url: makeAvatarSvg("#a60513", "#7f1d1d", "🏆") },
+  { id: "futbolcu", label: "Futbolcu", url: makeAvatarSvg("#0b2545", "#b91c1c", "⚽") },
+  { id: "kaleci", label: "Kaleci", url: makeAvatarSvg("#0f766e", "#0b2545", "🧤") },
+  { id: "yildiz", label: "Yıldız", url: makeAvatarSvg("#b45309", "#0b2545", "⭐") },
+  { id: "kupa", label: "Şampiyon", url: makeAvatarSvg("#b91c1c", "#7f1d1d", "🏆") },
   { id: "aslan", label: "Aslan", url: makeAvatarSvg("#1e3a8a", "#3b82f6", "🦁") },
-  { id: "kartal", label: "Atik", url: makeAvatarSvg("#334155", "#02274c", "⚡") },
+  { id: "kartal", label: "Atik", url: makeAvatarSvg("#334155", "#0b2545", "⚡") },
 ];
 
 interface PlayerProfileTabProps {
@@ -117,15 +118,15 @@ export function PlayerProfileTab({
   }
 
   return (
-    <div className="bg-white text-slate-900 rounded-3xl border border-slate-200 p-6 space-y-6 shadow-xs">
-      <h2 className="text-lg font-black text-[#02274c]">
+    <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-6 shadow-xs">
+      <h2 className="text-lg font-black text-[var(--text-primary)]">
         Bilgilerim, Profil Fotoğrafı &amp; PIN
       </h2>
 
-      <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+      <div className="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-2xl bg-[#02274c] text-white overflow-hidden flex items-center justify-center border-2 border-white shadow-md shrink-0">
+            <div className="w-20 h-20 rounded-2xl bg-[var(--brand-navy)] text-white overflow-hidden flex items-center justify-center border-2 border-[var(--border-subtle)] shadow-md shrink-0">
               {player.photo_url ? (
                 <img
                   src={player.photo_url}
@@ -139,10 +140,10 @@ export function PlayerProfileTab({
               )}
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-[#02274c]">
+              <h3 className="font-extrabold text-sm text-[var(--text-primary)]">
                 Profil Fotoğrafı veya Avatar
               </h3>
-              <p className="text-xs font-medium text-slate-700 mt-0.5">
+              <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">
                 Kendi fotoğrafınızı yükleyebilir veya aşağıdaki hazır
                 avatarlardan birini seçebilirsiniz.
               </p>
@@ -150,8 +151,8 @@ export function PlayerProfileTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="px-4 py-2.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-xs font-extrabold cursor-pointer transition">
-              {photoUploading ? "Yükleniyor..." : "📷 Fotoğraf Yükle"}
+            <label className="px-4 py-2.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer transition">
+              {photoUploading ? "Yükleniyor..." : "Fotoğraf Yükle"}
               <input
                 type="file"
                 accept="image/*"
@@ -166,7 +167,7 @@ export function PlayerProfileTab({
                 onClick={() =>
                   savePlayerPhoto(null, "Profil fotoğrafı kaldırıldı.")
                 }
-                className="px-3.5 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-900 text-xs font-bold cursor-pointer"
+                className="px-3.5 py-2.5 rounded-xl bg-[var(--bg-surface)] hover:opacity-85 border border-[var(--border-strong)] text-[var(--text-primary)] text-xs font-bold cursor-pointer"
               >
                 Kaldır
               </button>
@@ -175,7 +176,7 @@ export function PlayerProfileTab({
         </div>
 
         <div>
-          <p className="text-xs font-bold text-slate-800 mb-2">
+          <p className="text-xs font-bold text-[var(--text-secondary)] mb-2">
             Hazır Avatarlar (Tek tıkla seçin):
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
@@ -190,8 +191,8 @@ export function PlayerProfileTab({
                   }
                   className={`flex flex-col items-center gap-1.5 p-2.5 rounded-2xl border transition cursor-pointer ${
                     selected
-                      ? "bg-white border-[#a60513] ring-2 ring-[#a60513]/30 shadow-xs"
-                      : "bg-white border-slate-200 hover:border-[#02274c]"
+                      ? "bg-[var(--bg-surface)] border-[var(--brand-red)] ring-2 ring-[var(--brand-red)]/30 shadow-xs"
+                      : "bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:border-[var(--brand-navy)]"
                   }`}
                 >
                   <img
@@ -199,7 +200,7 @@ export function PlayerProfileTab({
                     alt={av.label}
                     className="w-12 h-12 rounded-full"
                   />
-                  <span className="text-[11px] font-extrabold text-slate-900">
+                  <span className="text-[11px] font-extrabold text-[var(--text-primary)]">
                     {av.label}
                   </span>
                 </button>
@@ -211,7 +212,9 @@ export function PlayerProfileTab({
         {photoMsg && (
           <div
             className={`text-xs font-bold ${
-              photoMsg.ok ? "text-emerald-800" : "text-red-700"
+              photoMsg.ok
+                ? "text-[var(--status-success-text)]"
+                : "text-[var(--status-danger-text)]"
             }`}
           >
             {photoMsg.text}
@@ -220,28 +223,36 @@ export function PlayerProfileTab({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 text-sm">
-        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <span className="text-xs font-semibold text-slate-700 block">Ad Soyad</span>
-          <span className="font-extrabold text-slate-900">{player.full_name}</span>
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
+            Ad Soyad
+          </span>
+          <span className="font-extrabold text-[var(--text-primary)]">
+            {player.full_name}
+          </span>
         </div>
-        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <span className="text-xs font-semibold text-slate-700 block">Lisans No</span>
-          <span className="font-extrabold text-slate-900">
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
+            Lisans No
+          </span>
+          <span className="font-extrabold text-[var(--text-primary)]">
             {player.license_no || "Belirtilmemiş"}
           </span>
         </div>
-        <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
-          <span className="text-xs font-semibold text-slate-700 block">Aidat Özeti</span>
+        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
+            Aidat Özeti
+          </span>
           {overdueCount > 0 ? (
-            <span className="font-extrabold text-red-700">
-              ⚠️ Gecikti ({overdueCount} ay)
+            <span className="font-extrabold text-[var(--status-danger-text)] tabular-nums">
+              Gecikti ({overdueCount} ay)
             </span>
           ) : currentMonthItem?.state === "paid" ? (
-            <span className="font-extrabold text-emerald-800">
-              ✓ {currentMonthItem.monthLabel}: Ödendi
+            <span className="font-extrabold text-[var(--status-success-text)]">
+              {currentMonthItem.monthLabel}: Ödendi
             </span>
           ) : (
-            <span className="font-extrabold text-amber-800">
+            <span className="font-extrabold text-[var(--status-warning-text)]">
               {currentMonthItem?.monthLabel || "Güncel Dönem"}: Ödenmedi
             </span>
           )}
@@ -249,7 +260,7 @@ export function PlayerProfileTab({
       </div>
 
       <form onSubmit={handlePinChange} className="space-y-3 max-w-sm">
-        <label className="block text-xs font-bold text-slate-800">
+        <label className="block text-xs font-bold text-[var(--text-secondary)]">
           Yeni PIN Belirle (En az 4 hane)
         </label>
         <div className="flex gap-2">
@@ -259,11 +270,11 @@ export function PlayerProfileTab({
             value={newPin}
             onChange={(e) => setNewPin(e.target.value)}
             placeholder="Yeni PIN..."
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+            className="flex-1 px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-sm font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
           />
           <button
             type="submit"
-            className="px-4 py-2.5 rounded-xl bg-[#02274c] hover:bg-[#033668] text-white text-sm font-extrabold cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-sm font-extrabold cursor-pointer"
           >
             Güncelle
           </button>
@@ -271,7 +282,9 @@ export function PlayerProfileTab({
         {pinMsg && (
           <div
             className={`text-xs font-bold ${
-              pinMsg.ok ? "text-emerald-800" : "text-red-700"
+              pinMsg.ok
+                ? "text-[var(--status-success-text)]"
+                : "text-[var(--status-danger-text)]"
             }`}
           >
             {pinMsg.text}

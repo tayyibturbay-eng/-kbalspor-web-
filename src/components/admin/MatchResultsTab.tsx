@@ -1,3 +1,4 @@
+// MatchResultsTab.tsx
 "use client";
 
 import React, { useMemo, useState } from "react";
@@ -27,7 +28,9 @@ function getPlayerMultiplier(p: Player, allPlayers: Player[]): 1 | 2 | 3 {
     ...allPlayers.map((item) =>
       Math.max(
         0,
-        Number((item as Player & { goals_scored?: number | null }).goals_scored ?? 0)
+        Number(
+          (item as Player & { goals_scored?: number | null }).goals_scored ?? 0
+        )
       )
     )
   );
@@ -353,7 +356,7 @@ export function MatchResultsTab({
       );
 
       onFeedback(
-        `✅ Maç skoru, gol atanlar ve tahmin puanları kaydedildi (${totalAwardedPlayers} oyuncuya puan aktarıldı).`
+        `Maç skoru, gol atanlar ve tahmin puanları kaydedildi (${totalAwardedPlayers} oyuncuya puan aktarıldı).`
       );
     } finally {
       setSaving(false);
@@ -363,13 +366,13 @@ export function MatchResultsTab({
   return (
     <form
       onSubmit={handleSaveResult}
-      className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-5"
+      className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs space-y-5 tabular-nums"
     >
       <div>
-        <h2 className="text-lg font-black text-[#02274c]">
+        <h2 className="text-lg font-black text-[var(--text-primary)]">
           Maç Skoru ve Gol Atan Oyuncular
         </h2>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-[var(--text-secondary)]">
           Maç kadrosundaki/kategorisindeki oyuncuları seçebilir veya alttaki +
           butonundan başka oyuncu arayarak ekleyebilirsin.
         </p>
@@ -377,13 +380,13 @@ export function MatchResultsTab({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-1">
-          <label className="block text-xs font-bold text-slate-700 mb-1">
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
             Maç Seçin
           </label>
           <select
             value={selectedMatchId}
             onChange={(e) => handleSelectMatch(e.target.value)}
-            className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-semibold bg-white"
+            className="w-full rounded-xl border border-[var(--border-strong)] px-3 py-2.5 text-sm font-semibold bg-[var(--bg-subtle)] text-[var(--text-primary)]"
           >
             {matchList.map((m) => (
               <option key={m.id} value={m.id}>
@@ -394,7 +397,7 @@ export function MatchResultsTab({
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
             İkbalspor / Ev Sahibi Gol
           </label>
           <input
@@ -404,12 +407,12 @@ export function MatchResultsTab({
             onChange={(e) =>
               setHomeGoals(Math.max(0, Number(e.target.value) || 0))
             }
-            className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold"
+            className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3 py-2.5 text-sm font-bold"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
             Rakip / Deplasman Gol
           </label>
           <input
@@ -419,17 +422,17 @@ export function MatchResultsTab({
             onChange={(e) =>
               setAwayGoals(Math.max(0, Number(e.target.value) || 0))
             }
-            className="w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm font-bold"
+            className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3 py-2.5 text-sm font-bold"
           />
         </div>
       </div>
 
-      <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+      <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-4 space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-extrabold text-[#02274c] uppercase tracking-wider">
+          <span className="text-xs font-extrabold text-[var(--text-primary)] uppercase tracking-wider">
             Maçta Oynayanlar — Golcü Ekle
           </span>
-          <span className="text-[11px] font-semibold text-slate-500">
+          <span className="text-[11px] font-semibold text-[var(--text-muted)]">
             {matchPlayers.length} oyuncu listeleniyor
           </span>
         </div>
@@ -438,7 +441,7 @@ export function MatchResultsTab({
           <select
             value={effectiveScorerId}
             onChange={(e) => setSelectedScorerId(e.target.value)}
-            className="flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white"
+            className="flex-1 rounded-xl border border-[var(--border-strong)] px-3 py-2 text-sm bg-[var(--bg-surface)] text-[var(--text-primary)]"
           >
             {matchPlayers.map((p) => (
               <option key={p.id} value={p.id}>
@@ -455,14 +458,14 @@ export function MatchResultsTab({
             onChange={(e) =>
               setScorerGoalCount(Math.max(1, Number(e.target.value) || 1))
             }
-            className="w-24 rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold bg-white"
+            className="w-24 rounded-xl border border-[var(--border-strong)] px-3 py-2 text-sm font-bold bg-[var(--bg-surface)] text-[var(--text-primary)]"
             placeholder="Gol"
           />
 
           <button
             type="button"
             onClick={addScorerToList}
-            className="px-4 py-2 rounded-xl bg-[#02274c] hover:bg-[#043666] text-white text-xs font-extrabold cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer"
           >
             Golcü Ekle
           </button>
@@ -472,9 +475,9 @@ export function MatchResultsTab({
           <button
             type="button"
             onClick={() => setShowExtraSearch((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-dashed border-[#02274c]/50 text-xs font-extrabold text-[#02274c] cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] hover:opacity-90 border border-dashed border-[var(--border-strong)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
           >
-            <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-[#a60513] text-white text-[11px] font-black leading-none">
+            <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-[var(--brand-red)] text-white text-[11px] font-black leading-none">
               +
             </span>
             <span>
@@ -485,19 +488,19 @@ export function MatchResultsTab({
           </button>
 
           {showExtraSearch && (
-            <div className="mt-2.5 rounded-xl bg-white border border-slate-200 p-3 space-y-2.5">
+            <div className="mt-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-3 space-y-2.5">
               <input
                 type="text"
                 value={extraSearchQuery}
                 onChange={(e) => setExtraSearchQuery(e.target.value)}
                 placeholder="Oyuncu adı veya kategori ara (örn. U13, Ahmet)..."
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs sm:text-sm"
+                className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3 py-2 text-xs sm:text-sm"
                 autoFocus
               />
 
-              <div className="max-h-44 overflow-y-auto divide-y divide-slate-100">
+              <div className="max-h-44 overflow-y-auto divide-y divide-[var(--border-subtle)]">
                 {searchedOutsidePlayers.length === 0 ? (
-                  <div className="py-2 text-xs text-slate-500">
+                  <div className="py-2 text-xs text-[var(--text-muted)]">
                     Eşleşen başka oyuncu bulunamadı.
                   </div>
                 ) : (
@@ -507,17 +510,17 @@ export function MatchResultsTab({
                       className="py-2 flex items-center justify-between gap-2 text-xs sm:text-sm"
                     >
                       <div className="truncate">
-                        <span className="font-bold text-slate-900">
+                        <span className="font-bold text-[var(--text-primary)]">
                           {p.full_name}
                         </span>{" "}
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-[var(--text-muted)]">
                           ({p.age_group})
                         </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => handlePickExtraPlayer(p)}
-                        className="px-2.5 py-1 rounded-lg bg-[#a60513] hover:bg-red-700 text-white text-xs font-extrabold shrink-0 cursor-pointer"
+                        className="px-2.5 py-1 rounded-lg bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold shrink-0 cursor-pointer"
                       >
                         + Seç
                       </button>
@@ -534,17 +537,17 @@ export function MatchResultsTab({
             {goalEvents.map((g) => (
               <span
                 key={g.player_id}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-slate-300 text-xs font-extrabold text-[#02274c]"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-surface)] border border-[var(--border-strong)] text-xs font-extrabold text-[var(--text-primary)]"
               >
                 <span>
-                  ⚽ {g.player_name} ({g.goals} gol)
+                  {g.player_name} ({g.goals} gol)
                 </span>
                 <button
                   type="button"
                   onClick={() => removeScorer(g.player_id)}
-                  className="text-[#a60513] font-black cursor-pointer"
+                  className="text-[var(--brand-red)] font-black cursor-pointer"
                 >
-                  ✕
+                  x
                 </button>
               </span>
             ))}
@@ -556,7 +559,7 @@ export function MatchResultsTab({
         <button
           type="submit"
           disabled={saving}
-          className="px-6 py-3 rounded-xl bg-[#a60513] hover:bg-red-700 disabled:opacity-60 text-white text-sm font-extrabold cursor-pointer"
+          className="px-6 py-3 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] disabled:opacity-60 text-white text-sm font-extrabold cursor-pointer"
         >
           {saving ? "Kaydediliyor..." : "Skor ve Golcüleri Kaydet"}
         </button>

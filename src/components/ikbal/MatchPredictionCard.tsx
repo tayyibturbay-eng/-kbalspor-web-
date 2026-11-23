@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { calculateGoalPointsForScorer } from "@/lib/goal-scoring";
+import { claimPredictionRewardSafely } from "@/lib/prediction-rpc";
+import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 
 const supabase = createClient();
 
@@ -101,9 +103,14 @@ function formatMatchScheduleLabel(
   if (datePart && timePart) return `${datePart} • ${timePart}`;
   return datePart || timePart;
 }
+
 function isMatchRecord(t: MatchTaskRow): boolean {
   const titleLower = (t.title || "").toLowerCase();
-  return t.task_type === "mac" || titleLower.includes("maç") || titleLower.includes("mac");
+  return (
+    t.task_type === "mac" ||
+    titleLower.includes("maç") ||
+    titleLower.includes("mac")
+  );
 }
 
 function normalizeScoreInput(raw: string): { str: string; num: number } {
@@ -167,6 +174,13 @@ export function MatchPredictionCard({
     return showOtherAgePlayers ? categoryPlayers : groupPlayers;
   }, [showOtherAgePlayers, categoryPlayers, groupPlayers]);
 
+  const effectiveFirstScorer = useMemo(() => {
+    if (firstScorer && categoryPlayers.some((p) => p.full_name === firstScorer)) {
+      return firstScorer;
+    }
+    return groupPlayers[0]?.full_name || "";
+  }, [firstScorer, categoryPlayers, groupPlayers]);
+
   const playerMultipliers = useMemo(() => {
     const goalCounts = new Map<string, number>();
     for (const pred of predictions) {
@@ -227,7 +241,9 @@ export function MatchPredictionCard({
         return !dateVal || dateVal >= todayIso;
       });
       const finalMatches =
-        matchRows.length > 0 ? matchRows : taskData.filter((t) => isMatchRecord(t));
+        matchRows.length > 0
+          ? matchRows
+          : taskData.filter((t) => isMatchRecord(t));
 
       setMatches(finalMatches);
       setCategoryPlayers(playersData);
@@ -259,24 +275,31 @@ export function MatchPredictionCard({
     if (!playerId) return;
     let active = true;
 
-    (async () => {
+    const loadInitial = async () => {
       const { taskData, predData, playersData } = await fetchPredictionData();
       if (!active) return;
       applyFetchedData(taskData, predData, playersData, true);
-    })();
+    };
+
+    void loadInitial();
+
+    const unsubscribe = subscribeClubLiveUpdates(
+      supabase,
+      () => {
+        void (async () => {
+          const { taskData, predData, playersData } = await fetchPredictionData();
+          if (!active) return;
+          applyFetchedData(taskData, predData, playersData, false);
+        })();
+      },
+      `prediction-card-${playerId}`
+    );
 
     return () => {
       active = false;
+      unsubscribe();
     };
   }, [playerId, fetchPredictionData, applyFetchedData]);
-
-  useEffect(() => {
-    if (!groupPlayers.length) return;
-    setFirstScorer((prev) => {
-      if (prev && categoryPlayers.some((p) => p.full_name === prev)) return prev;
-      return groupPlayers[0].full_name;
-    });
-  }, [groupPlayers, categoryPlayers]);
 
   const claimablePredictions = useMemo(() => {
     return predictions
@@ -319,49 +342,40 @@ export function MatchPredictionCard({
 
     const currentPlayer = categoryPlayers.find((p) => p.id === playerId);
     const currentPts = Number(currentPlayer?.skill_points ?? 0);
-    const nextTotalPts = currentPts + earnedPts;
 
-    const { error: updPredErr } = await supabase
-      .from("match_predictions")
-      .update({ reward_claimed: true, awarded_points: earnedPts })
-      .eq("id", predId)
-      .eq("player_id", playerId);
-
-    if (updPredErr) {
-      setClaimingId(null);
-      setStatusMsg({
-        ok: false,
-        text: "Ödül durumu güncellenemedi: " + updPredErr.message,
-      });
-      return;
-    }
-
-    const { error: updPlayerErr } = await supabase
-      .from("players")
-      .update({ skill_points: nextTotalPts })
-      .eq("id", playerId);
+    const result = await claimPredictionRewardSafely(supabase, {
+      predictionId: predId,
+      playerId,
+      points: earnedPts,
+      currentPlayerPoints: currentPts,
+    });
 
     setClaimingId(null);
-    if (updPlayerErr) {
+    if (!result.ok || typeof result.newPoints !== "number") {
       setStatusMsg({
         ok: false,
-        text: "Puan eklenemedi: " + updPlayerErr.message,
+        text: result.error || "Ödül toplanamadı.",
       });
       return;
     }
 
+    const nextTotalPts = result.newPoints;
     setCategoryPlayers((prev) =>
-      prev.map((p) => (p.id === playerId ? { ...p, skill_points: nextTotalPts } : p))
+      prev.map((p) =>
+        p.id === playerId ? { ...p, skill_points: nextTotalPts } : p
+      )
     );
     setPredictions((prev) =>
       prev.map((r) =>
-        r.id === predId ? { ...r, reward_claimed: true, awarded_points: earnedPts } : r
+        r.id === predId
+          ? { ...r, reward_claimed: true, awarded_points: earnedPts }
+          : r
       )
     );
     onPointsClaimed?.(nextTotalPts);
     setStatusMsg({
       ok: true,
-      text: `🎉 +${earnedPts} tahmin puanı toplandı! Yeni toplam puanın: ${nextTotalPts}p`,
+      text: `+${earnedPts} tahmin puanı toplandı. Yeni toplam puanın: ${nextTotalPts}p`,
     });
   }
 
@@ -377,7 +391,7 @@ export function MatchPredictionCard({
       return;
     }
 
-    const chosenScorer = firstScorer.trim() || groupPlayers[0]?.full_name || null;
+    const chosenScorer = effectiveFirstScorer.trim() || null;
     const matchedPlayer = chosenScorer
       ? categoryPlayers.find((p) => p.full_name === chosenScorer)
       : null;
@@ -401,13 +415,16 @@ export function MatchPredictionCard({
     setSaving(false);
 
     if (error) {
-      setStatusMsg({ ok: false, text: "Tahmin kaydedilemedi: " + error.message });
+      setStatusMsg({
+        ok: false,
+        text: "Tahmin kaydedilemedi: " + error.message,
+      });
       return;
     }
 
     setStatusMsg({
       ok: true,
-      text: `Maç günü tahminin kaydedildi! (Gol çarpanı: x${multiplier.toFixed(2)})`,
+      text: `Maç günü tahminin kaydedildi. (Gol çarpanı: x${multiplier.toFixed(2)})`,
     });
 
     const { taskData, predData, playersData } = await fetchPredictionData();
@@ -421,39 +438,40 @@ export function MatchPredictionCard({
   }, [predictions, activeMatchTitle]);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5 text-slate-900">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+    <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] shadow-xs p-6 space-y-5 text-[var(--text-primary)] tabular-nums">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
         <div>
-          <span className="inline-block bg-[#02274c] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
+          <span className="inline-block bg-[var(--brand-navy)] text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full">
             {effectiveCategory} • Maç Günü Tahmini
           </span>
-          <h2 className="text-lg font-extrabold text-[#02274c] mt-1">
+          <h2 className="text-lg font-black text-[var(--text-primary)] mt-1">
             Skor &amp; Golcü Tahmini
           </h2>
-          <p className="text-xs font-medium text-slate-600 mt-0.5">
-            Her doğru skor: +1 puan • Kazananı bilme: +3 puan • Tam doğru maç: +5 puan
+          <p className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">
+            Her doğru skor: +1 puan • Kazananı bilme: +3 puan • Tam doğru maç:
+            +5 puan
           </p>
         </div>
-        <span className="text-xs font-bold text-slate-600">
+        <span className="text-xs font-bold text-[var(--text-muted)]">
           {visiblePredictions.length} tahmin yapıldı
         </span>
       </div>
 
       {claimablePredictions.length > 0 && (
-        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 space-y-2.5">
-          <div className="text-xs font-extrabold text-amber-950 uppercase">
-            🎁 Toplanabilir Tahmin Ödüllerin Var!
+        <div className="rounded-2xl border-2 border-amber-400/70 bg-[var(--status-warning-bg)]/50 p-4 space-y-2.5">
+          <div className="text-xs font-black text-[var(--status-warning-text)] uppercase">
+            Toplanabilir Tahmin Ödüllerin Var
           </div>
           {claimablePredictions.map((item) => (
             <div
               key={item.id}
-              className="flex flex-wrap items-center justify-between gap-2 bg-white border border-amber-200 rounded-xl px-3.5 py-2.5"
+              className="flex flex-wrap items-center justify-between gap-2 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl px-3.5 py-2.5"
             >
               <div>
-                <p className="text-xs font-extrabold text-[#02274c]">
+                <p className="text-xs font-extrabold text-[var(--text-primary)]">
                   {item.match_title} ({item.home_score} - {item.away_score})
                 </p>
-                <p className="text-xs font-bold text-emerald-700">
+                <p className="text-xs font-bold text-[var(--status-success-text)]">
                   Kazanılan Ödül: +{item.earnedPts} Puan
                 </p>
               </div>
@@ -474,25 +492,35 @@ export function MatchPredictionCard({
 
       <form onSubmit={handleSave} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-slate-800 mb-1">
+          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
             Aktif Maç Seçimi
           </label>
           {matches.length > 0 ? (
             <select
               value={selectedMatch?.id || ""}
               onChange={(e) => setSelectedMatchId(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
             >
               {matches.map((m) => (
-                <option key={m.id} value={m.id} className="bg-white text-slate-900">
+                <option key={m.id} value={m.id}>
                   {m.title}
                   {m.age_group ? ` [${m.age_group}]` : ""}
-                  {formatMatchScheduleLabel(m.event_date, m.due_date, m.match_time) ? ` (${formatMatchScheduleLabel(m.event_date, m.due_date, m.match_time)})` : ""}
+                  {formatMatchScheduleLabel(
+                    m.event_date,
+                    m.due_date,
+                    m.match_time
+                  )
+                    ? ` (${formatMatchScheduleLabel(
+                        m.event_date,
+                        m.due_date,
+                        m.match_time
+                      )})`
+                    : ""}
                 </option>
               ))}
             </select>
           ) : (
-            <div className="w-full rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-3.5 py-2.5 text-xs font-bold">
+            <div className="w-full rounded-xl border border-amber-400/60 bg-[var(--status-warning-bg)]/50 text-[var(--status-warning-text)] px-3.5 py-2.5 text-xs font-bold">
               Şu anda aktif maç kaydı bulunmuyor.
             </div>
           )}
@@ -500,7 +528,7 @@ export function MatchPredictionCard({
 
         <div className="grid grid-cols-2 gap-3 items-end">
           <div>
-            <label className="block text-xs font-bold text-slate-800 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               İkbalspor Gol
             </label>
             <input
@@ -519,12 +547,12 @@ export function MatchPredictionCard({
                 setHomeScoreInput(str);
                 setHomeScore(num);
               }}
-              className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-800 mb-1">
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
               Rakip Gol
             </label>
             <input
@@ -543,15 +571,19 @@ export function MatchPredictionCard({
                 setAwayScoreInput(str);
                 setAwayScore(num);
               }}
-              className="w-full rounded-xl border border-slate-300 bg-white text-slate-900 px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[#02274c]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3.5 py-2.5 text-sm font-extrabold text-center focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
             />
           </div>
         </div>
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="block text-xs font-bold text-slate-800">
-              Gol Atacak Oyuncu ({showOtherAgePlayers ? "Tüm Kategoriler" : `${effectiveCategory} Kadrosu`})
+            <label className="block text-xs font-bold text-[var(--text-secondary)]">
+              Gol Atacak Oyuncu (
+              {showOtherAgePlayers
+                ? "Tüm Kategoriler"
+                : `${effectiveCategory} Kadrosu`}
+              )
             </label>
             <div className="flex items-center gap-2">
               {otherPlayers.length > 0 && (
@@ -560,14 +592,16 @@ export function MatchPredictionCard({
                   onClick={() => setShowOtherAgePlayers((prev) => !prev)}
                   className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border cursor-pointer ${
                     showOtherAgePlayers
-                      ? "bg-[#02274c] text-white border-[#02274c]"
-                      : "bg-slate-100 text-[#02274c] border-slate-200 hover:bg-slate-200"
+                      ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                      : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-strong)] hover:opacity-85"
                   }`}
                 >
-                  {showOtherAgePlayers ? "Yalnızca Maç Grubu" : "+ Diğer Yaş Grupları"}
+                  {showOtherAgePlayers
+                    ? "Yalnızca Maç Grubu"
+                    : "+ Diğer Yaş Grupları"}
                 </button>
               )}
-              <span className="text-[11px] font-bold text-[#02274c]">
+              <span className="text-[11px] font-bold text-[var(--text-muted)]">
                 {selectableScorers.length} oyuncu
               </span>
             </div>
@@ -577,7 +611,7 @@ export function MatchPredictionCard({
             <div className="flex flex-wrap gap-2">
               {selectableScorers.map((cand) => {
                 const mult = playerMultipliers.get(cand.id) ?? 1;
-                const isSelected = firstScorer === cand.full_name;
+                const isSelected = effectiveFirstScorer === cand.full_name;
                 return (
                   <button
                     key={cand.id}
@@ -585,8 +619,8 @@ export function MatchPredictionCard({
                     onClick={() => setFirstScorer(cand.full_name)}
                     className={`px-3 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer flex items-center gap-1.5 ${
                       isSelected
-                        ? "bg-[#a60513] text-white border-[#a60513] shadow-sm"
-                        : "bg-slate-50 text-[#02274c] border-slate-200 hover:bg-slate-100"
+                        ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)] shadow-xs"
+                        : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--brand-navy)]"
                     }`}
                   >
                     <span>
@@ -598,7 +632,7 @@ export function MatchPredictionCard({
                       className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
                         isSelected
                           ? "bg-white/20 text-white"
-                          : "bg-[#02274c]/10 text-[#02274c]"
+                          : "bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300"
                       }`}
                     >
                       x{mult.toFixed(2)}
@@ -608,7 +642,7 @@ export function MatchPredictionCard({
               })}
             </div>
           ) : (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[var(--text-muted)]">
               {effectiveCategory} kategorisinde kayıtlı oyuncu bulunamadı.
             </p>
           )}
@@ -618,8 +652,8 @@ export function MatchPredictionCard({
           <div
             className={`p-3 rounded-xl text-xs font-bold ${
               statusMsg.ok
-                ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                : "bg-red-50 text-red-800 border border-red-200"
+                ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
             }`}
           >
             {statusMsg.text}
@@ -629,15 +663,15 @@ export function MatchPredictionCard({
         <button
           type="submit"
           disabled={saving || !activeMatchTitle}
-          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#a60513] hover:bg-red-700 text-white text-sm font-extrabold transition disabled:opacity-50 cursor-pointer"
+          className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-extrabold transition disabled:opacity-50 cursor-pointer"
         >
           {saving ? "Kaydediliyor..." : "Tahminimi Kaydet"}
         </button>
       </form>
 
       {visiblePredictions.length > 0 && (
-        <div className="border-t border-slate-100 pt-4 space-y-2">
-          <h3 className="text-xs font-extrabold uppercase text-slate-700">
+        <div className="border-t border-[var(--border-subtle)] pt-4 space-y-2">
+          <h3 className="text-xs font-extrabold uppercase text-[var(--text-muted)]">
             {effectiveCategory} Grubu Tahminleri
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -658,14 +692,16 @@ export function MatchPredictionCard({
               return (
                 <div
                   key={pred.id}
-                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5"
+                  className="flex items-center justify-between rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] px-3.5 py-2.5"
                 >
                   <div className="min-w-0">
-                    <p className="text-xs font-extrabold text-[#02274c] truncate">
+                    <p className="text-xs font-extrabold text-[var(--text-primary)] truncate">
                       {pred.players?.full_name || "Sporcu"}
-                      {pred.players?.jersey_number ? ` (#${pred.players.jersey_number})` : ""}
+                      {pred.players?.jersey_number
+                        ? ` (#${pred.players.jersey_number})`
+                        : ""}
                     </p>
-                    <p className="text-[11px] text-slate-600 truncate">
+                    <p className="text-[11px] text-[var(--text-secondary)] truncate">
                       {pred.match_title}
                       {pred.first_scorer_name
                         ? ` • Gol: ${pred.first_scorer_name}${
@@ -677,7 +713,7 @@ export function MatchPredictionCard({
                       {pts !== null ? ` • +${pts}p` : ""}
                     </p>
                   </div>
-                  <span className="ml-2 shrink-0 px-2.5 py-1 rounded-lg bg-[#02274c] text-white text-xs font-black">
+                  <span className="ml-2 shrink-0 px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-black">
                     {pred.home_score} - {pred.away_score}
                   </span>
                 </div>

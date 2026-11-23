@@ -1,3 +1,4 @@
+// QrAttendanceTab.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -122,7 +123,7 @@ export function QrAttendanceTab({
       if (lastTs > 0 && diffMs < oneHourMs) {
         const kalanDakika = Math.ceil((oneHourMs - diffMs) / 60000);
         onFeedback(
-          `⏳ Güvenlik nedeniyle yeni QR kod oluşturmak için ${kalanDakika} dakika beklemelisiniz.`
+          `Güvenlik nedeniyle yeni QR kod oluşturmak için ${kalanDakika} dakika beklemelisiniz.`
         );
         return;
       }
@@ -167,7 +168,7 @@ export function QrAttendanceTab({
       "QR Yoklama Başlatma",
       `${newSessionTitle} (${chosenDate})`
     );
-    onFeedback("✅ Yeni QR yoklama oturumu oluşturuldu!");
+    onFeedback("Yeni QR yoklama oturumu oluşturuldu.");
     await onRefreshQr();
   }
 
@@ -197,7 +198,7 @@ export function QrAttendanceTab({
       "QR Yoklama Kapatma",
       `${activeSession.title} (${activeSession.session_date}) sonlandırıldı.`
     );
-    onFeedback("🔒 Yoklama oturumu sonlandırıldı.");
+    onFeedback("Yoklama oturumu sonlandırıldı.");
     await onRefreshQr();
   }
 
@@ -251,66 +252,68 @@ export function QrAttendanceTab({
   }
 
   return (
-    <div className="space-y-6 text-slate-900">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
           <form onSubmit={createQrSession} className="space-y-2">
             <div className="flex flex-wrap gap-2">
               <input
                 value={newSessionTitle}
                 onChange={(e) => setNewSessionTitle(e.target.value)}
                 placeholder="Yoklama Başlığı"
-                className="flex-1 min-w-[180px] border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
+                className="flex-1 min-w-[180px] border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
               />
               <input
                 type="date"
                 value={newSessionDate}
                 onChange={(e) => setNewSessionDate(e.target.value)}
-                className="border border-slate-300 bg-white text-slate-900 rounded-lg px-3 py-2 text-sm"
+                className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
               />
             </div>
             <button
               type="submit"
-              className="w-full bg-[#02274c] hover:bg-[#033669] text-white text-xs font-bold px-4 py-2.5 rounded-lg cursor-pointer"
+              className="w-full bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
             >
               Yeni QR Oluştur
             </button>
           </form>
 
           {activeSession ? (
-            <div className="flex flex-col items-center p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+            <div className="flex flex-col items-center p-4 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)] space-y-3">
               <div className="text-center">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-extrabold mb-1">
-                  ● Aktif Yoklama
+                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-[11px] font-extrabold mb-1">
+                  Aktif Yoklama
                 </span>
-                <p className="font-bold text-[#02274c]">
+                <p className="font-bold text-[var(--text-primary)]">
                   {activeSession.title}
                 </p>
-                <p className="text-xs text-slate-600">
+                <p className="text-xs text-[var(--text-secondary)]">
                   Tarih: {activeSession.session_date}
                 </p>
               </div>
-              <QRCodeSVG value={activeSession.qr_token} size={200} />
-              <p className="text-xs font-mono text-slate-600">
+              <div className="bg-white p-3 rounded-2xl border border-slate-200">
+                <QRCodeSVG value={activeSession.qr_token} size={200} />
+              </div>
+              <p className="text-xs font-mono text-[var(--text-muted)]">
                 {activeSession.qr_token}
               </p>
               <button
                 type="button"
                 disabled={closingSession}
                 onClick={closeActiveSession}
-                className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold px-4 py-2.5 rounded-lg cursor-pointer"
+                className="w-full bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
               >
                 {closingSession
                   ? "Kapatılıyor..."
-                  : "🔒 Yoklamayı Kapat / Etkinliği Sonlandır"}
+                  : "Yoklamayı Kapat / Etkinliği Sonlandır"}
               </button>
             </div>
           ) : (
-            <div className="text-center py-6 px-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-              <p className="text-xs font-bold text-slate-700">
+            <div className="text-center py-6 px-4 bg-[var(--bg-subtle)] rounded-xl border border-dashed border-[var(--border-strong)] space-y-1">
+              <p className="text-xs font-bold text-[var(--text-primary)]">
                 Şu anda aktif bir QR yoklama oturumu bulunmuyor.
               </p>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-[var(--text-secondary)]">
                 Yeni oturum açmak için yukarıdan &ldquo;Yeni QR Oluştur&rdquo;
                 butonuna basın.
               </p>
@@ -318,16 +321,16 @@ export function QrAttendanceTab({
           )}
         </div>
 
-        <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
+        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
           <div className="flex flex-wrap justify-between items-center gap-2">
-            <h3 className="font-bold text-[#02274c]">
+            <h3 className="font-black text-[var(--text-primary)]">
               Yoklama Listesi ({checkedInIds.size} / {players.length})
             </h3>
             <input
               placeholder="İsim ara..."
               value={qrSearch}
               onChange={(e) => setQrSearch(e.target.value)}
-              className="border border-slate-300 bg-white text-slate-900 rounded-lg px-2.5 py-1 text-xs"
+              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-2.5 py-1 text-xs"
             />
           </div>
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
@@ -340,10 +343,10 @@ export function QrAttendanceTab({
                 return (
                   <div
                     key={p.id}
-                    className={`px-3 py-2 rounded-lg text-sm flex justify-between items-center ${
+                    className={`px-3 py-2 rounded-xl text-sm flex justify-between items-center ${
                       ok
-                        ? "bg-emerald-100 text-emerald-950 font-bold"
-                        : "bg-slate-50 text-slate-800"
+                        ? "bg-[var(--status-success-bg)]/65 text-[var(--text-primary)] font-bold"
+                        : "bg-[var(--bg-subtle)] text-[var(--text-primary)]"
                     }`}
                   >
                     <span>
@@ -358,10 +361,10 @@ export function QrAttendanceTab({
                         className={`text-xs font-bold px-3 py-1 rounded-lg cursor-pointer ${
                           ok
                             ? "bg-emerald-700 text-white"
-                            : "bg-[#02274c] text-white"
+                            : "bg-[var(--brand-navy)] text-white"
                         }`}
                       >
-                        {ok ? "✓ Geldi" : "Geldi İşaretle"}
+                        {ok ? "Geldi" : "Geldi İşaretle"}
                       </button>
                     )}
                   </div>
