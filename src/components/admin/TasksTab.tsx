@@ -80,7 +80,9 @@ export function TasksTab({
   onLogActivity,
   onRefreshTasks,
 }: TasksTabProps) {
-  const [homeTeam, setHomeTeam] = useState("Çorum İkbal Spor");`r`n  const [awayTeam, setAwayTeam] = useState("");`r`n  const [newTask, setNewTask] = useState({
+  const [homeTeam, setHomeTeam] = useState("Çorum İkbal Spor");
+  const [awayTeam, setAwayTeam] = useState("");
+  const [newTask, setNewTask] = useState({
     title: "",
     task_type: "mac",
     age_group: "Minikler",
