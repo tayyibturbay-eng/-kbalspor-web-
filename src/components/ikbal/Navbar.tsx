@@ -18,6 +18,35 @@ export function Navbar() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [playerLoggedIn, setPlayerLoggedIn] = useState(false);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    const applySavedTheme = () => {
+      try {
+        const saved = localStorage.getItem("ikbal_theme");
+        const isDark = saved === "dark";
+        setTheme(isDark ? "dark" : "light");
+        document.documentElement.classList.toggle("dark", isDark);
+      } catch {
+        // yoksay
+      }
+    };
+
+    applySavedTheme();
+  }, []);
+
+  function handleToggleTheme() {
+    setTheme((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      try {
+        localStorage.setItem("ikbal_theme", next);
+      } catch {
+        // yoksay
+      }
+      document.documentElement.classList.toggle("dark", next === "dark");
+      return next;
+    });
+  }
 
   useEffect(() => {
     const syncPlayerStatus = () => {
@@ -84,7 +113,7 @@ export function Navbar() {
         </nav>
 
         <div className="hidden md:flex items-center gap-2 shrink-0">
-          <ThemeSwitch />
+          <ThemeSwitch theme={theme} onToggle={handleToggleTheme} />
           <Link
             href="/admin"
             className="px-3.5 py-2 rounded-xl bg-white/12 hover:bg-white/20 border border-white/25 text-white text-xs font-extrabold whitespace-nowrap transition"
@@ -100,7 +129,7 @@ export function Navbar() {
         </div>
 
         <div className="flex md:hidden items-center gap-2">
-          <ThemeSwitch />
+          <ThemeSwitch theme={theme} onToggle={handleToggleTheme} />
           <button
             type="button"
             onClick={() => setMobileOpen((prev) => !prev)}

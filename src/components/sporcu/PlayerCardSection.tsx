@@ -171,25 +171,29 @@ export function PlayerCardSection({
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`ikbal_player_card_${player.id}`);
-      if (!raw) return;
-      const saved = JSON.parse(raw) as Partial<SavedCardPayload>;
-      if (typeof saved.skill_points === "number")
-        setAvailablePoints(saved.skill_points);
-      if (typeof saved.pace === "number") setPace(saved.pace);
-      if (typeof saved.shooting === "number") setShooting(saved.shooting);
-      if (typeof saved.passing === "number") setPassing(saved.passing);
-      if (typeof saved.dribbling === "number") setDribbling(saved.dribbling);
-      if (typeof saved.defending === "number") setDefending(saved.defending);
-      if (typeof saved.physical === "number") setPhysical(saved.physical);
-      if (typeof saved.card_title === "string" && saved.card_title.trim())
-        setCardTitle(saved.card_title);
-      if (typeof saved.card_motto === "string" && saved.card_motto.trim())
-        setCardMotto(saved.card_motto);
-    } catch {
-      // yoksay
-    }
+    const timer = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(`ikbal_player_card_${player.id}`);
+        if (!raw) return;
+        const saved = JSON.parse(raw) as Partial<SavedCardPayload>;
+        if (typeof saved.skill_points === "number")
+          setAvailablePoints(saved.skill_points);
+        if (typeof saved.pace === "number") setPace(saved.pace);
+        if (typeof saved.shooting === "number") setShooting(saved.shooting);
+        if (typeof saved.passing === "number") setPassing(saved.passing);
+        if (typeof saved.dribbling === "number") setDribbling(saved.dribbling);
+        if (typeof saved.defending === "number") setDefending(saved.defending);
+        if (typeof saved.physical === "number") setPhysical(saved.physical);
+        if (typeof saved.card_title === "string" && saved.card_title.trim())
+          setCardTitle(saved.card_title);
+        if (typeof saved.card_motto === "string" && saved.card_motto.trim())
+          setCardMotto(saved.card_motto);
+      } catch {
+        // yoksay
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [player.id]);
 
   const ovr = useMemo(() => {
@@ -668,7 +672,6 @@ export function PlayerCardSection({
         kart ışığı ve efekti güçlenir)
       </p>
 
-      {/* Goley Tarzı Estetik Seviyeli Kart */}
       <div className="flex justify-center">
         <div
           ref={cardRef}
@@ -678,7 +681,6 @@ export function PlayerCardSection({
             tier.outerGlow
           } p-5 transition-all duration-300 space-y-4`}
         >
-          {/* Seviye Efektleri */}
           {tier.key === "diamond" && (
             <>
               <div
@@ -727,7 +729,6 @@ export function PlayerCardSection({
             />
           )}
 
-          {/* Üst Bilgi Bandı (Goley Kart Üstü) */}
           <div className="relative z-10 flex items-start justify-between bg-slate-950/35 backdrop-blur-xs rounded-2xl px-3.5 py-2.5 border border-white/20">
             <div>
               <div className="text-3xl font-black leading-none tracking-tight">
@@ -754,7 +755,6 @@ export function PlayerCardSection({
             </div>
           </div>
 
-          {/* Orta Karakter / Avatar Alanı */}
           <div className="relative z-10 flex flex-col items-center text-center space-y-2 py-1">
             {player.photo_url ? (
               <img
@@ -782,7 +782,6 @@ export function PlayerCardSection({
             </div>
           </div>
 
-          {/* Goley Tarzı Renkli Barlı İstatistik Paneli */}
           <div className="relative z-10 bg-slate-950/60 backdrop-blur-xs rounded-2xl p-3 border border-white/20 grid grid-cols-2 gap-x-3 gap-y-2 text-xs font-black">
             {statsList.map((st) => {
               const pct = Math.max(8, Math.min(100, st.val));
@@ -805,7 +804,6 @@ export function PlayerCardSection({
         </div>
       </div>
 
-      {/* Puan Harca */}
       <div className="space-y-2.5">
         <div className="text-xs font-black text-[var(--text-primary)]">
           Puan Harca (Kalan Puan: {availablePoints})
@@ -857,7 +855,6 @@ export function PlayerCardSection({
         </div>
       </div>
 
-      {/* Başlık ve Motto Alanları */}
       <div className="space-y-3">
         <input
           type="text"
