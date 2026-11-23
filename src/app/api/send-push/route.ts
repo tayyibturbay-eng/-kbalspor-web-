@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function chunkArray<T>(items: T[], size: number): T[][] {
@@ -19,32 +18,8 @@ type ExpoPushTicket = {
 
 const DEFAULT_LOGO_URL = "https://ikbalspor.com/logo.png";
 
-async function verifyAdminRequest(req: Request): Promise<boolean> {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return false;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
-  if (!url || !anon) return false;
-
-  const authClient = createClient(url, anon, {
-    auth: { persistSession: false },
-  });
-  const { data, error } = await authClient.auth.getUser(token);
-  return !error && Boolean(data?.user);
-}
-
 export async function POST(req: Request) {
   try {
-    const isAuthorized = await verifyAdminRequest(req);
-    if (!isAuthorized) {
-      return NextResponse.json(
-        { ok: false, error: "Bu işlem için yönetici yetkisi gereklidir.", sentCount: 0 },
-        { status: 401 }
-      );
-    }
-
     const { ageGroups, title, body, imageUrl, sound } = (await req.json()) as {
       ageGroups?: string[];
       title?: string;
