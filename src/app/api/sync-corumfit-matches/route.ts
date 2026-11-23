@@ -371,6 +371,7 @@ export async function POST(req: NextRequest) {
       sourceUrl: targetUrl,
       foundUpcomingMatches: upcomingMatches.length,
       insertedCount: toInsert.length,
+      insertedMatches: toInsert,
       matches: upcomingMatches,
     });
   } catch (err) {

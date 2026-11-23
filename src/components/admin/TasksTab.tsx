@@ -158,17 +158,57 @@ export function TasksTab({
         return;
       }
 
+      const insertedList = Array.isArray(data.insertedMatches) ? data.insertedMatches : [];
+      let totalPushSent = 0;
+
+      for (const m of insertedList) {
+        const formattedDate = formatDisplayDate(m.event_date);
+        const mapsLink = buildMapsUrl(m.location);
+        const baseMsg = buildSympatheticMatchMessage({
+          title: m.title,
+          event_date: formattedDate,
+          match_time: m.match_time || "14:00",
+          location: m.location || "Nazmi Avluca Spor Tesisi",
+          has_shuttle: Boolean(m.has_shuttle),
+          age_group: m.age_group,
+        });
+        const msg = `${baseMsg}\nKonum Haritası: ${mapsLink}`;
+        const taskCombined = `MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${m.title} (${m.age_group})\n${msg}`;
+
+        await supabase.from("club_messages").insert({
+          body: taskCombined,
+          message_text: taskCombined,
+          age_group: m.age_group || "Tümü",
+          sender_name:
+            role === "coach" && activeCoach
+              ? `Antrenör ${activeCoach.full_name}`
+              : adminName || "Yönetici",
+          created_at: new Date().toISOString(),
+        });
+
+        const pushRes = await sendPushViaApi(
+          ["Tümü"],
+          `Yeni Maç: ${m.title}`,
+          `${formattedDate} ${m.match_time || ""} • ${m.age_group} • ${m.location || "Çorum"}`
+        );
+        totalPushSent += pushRes.sentCount || 0;
+      }
+
       await onLogActivity(
         "Corumfit Maç Senkronizasyonu",
         `${data.insertedCount ?? 0} yeni İkbal Spor maçı eklendi (Bulunan güncel: ${
           data.foundUpcomingMatches ?? 0
-        }).`
+        }, Bildirim: ${totalPushSent} telefon).`
       );
       await onRefreshTasks();
       onFeedback(
         `Corumfit tarandı: ${data.foundUpcomingMatches ?? 0} güncel İkbal Spor maçı bulundu, ${
           data.insertedCount ?? 0
-        } yeni maç eklendi.`
+        } yeni maç eklendi${
+          insertedList.length > 0
+            ? ` ve ${totalPushSent} telefona bildirim gönderildi.`
+            : "."
+        }`
       );
     } catch (err) {
       onFeedback(
