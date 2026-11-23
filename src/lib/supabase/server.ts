@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-export function createServerSupabaseClient(accessToken?: string) {
+export function createServerSupabaseClient(useServiceRoleOrToken?: boolean | string) {
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "")
     .replace(/['"]/g, "")
     .trim()
@@ -21,6 +21,9 @@ export function createServerSupabaseClient(accessToken?: string) {
       `Sunucu Supabase yapılandırması eksik (url=${Boolean(supabaseUrl)}, key=${Boolean(supabaseKey)}).`
     );
   }
+
+  const accessToken =
+    typeof useServiceRoleOrToken === "string" ? useServiceRoleOrToken : undefined;
 
   return createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false },
