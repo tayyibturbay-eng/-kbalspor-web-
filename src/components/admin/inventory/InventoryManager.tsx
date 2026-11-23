@@ -153,6 +153,8 @@ export function InventoryManager({
 
   const [selectedJerseySetId, setSelectedJerseySetId] = useState<string>("");
   const [selectedStockId, setSelectedStockId] = useState<string>("");
+  const [deletingSetId, setDeletingSetId] = useState<string | null>(null);
+  const [deletingStockId, setDeletingStockId] = useState<string | null>(null);
   const [jerseyUnitsMap, setJerseyUnitsMap] = useState<
     Record<string, JerseyUnitDetail[]>
   >({});
@@ -230,8 +232,12 @@ export function InventoryManager({
     setLogs(lList);
 
     setSelectedPlayerId((prev) => prev || players[0]?.id || "");
-    setSelectedJerseySetId((prev) => prev || jList[0]?.id || "");
-    setSelectedStockId((prev) => prev || sList[0]?.id || "");
+    setSelectedJerseySetId((prev) =>
+      jList.some((x) => x.id === prev) ? prev : jList[0]?.id || ""
+    );
+    setSelectedStockId((prev) =>
+      sList.some((x) => x.id === prev) ? prev : sList[0]?.id || ""
+    );
   }, [players]);
 
   useEffect(() => {
@@ -270,6 +276,72 @@ export function InventoryManager({
     } catch {
       // yoksay
     }
+  }
+
+  async function handleDeleteJerseySet(item: JerseySetRow) {
+    const confirmed = window.confirm(
+      `"${item.set_name}" forma takımını silmek istediğinizden emin misiniz?`
+    );
+    if (!confirmed) return;
+
+    setDeletingSetId(item.id);
+    const { error } = await supabase
+      .from("jersey_sets")
+      .delete()
+      .eq("id", item.id);
+    setDeletingSetId(null);
+
+    if (error) {
+      notify(false, "Forma takımı silinemedi: " + error.message);
+      return;
+    }
+
+    const nextSets = jerseySets.filter((x) => x.id !== item.id);
+    setJerseySets(nextSets);
+    if (selectedJerseySetId === item.id) {
+      setSelectedJerseySetId(nextSets[0]?.id || "");
+    }
+
+    const nextUnitsMap = { ...jerseyUnitsMap };
+    delete nextUnitsMap[item.id];
+    saveUnitsMap(nextUnitsMap);
+
+    await onLogActivity?.(
+      "Forma Takımı Silme",
+      `"${item.set_name}" forma takımı silindi.`
+    );
+    notify(true, `"${item.set_name}" forma takımı silindi.`);
+  }
+
+  async function handleDeleteStockItem(item: StockItemRow) {
+    const confirmed = window.confirm(
+      `"${item.product_name}" malzeme takımını silmek istediğinizden emin misiniz?`
+    );
+    if (!confirmed) return;
+
+    setDeletingStockId(item.id);
+    const { error } = await supabase
+      .from("equipment_stock")
+      .delete()
+      .eq("id", item.id);
+    setDeletingStockId(null);
+
+    if (error) {
+      notify(false, "Malzeme takımı silinemedi: " + error.message);
+      return;
+    }
+
+    const nextStock = stockItems.filter((x) => x.id !== item.id);
+    setStockItems(nextStock);
+    if (selectedStockId === item.id) {
+      setSelectedStockId(nextStock[0]?.id || "");
+    }
+
+    await onLogActivity?.(
+      "Malzeme Takımı Silme",
+      `"${item.product_name}" malzeme takımı silindi.`
+    );
+    notify(true, `"${item.product_name}" malzeme takımı silindi.`);
   }
 
   async function insertEquipmentLogSafe(payload: {
@@ -655,10 +727,10 @@ export function InventoryManager({
       }
 
       if (
-        actionStatus === "teslim_edildi" &&
+        (actionStatus === "teslim_edildi" || actionStatus === "kayip") &&
         chosenSet.available_count <= 0
       ) {
-        notify(false, "Seçilen forma setinde stok kalmadı.");
+        notify(false, "Seçilen forma setinde düşülecek müsait stok kalmadı.");
         return;
       }
 
@@ -683,16 +755,20 @@ export function InventoryManager({
       }
 
       const nextAvail =
-        actionStatus === "teslim_edildi"
+        actionStatus === "teslim_edildi" || actionStatus === "kayip"
           ? Math.max(0, chosenSet.available_count - 1)
-          : actionStatus === "iade_alindi"
-          ? Math.min(chosenSet.total_count, chosenSet.available_count + 1)
-          : chosenSet.available_count;
+          : Math.min(chosenSet.total_count, chosenSet.available_count + 1);
+
+      const nextTotal =
+        actionStatus === "kayip"
+          ? Math.max(0, Number(chosenSet.total_count || 0) - 1)
+          : chosenSet.total_count;
 
       await supabase
         .from("jersey_sets")
         .update({
           available_count: nextAvail,
+          total_count: nextTotal,
           size_label: sizeLabel,
         })
         .eq("id", chosenSet.id);
@@ -742,11 +818,15 @@ export function InventoryManager({
         "Forma İşlemi",
         `${targetPlayer?.full_name || "Sporcu"} -> ${
           chosenSet.set_name
-        } #${parsedNum} (Beden: ${sizeLabel}, İşlem: ${actionStatus})`
+        } #${parsedNum} (Beden: ${sizeLabel}, İşlem: ${actionStatus}${
+          actionStatus === "kayip" ? ", Stoktan -1 düşüldü" : ""
+        })`
       );
       notify(
         true,
-        `${chosenSet.set_name} (#${parsedNum}, Beden: ${sizeLabel}) için işlem kaydedildi.`
+        actionStatus === "kayip"
+          ? `${chosenSet.set_name} (#${parsedNum}) kayıp/hasarlı işlendi ve stoktan 1 adet düşüldü.`
+          : `${chosenSet.set_name} (#${parsedNum}, Beden: ${sizeLabel}) için işlem kaydedildi.`
       );
       await fetchInventoryData();
       return;
@@ -759,10 +839,10 @@ export function InventoryManager({
     }
 
     if (
-      actionStatus === "teslim_edildi" &&
+      (actionStatus === "teslim_edildi" || actionStatus === "kayip") &&
       chosenStock.available_count <= 0
     ) {
-      notify(false, "Seçilen ekipmanda stok kalmadı.");
+      notify(false, "Seçilen ekipmanda düşülecek müsait stok kalmadı.");
       return;
     }
 
@@ -787,16 +867,20 @@ export function InventoryManager({
     }
 
     const nextStockAvail =
-      actionStatus === "teslim_edildi"
+      actionStatus === "teslim_edildi" || actionStatus === "kayip"
         ? Math.max(0, chosenStock.available_count - 1)
-        : actionStatus === "iade_alindi"
-        ? Math.min(chosenStock.total_count, chosenStock.available_count + 1)
-        : chosenStock.available_count;
+        : Math.min(chosenStock.total_count, chosenStock.available_count + 1);
+
+    const nextStockTotal =
+      actionStatus === "kayip"
+        ? Math.max(0, Number(chosenStock.total_count || 0) - 1)
+        : chosenStock.total_count;
 
     await supabase
       .from("equipment_stock")
       .update({
         available_count: nextStockAvail,
+        total_count: nextStockTotal,
         size_label: sizeLabel,
       })
       .eq("id", chosenStock.id);
@@ -810,13 +894,17 @@ export function InventoryManager({
         chosenStock.product_name
       } (Beden: ${sizeLabel}${
         parsedNum !== null ? `, No: #${parsedNum}` : ""
-      }, İşlem: ${actionStatus})`
+      }, İşlem: ${actionStatus}${
+        actionStatus === "kayip" ? ", Stoktan -1 düşüldü" : ""
+      })`
     );
     notify(
       true,
-      `${chosenStock.product_name} (Beden: ${sizeLabel}${
-        parsedNum !== null ? `, No: #${parsedNum}` : ""
-      }) işlemi kaydedildi.`
+      actionStatus === "kayip"
+        ? `${chosenStock.product_name} kayıp/hasarlı işlendi ve stoktan 1 adet düşüldü.`
+        : `${chosenStock.product_name} (Beden: ${sizeLabel}${
+            parsedNum !== null ? `, No: #${parsedNum}` : ""
+          }) işlemi kaydedildi.`
     );
     await fetchInventoryData();
   }
@@ -1055,31 +1143,44 @@ export function InventoryManager({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {jerseySets.map((j) => (
-                <button
-                  type="button"
+                <div
                   key={j.id}
-                  onClick={() => setSelectedJerseySetId(j.id)}
-                  className={`flex items-center gap-3 p-2.5 rounded-xl border text-left cursor-pointer transition ${
+                  className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
                     activeJerseySet?.id === j.id
                       ? "border-[var(--brand-navy)] bg-[var(--brand-navy-soft)]"
                       : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
                   }`}
                 >
-                  <img
-                    src={j.photo_url || "/logo.png"}
-                    alt={j.set_name}
-                    className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-black truncate">
-                      {j.set_name}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedJerseySetId(j.id)}
+                    className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
+                  >
+                    <img
+                      src={j.photo_url || "/logo.png"}
+                      alt={j.set_name}
+                      className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-black truncate">
+                        {j.set_name}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">
+                        {j.kit_type} • Beden: {j.size_label || "M"} • Stok:{" "}
+                        {j.available_count}/{j.total_count}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-[var(--text-secondary)]">
-                      {j.kit_type} • Beden: {j.size_label || "M"} • Stok:{" "}
-                      {j.available_count}/{j.total_count}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={deletingSetId === j.id}
+                    onClick={() => void handleDeleteJerseySet(j)}
+                    className="px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-[11px] font-extrabold cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    {deletingSetId === j.id ? "..." : "Sil"}
+                  </button>
+                </div>
               ))}
             </div>
 
@@ -1338,35 +1439,50 @@ export function InventoryManager({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {stockItems.map((s) => (
-                <button
-                  type="button"
+                <div
                   key={s.id}
-                  onClick={() => {
-                    setSelectedStockId(s.id);
-                    setEditOtherSize(s.size_label || "M");
-                    setEditOtherNum(s.item_number ? String(s.item_number) : "");
-                  }}
-                  className={`flex items-center gap-3 p-2.5 rounded-xl border text-left cursor-pointer transition ${
+                  className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
                     activeOtherItem?.id === s.id
                       ? "border-[var(--brand-red)] bg-[var(--status-warning-bg)]/20"
                       : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
                   }`}
                 >
-                  <img
-                    src={s.photo_url || "/logo.png"}
-                    alt={s.product_name}
-                    className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-black truncate">
-                      {s.product_name}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedStockId(s.id);
+                      setEditOtherSize(s.size_label || "M");
+                      setEditOtherNum(
+                        s.item_number ? String(s.item_number) : ""
+                      );
+                    }}
+                    className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
+                  >
+                    <img
+                      src={s.photo_url || "/logo.png"}
+                      alt={s.product_name}
+                      className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-black truncate">
+                        {s.product_name}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">
+                        {s.category} • Beden: {s.size_label || "M"} • Stok:{" "}
+                        {s.available_count}/{s.total_count}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-[var(--text-secondary)]">
-                      {s.category} • Beden: {s.size_label || "M"} • Stok:{" "}
-                      {s.available_count}/{s.total_count}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={deletingStockId === s.id}
+                    onClick={() => void handleDeleteStockItem(s)}
+                    className="px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-[11px] font-extrabold cursor-pointer shrink-0 disabled:opacity-50"
+                  >
+                    {deletingStockId === s.id ? "..." : "Sil"}
+                  </button>
+                </div>
               ))}
             </div>
 
