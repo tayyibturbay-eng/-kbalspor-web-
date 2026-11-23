@@ -65,8 +65,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, sentCount: 0 });
     }
 
-    const cleanSound =
-      typeof sound === "string" && sound.trim() ? sound.trim() : "default";
+    const requestedSound = typeof sound === "string" && sound.trim() ? sound.trim() : "default";
+    const cleanSound = "default";
     const rawImg =
       typeof imageUrl === "string" && imageUrl.trim()
         ? imageUrl.trim()
@@ -89,16 +89,13 @@ export async function POST(req: Request) {
       const messages = chunk.map((token) => ({
         to: token,
         sound: "default",
-        channelId: "ikbalspor-alerts",
         priority: "high",
         title: title.trim(),
         body: body.trim(),
-        image: cleanImage,
         richContent: { image: cleanImage },
         data: {
           imageUrl: cleanImage,
           sound: "default",
-          channelId: "ikbalspor-alerts",
           title: title.trim(),
           body: body.trim(),
         },
