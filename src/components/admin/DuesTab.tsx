@@ -124,7 +124,7 @@ export function DuesTab({
       return;
     }
 
-    const msg = `AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbalspor aylık kulüp aidat ücreti ${feeNum} TL olarak güncellenmiştir.`;
+    const msg = `AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbal Spor Kulübü aylık kulüp aidat ücreti ${feeNum} TL olarak güncellenmiştir.`;
     await supabase.from("club_messages").insert({
       body: msg,
       message_text: msg,

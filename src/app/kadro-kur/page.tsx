@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
+import { SquadShareBar } from "@/components/kadro/SquadShareBar";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 import {
@@ -178,7 +179,12 @@ export default function SquadBuilderPage() {
       slots.some((s) => s.player?.id === candidate.id) ||
       benchPlayers.some((b) => b.id === candidate.id);
 
-    if (!alreadyInSquad && totalAssignedCount >= MAX_SQUAD_PLAYERS) {
+    if (alreadyInSquad) {
+      setWarningMsg(`${candidate.full_name} zaten kadroda yer alıyor.`);
+      return;
+    }
+
+    if (totalAssignedCount >= MAX_SQUAD_PLAYERS) {
       setWarningMsg(`Kadro en fazla ${MAX_SQUAD_PLAYERS} oyuncu içerebilir.`);
       return;
     }
@@ -258,7 +264,7 @@ export default function SquadBuilderPage() {
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div>
             <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
-              Çorum İkbalspor • Taktik &amp; Kadro Planlama
+              Çorum İkbal Spor Kulübü • Taktik &amp; Kadro Planlama
             </span>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-1">
               Kadro Kur &amp; Taktik Tahtası
@@ -332,6 +338,15 @@ export default function SquadBuilderPage() {
             </select>
           </div>
         </div>
+
+        <SquadShareBar
+          categoryLabel={SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label || selectedCategory}
+          formationLabel={activeFormation.label}
+          formationRows={activeFormation.rows}
+          tacticPlan={tacticPlan}
+          slots={slots}
+          benchPlayers={benchPlayers}
+        />
 
         {warningMsg && (
           <div className="p-3.5 rounded-2xl bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-xs font-extrabold border border-amber-400/50">

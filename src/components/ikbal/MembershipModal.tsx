@@ -104,7 +104,7 @@ export function MembershipModal({
         <div className="flex items-start justify-between border-b border-[var(--border-subtle)] pb-4">
           <div>
             <span className="inline-block bg-[var(--brand-red)] text-white text-xs font-extrabold px-3 py-1 rounded-full mb-2">
-              Çorum İkbalspor
+              Çorum İkbal Spor Kulübü
             </span>
             <h2 className="text-xl sm:text-2xl font-black text-[var(--text-primary)]">
               Sporcu Üyelik Başvurusu
@@ -224,7 +224,7 @@ export function MembershipModal({
             {showKvkkText && (
               <div className="text-xs text-[var(--text-secondary)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-xl p-3 max-h-40 overflow-y-auto leading-relaxed space-y-2">
                 <p>
-                  <strong>Veri Sorumlusu:</strong> Çorum İkbalspor Kulübü. 6698
+                  <strong>Veri Sorumlusu:</strong> Çorum İkbal Spor Kulübü Kulübü. 6698
                   sayılı Kişisel Verilerin Korunması Kanunu (&ldquo;KVKK&rdquo;)
                   uyarınca, sporcuya ve 18 yaş altı sporcuların velisine/vasisine
                   ait ad-soyad, doğum tarihi, iletişim bilgileri, antrenman/maç

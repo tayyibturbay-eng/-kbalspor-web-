@@ -82,12 +82,12 @@ export function Navbar() {
         >
           <img
             src="/logo.png"
-            alt="Çorum İkbalspor"
+            alt="Çorum İkbal Spor Kulübü"
             className="w-9 h-9 rounded-xl object-cover bg-white border border-white/25 shrink-0"
           />
           <div className="leading-tight">
             <div className="text-sm font-black tracking-tight whitespace-nowrap">
-              ÇORUM İKBALSPOR
+              ÇORUM İKBAL SPOR KULÜBÜ
             </div>
             <div className="text-[10px] font-bold text-amber-200 tracking-wider uppercase whitespace-nowrap">
               2026–2027 Kulüp Platformu

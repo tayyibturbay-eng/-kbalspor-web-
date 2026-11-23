@@ -1,16 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
-import { AGE_GROUPS } from "@/types/club";
+import { calcAgeGroupFromBirthDate } from "@/lib/age-groups";
 
 const supabase = createClient();
 
 export default function MembershipRequestPage() {
   const [fullName, setFullName] = useState("");
   const [birthDate, setBirthDate] = useState("");
-  const [ageGroup, setAgeGroup] = useState<string>(AGE_GROUPS[0] || "U11");
   const [guardianName, setGuardianName] = useState("");
   const [guardianPhone, setGuardianPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -20,23 +19,30 @@ export default function MembershipRequestPage() {
     text: string;
   } | null>(null);
 
+  const autoAgeGroup = useMemo(() => {
+    if (!birthDate) return "";
+    return calcAgeGroupFromBirthDate(birthDate);
+  }, [birthDate]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFeedback(null);
 
-    if (!fullName.trim() || !guardianPhone.trim()) {
+    if (!fullName.trim() || !birthDate || !guardianPhone.trim()) {
       setFeedback({
         ok: false,
-        text: "Lütfen sporcu adı soyadı ve veli/iletişim telefonunu girin.",
+        text: "Lütfen sporcu adı soyadı, doğum tarihi ve iletişim telefonunu girin.",
       });
       return;
     }
 
+    const computedGroup = calcAgeGroupFromBirthDate(birthDate) || "Minikler";
+
     setSubmitting(true);
     const { error } = await supabase.from("membership_requests").insert({
       full_name: fullName.trim(),
-      birth_date: birthDate || null,
-      age_group: ageGroup,
+      birth_date: birthDate,
+      age_group: computedGroup,
       guardian_name: guardianName.trim() || null,
       guardian_phone: guardianPhone.trim(),
       notes: notes.trim() || null,
@@ -55,7 +61,7 @@ export default function MembershipRequestPage() {
 
     setFeedback({
       ok: true,
-      text: "Üyelik başvurunuz alındı. Kulüp yönetimimiz en kısa sürede sizinle iletişime geçecektir.",
+      text: `Üyelik başvurunuz (${computedGroup}) alındı. Kulüp yönetimimiz en kısa sürede sizinle iletişime geçecektir.`,
     });
     setFullName("");
     setBirthDate("");
@@ -71,14 +77,14 @@ export default function MembershipRequestPage() {
       <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white py-7 px-4 shadow-sm">
         <div className="max-w-4xl mx-auto">
           <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
-            Çorum İkbalspor • Kayıt &amp; Altyapı
+            Çorum İkbal Spor Kulübü • Kayıt &amp; Altyapı
           </span>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-1">
             Kulüp Üyelik Başvurusu
           </h1>
           <p className="text-xs sm:text-sm text-slate-200 mt-1">
-            Yaş grubu seçerek altyapı ve kulüp üyelik başvurunuzu kolayca
-            iletebilirsiniz.
+            Doğum tarihinizi girdiğinizde uygun yaş grubu sistem tarafından
+            otomatik belirlenir.
           </p>
         </div>
       </section>
@@ -105,35 +111,24 @@ export default function MembershipRequestPage() {
 
             <div>
               <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Doğum Tarihi
+                Doğum Tarihi *
               </label>
               <input
                 type="date"
+                required
                 value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)}
                 className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
               />
+              {autoAgeGroup ? (
+                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-[11px] font-extrabold">
+                  Otomatik Kategori: {autoAgeGroup}
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Yaş Grubu *
-              </label>
-              <select
-                value={ageGroup}
-                onChange={(e) => setAgeGroup(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
-              >
-                {AGE_GROUPS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                 Veli Ad Soyad
@@ -190,9 +185,9 @@ export default function MembershipRequestPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-black cursor-pointer disabled:opacity-50"
+            className="px-6 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-black shadow-xs transition cursor-pointer disabled:opacity-50"
           >
-            {submitting ? "Başvuru Gönderiliyor..." : "Başvuruyu Gönder"}
+            {submitting ? "Gönderiliyor..." : "Başvuruyu Gönder"}
           </button>
         </form>
       </main>

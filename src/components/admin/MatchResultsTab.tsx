@@ -398,7 +398,7 @@ export function MatchResultsTab({
 
         <div>
           <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-            İkbalspor / Ev Sahibi Gol
+            İkbal Spor / Ev Sahibi Gol
           </label>
           <input
             type="number"

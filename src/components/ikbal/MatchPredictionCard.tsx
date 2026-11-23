@@ -248,7 +248,7 @@ export function MatchPredictionCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
-            Çorum İkbalspor • Ortak Puan Yarışı
+            Çorum İkbal Spor Kulübü • Ortak Puan Yarışı
           </span>
           <h2 className="text-lg font-black text-[var(--text-primary)]">
             Maç Skor &amp; Golcü Tahmini
@@ -288,7 +288,7 @@ export function MatchPredictionCard({
 
           <div>
             <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              İkbalspor Skor
+              İkbal Spor Skor
             </label>
             <input
               type="number"

@@ -489,7 +489,7 @@ export function PlayerCardSection({
 
     ctx.fillStyle = "rgba(255,255,255,0.78)";
     ctx.font = "800 20px sans-serif";
-    ctx.fillText(`ÇORUM İKBALSPOR • ${tier.label.toUpperCase()}`, centerX, 945);
+    ctx.fillText(`ÇORUM İKBAL SPOR KULÜBÜ • ${tier.label.toUpperCase()}`, centerX, 945);
     ctx.textAlign = "left";
 
     return new Promise<Blob | null>((resolve) => {
@@ -549,7 +549,7 @@ export function PlayerCardSection({
         try {
           await navWithShare.share({
             title: `${player.full_name} • ${ovr} OVR Futbolcu Kartı`,
-            text: `${player.full_name} (${ovr} OVR • ${tier.label}) — Çorum İkbalspor Futbolcu Kartı`,
+            text: `${player.full_name} (${ovr} OVR • ${tier.label}) — Çorum İkbal Spor Kulübü Futbolcu Kartı`,
             files: [file],
           });
           nativeShared = true;
@@ -605,7 +605,7 @@ export function PlayerCardSection({
     .toUpperCase();
 
   const shareText = encodeURIComponent(
-    `${player.full_name} • ${ovr} OVR (${tier.label}) — Çorum İkbalspor Futbolcu Kartı https://ikbalspor.com/sporcu`
+    `${player.full_name} • ${ovr} OVR (${tier.label}) — Çorum İkbal Spor Kulübü Futbolcu Kartı https://ikbalspor.com/sporcu`
   );
 
   const statsList = [

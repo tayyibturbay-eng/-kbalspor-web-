@@ -497,7 +497,7 @@ export function NotificationsTab({
               />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2 text-[10px] font-extrabold text-[var(--text-muted)]">
-                  <span>ÇORUM İKBALSPOR</span>
+                  <span>ÇORUM İKBAL SPOR KULÜBÜ</span>
                   <span>Şimdi</span>
                 </div>
                 <div className="text-sm font-black text-[var(--text-primary)] mt-0.5 break-words">

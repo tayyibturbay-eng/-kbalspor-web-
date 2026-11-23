@@ -101,6 +101,8 @@ export function TasksTab({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(0);
 
+  const [ikbalSide, setIkbalSide] = useState<"home" | "away">("home");
+  const [opponentName, setOpponentName] = useState("");
   const [matchWaPreview, setMatchWaPreview] = useState<{
     message: string;
     targets: Player[];
@@ -156,13 +158,13 @@ export function TasksTab({
 
       await onLogActivity(
         "Corumfit Maç Senkronizasyonu",
-        `${data.insertedCount ?? 0} yeni İkbalspor maçı eklendi (Bulunan güncel: ${
+        `${data.insertedCount ?? 0} yeni İkbal Spor maçı eklendi (Bulunan güncel: ${
           data.foundUpcomingMatches ?? 0
         }).`
       );
       await onRefreshTasks();
       onFeedback(
-        `Corumfit tarandı: ${data.foundUpcomingMatches ?? 0} güncel İkbalspor maçı bulundu, ${
+        `Corumfit tarandı: ${data.foundUpcomingMatches ?? 0} güncel İkbal Spor maçı bulundu, ${
           data.insertedCount ?? 0
         } yeni maç eklendi.`
       );
@@ -336,7 +338,7 @@ export function TasksTab({
               Corumfit Haftalık Maç Senkronizasyon Ajanı
             </h2>
             <p className="text-xs text-[var(--text-secondary)]">
-              Verilen sayfadaki güncel İkbalspor maçlarını çeker; bozuk/geçmiş
+              Verilen sayfadaki güncel İkbal Spor maçlarını çeker; bozuk/geçmiş
               tarihli maçları atlar ve çift kayıt oluşturmadan sisteme ekler.
             </p>
           </div>
@@ -346,7 +348,7 @@ export function TasksTab({
             onClick={handleSyncCorumfit}
             className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] disabled:opacity-50 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer shrink-0 transition"
           >
-            {syncingCorumfit ? "Taranıyor..." : "İkbalspor Maçlarını Çek"}
+            {syncingCorumfit ? "Taranıyor..." : "İkbal Spor Maçlarını Çek"}
           </button>
         </div>
 
@@ -383,7 +385,7 @@ export function TasksTab({
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           <input
             required
-            placeholder="Başlık (Örn: İkbalspor - Çorumspor)"
+            placeholder="Başlık (Örn: İkbal Spor - Çorumspor)"
             value={newTask.title}
             onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
             className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"

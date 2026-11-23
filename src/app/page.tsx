@@ -87,7 +87,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <span className="inline-block px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
-              Çorum İkbalspor • 2026–2027 Sezonu
+              Çorum İkbal Spor Kulübü • 2026–2027 Sezonu
             </span>
             <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
               Altyapıdan Amatöre Tek Yürek, Tek Platform
@@ -269,7 +269,7 @@ export default function HomePage() {
             <div className="font-bold text-[var(--text-primary)]">
               2026–2027 Sezonu
             </div>
-            <div>© 2026 Çorum İkbalspor. Tüm hakları saklıdır.</div>
+            <div>© 2026 Çorum İkbal Spor Kulübü. Tüm hakları saklıdır.</div>
           </div>
         </div>
       </footer>

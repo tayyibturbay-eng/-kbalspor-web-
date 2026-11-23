@@ -45,7 +45,7 @@ interface JerseyUnitDetail {
   set_id: string;
   number: number;
   size: string;
-  status: "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp";
+  status: "Müsait" | "Teslim Edildi" | "Kayıp";
   assigned_to?: string;
 }
 
@@ -60,10 +60,9 @@ interface StockAndGiveSectionProps {
 }
 
 const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standart"] as const;
-const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"> = [
+const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Kayıp"> = [
   "Müsait",
   "Teslim Edildi",
-  "Bakımda",
   "Kayıp",
 ];
 
@@ -133,7 +132,7 @@ export function StockAndGiveSection({
   const [editOtherNum, setEditOtherNum] = useState("");
   const [editOtherSize, setEditOtherSize] = useState("M");
   const [editOtherStatus, setEditOtherStatus] = useState<
-    "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"
+    "Müsait" | "Teslim Edildi" | "Kayıp"
   >("Müsait");
 
   // Teslim Etme / İade Alma
@@ -970,7 +969,8 @@ export function StockAndGiveSection({
                   <option value="Eşofman Takımı">Eşofman Takımı</option>
                   <option value="Yağmurluk">Yağmurluk</option>
                   <option value="Antrenman Yeleği">Antrenman Yeleği</option>
-                  <option value="Çanta / Top">Çanta / Top</option>
+                  <option value="Top">Top</option>
+                  <option value="Çanta">Çanta</option>
                   <option value="Diğer">Diğer</option>
                 </select>
               </div>
@@ -1153,7 +1153,6 @@ export function StockAndGiveSection({
                           e.target.value as
                             | "Müsait"
                             | "Teslim Edildi"
-                            | "Bakımda"
                             | "Kayıp"
                         )
                       }

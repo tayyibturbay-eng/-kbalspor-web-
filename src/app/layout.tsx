@@ -15,33 +15,33 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL("https://ikbalspor.com"),
   title: {
-    default: "Çorum İkbalspor • Resmi Kulüp & Sporcu Platformu",
-    template: "%s | Çorum İkbalspor",
+    default: "Çorum İkbal Spor Kulübü • Resmi Kulüp & Sporcu Platformu",
+    template: "%s | Çorum İkbal Spor Kulübü",
   },
   description:
-    "Çorum İkbalspor 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları, duyurular ve kulüp iletişim platformu.",
+    "Çorum İkbal Spor Kulübü 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları, duyurular ve kulüp iletişim platformu.",
   openGraph: {
     type: "website",
     locale: "tr_TR",
     url: "https://ikbalspor.com",
-    siteName: "Çorum İkbalspor",
-    title: "Çorum İkbalspor • Resmi Kulüp & Sporcu Platformu",
+    siteName: "Çorum İkbal Spor Kulübü",
+    title: "Çorum İkbal Spor Kulübü • Resmi Kulüp & Sporcu Platformu",
     description:
-      "Çorum İkbalspor 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları ve duyurular.",
+      "Çorum İkbal Spor Kulübü 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları ve duyurular.",
     images: [
       {
         url: "/logo.png",
         width: 512,
         height: 512,
-        alt: "Çorum İkbalspor Kulüp Logosu",
+        alt: "Çorum İkbal Spor Kulübü Kulüp Logosu",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Çorum İkbalspor • Resmi Kulüp & Sporcu Platformu",
+    title: "Çorum İkbal Spor Kulübü • Resmi Kulüp & Sporcu Platformu",
     description:
-      "Çorum İkbalspor 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları ve duyurular.",
+      "Çorum İkbal Spor Kulübü 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları ve duyurular.",
     images: ["/logo.png"],
   },
   icons: {

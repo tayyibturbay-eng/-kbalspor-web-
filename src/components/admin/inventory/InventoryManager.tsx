@@ -46,7 +46,7 @@ interface UnitDetail {
   parent_id: string;
   number: number;
   size: string;
-  status: "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp";
+  status: "Müsait" | "Teslim Edildi" | "Kayıp";
   assigned_to?: string;
 }
 
@@ -65,9 +65,8 @@ const CONDITION_OPTIONS = [
   "Yıpranmış",
 ] as const;
 
-const UNIT_SELECTABLE_STATUSES: Array<"Müsait" | "Bakımda" | "Kayıp"> = [
+const UNIT_SELECTABLE_STATUSES: Array<"Müsait" | "Kayıp"> = [
   "Müsait",
-  "Bakımda",
   "Kayıp",
 ];
 
@@ -84,9 +83,6 @@ function getUnitCardStyle(status: UnitDetail["status"]): string {
   if (status === "Teslim Edildi") {
     return "bg-amber-950/55 border-amber-400 ring-1 ring-amber-300/50";
   }
-  if (status === "Bakımda") {
-    return "bg-sky-950/45 border-sky-400/70";
-  }
   return "bg-[var(--bg-surface)] border-[var(--border-subtle)]";
 }
 
@@ -96,9 +92,6 @@ function getUnitBadgeStyle(status: UnitDetail["status"]): string {
   }
   if (status === "Teslim Edildi") {
     return "bg-amber-400 text-slate-950";
-  }
-  if (status === "Bakımda") {
-    return "bg-sky-500 text-white";
   }
   return "bg-emerald-700/30 text-emerald-300";
 }
@@ -1594,7 +1587,8 @@ export function InventoryManager({
                   <option value="Eşofman Takımı">Eşofman Takımı</option>
                   <option value="Yağmurluk">Yağmurluk</option>
                   <option value="Antrenman Yeleği">Antrenman Yeleği</option>
-                  <option value="Çanta / Top">Çanta / Top</option>
+                  <option value="Top">Top</option>
+                  <option value="Çanta">Çanta</option>
                   <option value="Diğer">Diğer</option>
                 </select>
               </div>

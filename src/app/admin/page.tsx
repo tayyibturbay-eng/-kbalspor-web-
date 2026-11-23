@@ -426,7 +426,7 @@ export default function AdminPage() {
             >
               <img
                 src="/logo.png"
-                alt="Çorum İkbalspor Ana Sayfa"
+                alt="Çorum İkbal Spor Kulübü Ana Sayfa"
                 className="w-9 h-9 rounded-lg object-contain bg-white p-0.5"
               />
               <span className="text-xs font-extrabold text-white hidden sm:inline">
@@ -440,7 +440,7 @@ export default function AdminPage() {
                 </span>
                 <h1 className="text-base sm:text-xl font-black truncate">
                   {role === "admin"
-                    ? `Çorum İkbalspor — Yönetici Paneli${
+                    ? `Çorum İkbal Spor Kulübü — Yönetici Paneli${
                         adminName ? ` (${adminName})` : ""
                       }`
                     : `Antrenör Paneli (${activeCoach?.full_name})`}

@@ -79,11 +79,11 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
         <div className="flex flex-col items-center text-center">
           <img
             src="/logo.png"
-            alt="Çorum İkbalspor"
+            alt="Çorum İkbal Spor Kulübü"
             className="w-14 h-14 object-contain rounded-2xl bg-white border border-[var(--border-subtle)] p-1.5 mb-2"
           />
           <h1 className="text-2xl font-black text-[var(--text-primary)]">
-            Çorum İkbalspor
+            Çorum İkbal Spor Kulübü
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
             Yönetim ve Antrenör Portalı

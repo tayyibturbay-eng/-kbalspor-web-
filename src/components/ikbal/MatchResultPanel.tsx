@@ -167,7 +167,7 @@ export function MatchResultPanel() {
     <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       <section className="rounded-3xl bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white p-6 shadow-md">
         <span className="inline-block px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
-          Çorum İkbalspor • Maç Sonucu Yönetimi
+          Çorum İkbal Spor Kulübü • Maç Sonucu Yönetimi
         </span>
         <h1 className="text-2xl font-black mt-2">
           Maç Sonucu &amp; Tahmin Puanlama Merkezi
@@ -211,7 +211,7 @@ export function MatchResultPanel() {
 
           <div>
             <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              İkbalspor Gol
+              İkbal Spor Gol
             </label>
             <input
               type="number"
