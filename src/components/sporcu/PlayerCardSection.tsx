@@ -59,7 +59,7 @@ function getCardTier(ovr: number): CardTier {
     return {
       key: "gold",
       label: "Gold Kart",
-      badgeText: "70-90 Gold",
+      badgeText: "70-89 Gold",
       cardBg: "from-amber-300 via-yellow-600 to-amber-950",
       frameBorder: "border-yellow-200",
       accentText: "text-amber-100",
@@ -73,7 +73,7 @@ function getCardTier(ovr: number): CardTier {
     return {
       key: "silver",
       label: "Silver Kart",
-      badgeText: "50-70 Silver",
+      badgeText: "50-69 Silver",
       cardBg: "from-slate-200 via-slate-600 to-slate-950",
       frameBorder: "border-slate-100",
       accentText: "text-slate-100",
@@ -83,17 +83,31 @@ function getCardTier(ovr: number): CardTier {
       canvasAccent: "#f1f5f9",
     };
   }
+  if (ovr >= 30) {
+    return {
+      key: "bronze",
+      label: "Bronze Kart",
+      badgeText: "30-49 Bronze",
+      cardBg: "from-amber-700 via-[#8b3a17] to-stone-950",
+      frameBorder: "border-amber-400/75",
+      accentText: "text-amber-200",
+      outerGlow: "shadow-[0_0_20px_rgba(180,83,9,0.38)]",
+      statBarColor: "from-amber-400 to-orange-600",
+      canvasColors: ["#b45309", "#8b3a17", "#0c0a09"],
+      canvasAccent: "#fdba74",
+    };
+  }
   return {
-    key: "bronze",
-    label: "Bronze Kart",
-    badgeText: "0-50 Bronze",
-    cardBg: "from-amber-700 via-[#8b3a17] to-stone-950",
-    frameBorder: "border-amber-400/75",
-    accentText: "text-amber-200",
-    outerGlow: "shadow-[0_0_18px_rgba(180,83,9,0.3)]",
-    statBarColor: "from-amber-400 to-orange-600",
-    canvasColors: ["#b45309", "#8b3a17", "#0c0a09"],
-    canvasAccent: "#fdba74",
+    key: "iron",
+    label: "Iron Kart",
+    badgeText: "0-29 Iron",
+    cardBg: "from-zinc-600 via-slate-800 to-zinc-950",
+    frameBorder: "border-zinc-400/70",
+    accentText: "text-zinc-200",
+    outerGlow: "shadow-[0_0_16px_rgba(161,161,170,0.28)]",
+    statBarColor: "from-zinc-300 to-slate-500",
+    canvasColors: ["#52525b", "#1e293b", "#09090b"],
+    canvasAccent: "#d4d4d8",
   };
 }
 
@@ -658,7 +672,7 @@ export function PlayerCardSection({
                 ? "bg-gradient-to-r from-amber-300 to-yellow-500 text-slate-950"
                 : tier.key === "silver"
                 ? "bg-gradient-to-r from-slate-200 to-slate-400 text-slate-950"
-                : "bg-amber-800 text-amber-100"
+                : tier.key === "bronze" ? "bg-amber-800 text-amber-100" : "bg-zinc-700 text-zinc-100"
             }`}
           >
             {tier.label}
@@ -670,7 +684,7 @@ export function PlayerCardSection({
       </div>
 
       <p className="text-xs text-[var(--text-secondary)]">
-        0-50 Bronze • 50-70 Silver • 70-90 Gold • 90+ Diamond (Seviye arttıkça
+        0-29 Iron • 30-49 Bronze • 50-69 Silver • 70-89 Gold • 90+ Diamond (Seviye arttıkça
         kart ışığı ve efekti güçlenir)
       </p>
 
@@ -712,6 +726,20 @@ export function PlayerCardSection({
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(254,249,195,0.5)_0,transparent_48%)]"
+            />
+          )}
+
+          {tier.key === "iron" && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-[repeating-linear-gradient(125deg,rgba(255,255,255,0.06)_0px,rgba(255,255,255,0.06)_2px,transparent_2px,transparent_10px)]"
+            />
+          )}
+
+          {tier.key === "bronze" && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(251,146,60,0.35)_0,transparent_48%)]"
             />
           )}
 
