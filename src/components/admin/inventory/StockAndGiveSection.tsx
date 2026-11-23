@@ -1,690 +1,1004 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  AGE_GROUPS,
-  EquipmentLog,
-  JerseyPiece,
-  JerseySet,
-  SIZE_OPTIONS,
-  StockItem,
-} from "@/types/club";
+import { AGE_GROUPS, Player } from "@/types/club";
 
 const supabase = createClient();
 
-type MiniPlayer = {
+export interface JerseySetRecord {
   id: string;
-  full_name: string;
-  age_group: string;
-  parent_phone: string | null;
-};
-
-function buildDefaultPieces(
-  qty: number,
-  defaultSize: string,
-  defaultGk1And12: boolean
-): JerseyPiece[] {
-  const count = Math.max(1, Math.min(100, qty || 1));
-  return Array.from({ length: count }, (_, idx) => {
-    const num = idx + 1;
-    return {
-      id: `piece-${Date.now()}-${num}-${Math.random().toString(36).slice(2, 6)}`,
-      number: num,
-      size: defaultSize || "M",
-      is_goalkeeper: defaultGk1And12 ? num === 1 || num === 12 : false,
-    };
-  });
+  set_name: string;
+  kit_type: string;
+  size_label?: string | null;
+  total_count: number;
+  available_count: number;
+  photo_url?: string | null;
 }
 
-async function uploadPhoto(
-  folder: "jerseys" | "stock",
-  file: File
-): Promise<string | null> {
-  const ext = file.name.split(".").pop() || "jpg";
-  const filePath = `${folder}/${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2, 7)}.${ext}`;
-  const { error: upErr } = await supabase.storage
-    .from("jersey-photos")
-    .upload(filePath, file);
-  if (upErr) return null;
-  const { data: pub } = supabase.storage
-    .from("jersey-photos")
-    .getPublicUrl(filePath);
-  return pub.publicUrl;
+export interface StockItemRecord {
+  id: string;
+  product_name: string;
+  category: string;
+  size_label?: string | null;
+  item_number?: number | null;
+  total_count: number;
+  available_count: number;
+  photo_url?: string | null;
+}
+
+export interface EquipmentLogRecord {
+  id: string;
+  player_id: string;
+  item_type?: string | null;
+  item_name: string;
+  jersey_number?: number | null;
+  size_label?: string | null;
+  condition_status?: string | null;
+  status: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+interface JerseyUnitDetail {
+  id: string;
+  set_id: string;
+  number: number;
+  size: string;
+  status: "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp";
+  assigned_to?: string;
 }
 
 interface StockAndGiveSectionProps {
-  players: MiniPlayer[];
-  jerseySets: JerseySet[];
-  setJerseySets?: React.Dispatch<React.SetStateAction<JerseySet[]>>;
-  stockItems: StockItem[];
-  setStockItems: React.Dispatch<React.SetStateAction<StockItem[]>>;
-  logs: EquipmentLog[];
-  setLogs: React.Dispatch<React.SetStateAction<EquipmentLog[]>>;
-  onStatus: (msg: string) => void;
+  players: Player[];
+  jerseySets: JerseySetRecord[];
+  stockItems: StockItemRecord[];
+  equipmentLogs: EquipmentLogRecord[];
+  onRefresh: () => Promise<void>;
+  onFeedback: (msg: string) => void;
+  onLogActivity: (action: string, details: string) => Promise<void>;
+}
+
+const SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standart"] as const;
+const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"> = [
+  "Müsait",
+  "Teslim Edildi",
+  "Bakımda",
+  "Kayıp",
+];
+
+function buildDefaultUnitsForSet(set: JerseySetRecord): JerseyUnitDetail[] {
+  const count = Math.max(1, Number(set.total_count || 1));
+  const defaultSize = set.size_label || "M";
+  const unavailableCount = Math.max(
+    0,
+    count - Number(set.available_count ?? count)
+  );
+  return Array.from({ length: count }, (_, idx) => {
+    const num = idx + 1;
+    const isOut = idx < unavailableCount;
+    return {
+      id: `${set.id}-u-${num}`,
+      set_id: set.id,
+      number: num,
+      size: defaultSize,
+      status: isOut ? "Teslim Edildi" : "Müsait",
+    };
+  });
 }
 
 export function StockAndGiveSection({
   players,
   jerseySets,
-  setJerseySets,
   stockItems,
-  setStockItems,
-  logs,
-  setLogs,
-  onStatus,
+  equipmentLogs,
+  onRefresh,
+  onFeedback,
+  onLogActivity,
 }: StockAndGiveSectionProps) {
-  const [createType, setCreateType] = useState<"forma_takimi" | "malzeme_stok">(
-    "forma_takimi"
+  const [activeSubTab, setActiveSubTab] = useState<"jerseys" | "other">(
+    "jerseys"
   );
 
-  const [setName, setSetName] = useState("");
-  const [kitType, setKitType] = useState<JerseySet["kit_type"]>("Ev");
-  const [setQty, setSetQty] = useState("20");
-  const [defaultJerseySize, setDefaultJerseySize] = useState("M");
-  const [gkDefault1And12, setGkDefault1And12] = useState(true);
-  const [setPhotoFile, setSetPhotoFile] = useState<File | null>(null);
+  // Yeni Forma Ekleme (Adet sorar, 1'den başlayarak otomatik numaralandırır)
+  const [jerseyName, setJerseyName] = useState("");
+  const [kitType, setKitType] = useState("İç Saha");
+  const [jerseyQty, setJerseyQty] = useState("20");
+  const [jerseyDefaultSize, setJerseyDefaultSize] = useState("M");
+  const [jerseyPhotoUrl, setJerseyPhotoUrl] = useState("/logo.png");
+  const [creatingJersey, setCreatingJersey] = useState(false);
 
-  const [prodName, setProdName] = useState("");
-  const [prodCat, setProdCat] = useState("Dış Giyim");
-  const [prodCount, setProdCount] = useState("20");
-  const [prodSizeInfo, setProdSizeInfo] = useState("S, M, L, XL");
-  const [hasNumberField, setHasNumberField] = useState(false);
-  const [prodNumberInfo, setProdNumberInfo] = useState("");
-  const [prodPhotoFile, setProdPhotoFile] = useState<File | null>(null);
-  const [savingCreate, setSavingCreate] = useState(false);
+  // Yeni Diğer Malzeme Ekleme (Yağmurluk, eşofman takımı vb. + opsiyonel numara)
+  const [productName, setProductName] = useState("");
+  const [category, setCategory] = useState("Eşofman Takımı");
+  const [otherQty, setOtherQty] = useState("10");
+  const [otherSize, setOtherSize] = useState("M");
+  const [otherNumber, setOtherNumber] = useState("");
+  const [otherPhotoUrl, setOtherPhotoUrl] = useState("/logo.png");
+  const [creatingOther, setCreatingOther] = useState(false);
 
-  const [editingStock, setEditingStock] = useState<StockItem | null>(null);
-  const [missingQtyById, setMissingQtyById] = useState<Record<string, number>>(
-    {}
+  // Beden / Numara / Durum Paneli (Forma veya diğer malzeme)
+  const [detailTargetType, setDetailTargetType] = useState<"jersey" | "other">(
+    "jersey"
+  );
+  const [selectedJerseyId, setSelectedJerseyId] = useState<string>("");
+  const [selectedOtherId, setSelectedOtherId] = useState<string>("");
+  const [jerseyUnitsMap, setJerseyUnitsMap] = useState<
+    Record<string, JerseyUnitDetail[]>
+  >({});
+  const [customAddNumber, setCustomAddNumber] = useState("");
+  const [customAddSize, setCustomAddSize] = useState("M");
+
+  // Diğer malzeme numara / beden / durum düzenleme
+  const [editOtherNum, setEditOtherNum] = useState("");
+  const [editOtherSize, setEditOtherSize] = useState("M");
+  const [editOtherStatus, setEditOtherStatus] = useState<
+    "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"
+  >("Müsait");
+
+  // Teslim Etme / İade Alma
+  const [ageFilter, setAgeFilter] = useState<string>("Tümü");
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
+  const [deliverKind, setDeliverKind] = useState<"jersey" | "other">("jersey");
+  const [deliverItemId, setDeliverItemId] = useState<string>("");
+  const [deliverNumber, setDeliverNumber] = useState<string>("1");
+  const [deliverSize, setDeliverSize] = useState<string>("M");
+  const [deliverNotes, setDeliverNotes] = useState<string>("");
+  const [delivering, setDelivering] = useState<boolean>(false);
+
+  const loadUnitsFromStorage = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("ikbal_jersey_units_v1");
+      if (raw) {
+        setJerseyUnitsMap(JSON.parse(raw) as Record<string, JerseyUnitDetail[]>);
+      }
+    } catch {
+      // yoksay
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadUnitsFromStorage();
+      if (jerseySets.length > 0) {
+        setSelectedJerseyId((prev) => prev || jerseySets[0].id);
+        setDeliverItemId((prev) => prev || jerseySets[0].id);
+      }
+      if (stockItems.length > 0) {
+        setSelectedOtherId((prev) => prev || stockItems[0].id);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadUnitsFromStorage, jerseySets, stockItems]);
+
+  function saveUnitsMap(next: Record<string, JerseyUnitDetail[]>) {
+    setJerseyUnitsMap(next);
+    try {
+      localStorage.setItem("ikbal_jersey_units_v1", JSON.stringify(next));
+    } catch {
+      // yoksay
+    }
+  }
+
+  const activeJerseySet = useMemo(
+    () =>
+      jerseySets.find((j) => j.id === selectedJerseyId) || jerseySets[0] || null,
+    [jerseySets, selectedJerseyId]
   );
 
-  const [playerCategoryFilter, setPlayerCategoryFilter] =
-    useState<string>("Tümü");
-  const [playerQuery, setPlayerQuery] = useState<string>("");
-
-  const [selPlayer, setSelPlayer] = useState("");
-  const [giveMode, setGiveMode] = useState<"forma" | "malzeme">("forma");
-  const [handoverType, setHandoverType] = useState<"emanet" | "tam_teslim">(
-    "emanet"
+  const activeOtherItem = useMemo(
+    () =>
+      stockItems.find((s) => s.id === selectedOtherId) || stockItems[0] || null,
+    [stockItems, selectedOtherId]
   );
-  const [selJerseySet, setSelJerseySet] = useState("");
-  const [selStockName, setSelStockName] = useState("Yağmurluk");
-  const [itemSize, setItemSize] = useState("M");
-  const [jerseyNo, setJerseyNo] = useState("");
+
+  const currentUnits: JerseyUnitDetail[] = useMemo(() => {
+    if (!activeJerseySet) return [];
+    const existing = jerseyUnitsMap[activeJerseySet.id];
+    if (existing && existing.length > 0) return existing;
+    return buildDefaultUnitsForSet(activeJerseySet);
+  }, [activeJerseySet, jerseyUnitsMap]);
+
+  async function handleUploadCover(
+    file: File,
+    setter: (url: string) => void
+  ) {
+    const ext = (file.name.split(".").pop() || "png").toLowerCase();
+    const filePath = `inventory/${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("club-media")
+      .upload(filePath, file, { upsert: true });
+
+    if (!error) {
+      const { data } = supabase.storage
+        .from("club-media")
+        .getPublicUrl(filePath);
+      if (data?.publicUrl) {
+        setter(data.publicUrl);
+        onFeedback("Kapak görseli yüklendi.");
+        return;
+      }
+    }
+
+    setter(URL.createObjectURL(file));
+    onFeedback("Kapak görseli önizleme bağlantısı oluşturuldu.");
+  }
+
+  async function handleCreateJersey(e: React.FormEvent) {
+    e.preventDefault();
+    const qty = Math.max(1, parseInt(jerseyQty, 10) || 1);
+    const title =
+      jerseyName.trim() || `${kitType} Forma Seti (${qty} Adet)`;
+
+    setCreatingJersey(true);
+    const { data, error } = await supabase
+      .from("jersey_sets")
+      .insert({
+        set_name: title,
+        kit_type: kitType,
+        size_label: jerseyDefaultSize,
+        total_count: qty,
+        available_count: qty,
+        photo_url: jerseyPhotoUrl.trim() || "/logo.png",
+      })
+      .select("*")
+      .single();
+    setCreatingJersey(false);
+
+    if (error) {
+      onFeedback("Forma eklenemedi: " + error.message);
+      return;
+    }
+
+    const createdId = (data as { id?: string } | null)?.id;
+    if (createdId) {
+      const autoUnits: JerseyUnitDetail[] = Array.from(
+        { length: qty },
+        (_, idx) => ({
+          id: `${createdId}-u-${idx + 1}`,
+          set_id: createdId,
+          number: idx + 1,
+          size: jerseyDefaultSize,
+          status: "Müsait",
+        })
+      );
+      saveUnitsMap({ ...jerseyUnitsMap, [createdId]: autoUnits });
+      setSelectedJerseyId(createdId);
+      setDetailTargetType("jersey");
+    }
+
+    setJerseyName("");
+    await onLogActivity(
+      "Forma Ekleme",
+      `${title} (${qty} adet, 1-${qty} otomatik numaralandırıldı)`
+    );
+    onFeedback(`${qty} adet forma 1'den ${qty}'e numaralandırılarak eklendi.`);
+    await onRefresh();
+  }
+
+  async function handleCreateOtherItem(e: React.FormEvent) {
+    e.preventDefault();
+    const qty = Math.max(1, parseInt(otherQty, 10) || 1);
+    const name = productName.trim() || `${category}`;
+    const parsedNum = otherNumber.trim() ? parseInt(otherNumber, 10) : null;
+
+    setCreatingOther(true);
+    const { data, error } = await supabase
+      .from("equipment_stock")
+      .insert({
+        product_name: name,
+        category,
+        size_label: otherSize,
+        total_count: qty,
+        available_count: qty,
+        photo_url: otherPhotoUrl.trim() || "/logo.png",
+      })
+      .select("*")
+      .single();
+    setCreatingOther(false);
+
+    if (error) {
+      onFeedback("Malzeme eklenemedi: " + error.message);
+      return;
+    }
+
+    const createdId = (data as { id?: string } | null)?.id;
+    if (createdId && parsedNum !== null && !Number.isNaN(parsedNum)) {
+      try {
+        const metaRaw = localStorage.getItem("ikbal_other_meta_v1");
+        const meta = metaRaw
+          ? (JSON.parse(metaRaw) as Record<
+              string,
+              { number?: number | null; size?: string; status?: string }
+            >)
+          : {};
+        meta[createdId] = {
+          number: parsedNum,
+          size: otherSize,
+          status: "Müsait",
+        };
+        localStorage.setItem("ikbal_other_meta_v1", JSON.stringify(meta));
+      } catch {
+        // yoksay
+      }
+    }
+
+    setProductName("");
+    setOtherNumber("");
+    await onLogActivity(
+      "Malzeme Ekleme",
+      `${name} (${category}, ${qty} adet${
+        parsedNum ? `, No: #${parsedNum}` : ""
+      })`
+    );
+    onFeedback(`${name} envantere eklendi.`);
+    await onRefresh();
+  }
+
+  function handleAddCustomNumberUnit() {
+    if (!activeJerseySet) return;
+    const num = parseInt(customAddNumber, 10);
+    if (Number.isNaN(num) || num <= 0) {
+      onFeedback("Lütfen geçerli bir forma numarası girin (örn: 95).");
+      return;
+    }
+
+    const list = [...currentUnits];
+    if (list.some((u) => u.number === num)) {
+      onFeedback(`#${num} numarası zaten listede mevcut.`);
+      return;
+    }
+
+    list.push({
+      id: `${activeJerseySet.id}-u-${num}-${Date.now()}`,
+      set_id: activeJerseySet.id,
+      number: num,
+      size: customAddSize,
+      status: "Müsait",
+    });
+
+    const nextMap = { ...jerseyUnitsMap, [activeJerseySet.id]: list };
+    saveUnitsMap(nextMap);
+    setCustomAddNumber("");
+    onFeedback(`#${num} numaralı forma (${customAddSize}) eklendi.`);
+  }
+
+  function handleUpdateUnit(
+    unitId: string,
+    patch: Partial<JerseyUnitDetail>
+  ) {
+    if (!activeJerseySet) return;
+    const updatedList = currentUnits.map((u) =>
+      u.id === unitId ? { ...u, ...patch } : u
+    );
+    saveUnitsMap({ ...jerseyUnitsMap, [activeJerseySet.id]: updatedList });
+  }
+
+  function handleSaveOtherItemDetails() {
+    if (!activeOtherItem) return;
+    const numVal = editOtherNum.trim() ? parseInt(editOtherNum, 10) : null;
+    try {
+      const metaRaw = localStorage.getItem("ikbal_other_meta_v1");
+      const meta = metaRaw
+        ? (JSON.parse(metaRaw) as Record<
+            string,
+            { number?: number | null; size?: string; status?: string }
+          >)
+        : {};
+      meta[activeOtherItem.id] = {
+        number: numVal && !Number.isNaN(numVal) ? numVal : null,
+        size: editOtherSize,
+        status: editOtherStatus,
+      };
+      localStorage.setItem("ikbal_other_meta_v1", JSON.stringify(meta));
+    } catch {
+      // yoksay
+    }
+    void supabase
+      .from("equipment_stock")
+      .update({ size_label: editOtherSize })
+      .eq("id", activeOtherItem.id);
+    onFeedback(
+      `${activeOtherItem.product_name} için numara/beden/durum güncellendi.`
+    );
+  }
+
+  async function handleDeliverEquipment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedPlayerId) {
+      onFeedback("Lütfen malzeme teslim edilecek sporcuyu seçin.");
+      return;
+    }
+
+    const targetPlayer = players.find((p) => p.id === selectedPlayerId);
+    const parsedNum = deliverNumber.trim() ? parseInt(deliverNumber, 10) : null;
+
+    setDelivering(true);
+
+    if (deliverKind === "jersey") {
+      const setItem =
+        jerseySets.find((j) => j.id === deliverItemId) || jerseySets[0];
+      if (!setItem) {
+        setDelivering(false);
+        onFeedback("Teslim edilecek forma seti bulunamadı.");
+        return;
+      }
+
+      const { error } = await supabase.from("equipment_logs").insert({
+        player_id: selectedPlayerId,
+        item_type: "Forma",
+        item_name: setItem.set_name,
+        jersey_number: parsedNum,
+        size_label: deliverSize,
+        condition_status: "İyi",
+        status: "Teslim Edildi",
+        notes: deliverNotes.trim() || null,
+        created_at: new Date().toISOString(),
+      });
+
+      if (!error) {
+        const nextAvail = Math.max(0, Number(setItem.available_count ?? 0) - 1);
+        await supabase
+          .from("jersey_sets")
+          .update({ available_count: nextAvail, size_label: deliverSize })
+          .eq("id", setItem.id);
+
+        const baseUnits =
+          jerseyUnitsMap[setItem.id] && jerseyUnitsMap[setItem.id].length > 0
+            ? [...jerseyUnitsMap[setItem.id]]
+            : buildDefaultUnitsForSet(setItem);
+
+        const matchedIdx =
+          parsedNum !== null
+            ? baseUnits.findIndex((u) => u.number === parsedNum)
+            : -1;
+
+        if (matchedIdx >= 0) {
+          baseUnits[matchedIdx] = {
+            ...baseUnits[matchedIdx],
+            size: deliverSize,
+            status: "Teslim Edildi",
+            assigned_to: targetPlayer?.full_name,
+          };
+        } else if (parsedNum !== null) {
+          baseUnits.push({
+            id: `${setItem.id}-u-${parsedNum}`,
+            set_id: setItem.id,
+            number: parsedNum,
+            size: deliverSize,
+            status: "Teslim Edildi",
+            assigned_to: targetPlayer?.full_name,
+          });
+        }
+        saveUnitsMap({ ...jerseyUnitsMap, [setItem.id]: baseUnits });
+      }
+
+      setDelivering(false);
+      if (error) {
+        onFeedback("Teslim kaydedilemedi: " + error.message);
+        return;
+      }
+
+      await onLogActivity(
+        "Forma Teslimi",
+        `${targetPlayer?.full_name || "Sporcu"} -> ${setItem.set_name}${
+          parsedNum ? ` #${parsedNum}` : ""
+        } (Beden: ${deliverSize})`
+      );
+      onFeedback("Forma teslim edildi ve seçilen beden kaydedildi.");
+      setDeliverNotes("");
+      await onRefresh();
+      return;
+    }
+
+    const stockItem =
+      stockItems.find((s) => s.id === deliverItemId) || stockItems[0];
+    if (!stockItem) {
+      setDelivering(false);
+      onFeedback("Teslim edilecek malzeme bulunamadı.");
+      return;
+    }
+
+    const { error } = await supabase.from("equipment_logs").insert({
+      player_id: selectedPlayerId,
+      item_type: stockItem.category || "Ekipman",
+      item_name: stockItem.product_name,
+      jersey_number: parsedNum,
+      size_label: deliverSize,
+      condition_status: "İyi",
+      status: "Teslim Edildi",
+      notes: deliverNotes.trim() || null,
+      created_at: new Date().toISOString(),
+    });
+
+    if (!error) {
+      const nextAvail = Math.max(0, Number(stockItem.available_count ?? 0) - 1);
+      await supabase
+        .from("equipment_stock")
+        .update({ available_count: nextAvail, size_label: deliverSize })
+        .eq("id", stockItem.id);
+    }
+
+    setDelivering(false);
+    if (error) {
+      onFeedback("Teslim kaydedilemedi: " + error.message);
+      return;
+    }
+
+    await onLogActivity(
+      "Malzeme Teslimi",
+      `${targetPlayer?.full_name || "Sporcu"} -> ${stockItem.product_name}${
+        parsedNum ? ` #${parsedNum}` : ""
+      } (Beden: ${deliverSize})`
+    );
+    onFeedback("Malzeme teslim edildi.");
+    setDeliverNotes("");
+    await onRefresh();
+  }
+
+  // İade alındığında teslimde seçilen son beden envanterde korunur!
+  async function handleReturnLog(log: EquipmentLogRecord) {
+    const keptSize = log.size_label || "M";
+    const { error } = await supabase
+      .from("equipment_logs")
+      .update({ status: "İade Edildi", size_label: keptSize })
+      .eq("id", log.id);
+
+    if (error) {
+      onFeedback("İade alınamadı: " + error.message);
+      return;
+    }
+
+    const matchedJersey = jerseySets.find((j) => j.set_name === log.item_name);
+    if (matchedJersey) {
+      const nextAvail = Math.min(
+        matchedJersey.total_count,
+        Number(matchedJersey.available_count ?? 0) + 1
+      );
+      await supabase
+        .from("jersey_sets")
+        .update({ available_count: nextAvail, size_label: keptSize })
+        .eq("id", matchedJersey.id);
+
+      const units =
+        jerseyUnitsMap[matchedJersey.id] &&
+        jerseyUnitsMap[matchedJersey.id].length > 0
+          ? [...jerseyUnitsMap[matchedJersey.id]]
+          : buildDefaultUnitsForSet(matchedJersey);
+
+      if (log.jersey_number) {
+        const idx = units.findIndex((u) => u.number === log.jersey_number);
+        if (idx >= 0) {
+          units[idx] = {
+            ...units[idx],
+            size: keptSize,
+            status: "Müsait",
+            assigned_to: undefined,
+          };
+        }
+      }
+      saveUnitsMap({ ...jerseyUnitsMap, [matchedJersey.id]: units });
+    } else {
+      const matchedStock = stockItems.find(
+        (s) => s.product_name === log.item_name
+      );
+      if (matchedStock) {
+        const nextAvail = Math.min(
+          matchedStock.total_count,
+          Number(matchedStock.available_count ?? 0) + 1
+        );
+        await supabase
+          .from("equipment_stock")
+          .update({ available_count: nextAvail, size_label: keptSize })
+          .eq("id", matchedStock.id);
+      }
+    }
+
+    await onLogActivity(
+      "Malzeme İadesi",
+      `${log.item_name} iade alındı (Beden korundu: ${keptSize})`
+    );
+    onFeedback(`İade alındı. Forma/malzeme bedeni (${keptSize}) korundu.`);
+    await onRefresh();
+  }
 
   const filteredPlayers = useMemo(() => {
-    const q = playerQuery.trim().toLocaleLowerCase("tr-TR");
-    return players.filter((p) => {
-      const catOk =
-        playerCategoryFilter === "Tümü" || p.age_group === playerCategoryFilter;
-      const nameOk =
-        !q || p.full_name.toLocaleLowerCase("tr-TR").includes(q);
-      return catOk && nameOk;
-    });
-  }, [players, playerCategoryFilter, playerQuery]);
+    if (ageFilter === "Tümü") return players;
+    return players.filter((p) => p.age_group === ageFilter);
+  }, [players, ageFilter]);
 
-  const effectivePlayerId = useMemo(() => {
-    if (filteredPlayers.length === 0) return "";
-    return filteredPlayers.some((p) => p.id === selPlayer)
-      ? selPlayer
-      : filteredPlayers[0].id;
-  }, [filteredPlayers, selPlayer]);
-
-  const effectiveJerseySetId = useMemo(() => {
-    if (jerseySets.length === 0) return "";
-    return jerseySets.some((j) => j.id === selJerseySet)
-      ? selJerseySet
-      : jerseySets[0].id;
-  }, [jerseySets, selJerseySet]);
-
-  const effectiveStockName = useMemo(() => {
-    if (stockItems.length === 0) return selStockName;
-    return stockItems.some((s) => s.product_name === selStockName)
-      ? selStockName
-      : stockItems[0].product_name;
-  }, [stockItems, selStockName]);
-
-  async function handleUnifiedCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setSavingCreate(true);
-
-    try {
-      if (createType === "forma_takimi") {
-        if (!setName.trim()) return;
-        let photoUrl: string | null = null;
-        if (setPhotoFile) {
-          photoUrl = await uploadPhoto("jerseys", setPhotoFile);
-        }
-        const qty = Number(setQty) || 20;
-        const generatedItems = buildDefaultPieces(
-          qty,
-          defaultJerseySize,
-          gkDefault1And12
-        );
-
-        const { data, error } = await supabase
-          .from("jersey_sets")
-          .insert({
-            set_name: setName.trim(),
-            kit_type: kitType,
-            total_quantity: generatedItems.length,
-            photo_url: photoUrl,
-            items: generatedItems,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          onStatus("Forma takımı eklenemedi: " + error.message);
-          return;
-        }
-        if (data) {
-          const created = data as JerseySet;
-          setJerseySets?.((prev) => [created, ...prev]);
-          setSelJerseySet(created.id);
-          setSetName("");
-          setSetPhotoFile(null);
-          onStatus(
-            `${created.set_name} forma takımı eklendi (1-${created.total_quantity}).`
-          );
-        }
-      } else {
-        if (!prodName.trim()) return;
-        let photoUrl: string | null = null;
-        if (prodPhotoFile) {
-          photoUrl = await uploadPhoto("stock", prodPhotoFile);
-        }
-
-        const numNote =
-          hasNumberField && prodNumberInfo.trim()
-            ? ` [No: ${prodNumberInfo.trim()}]`
-            : "";
-
-        const { data, error } = await supabase
-          .from("equipment_stock")
-          .insert({
-            product_name: `${prodName.trim()}${numNote}`,
-            category: prodCat.trim() || "Malzeme",
-            stock_count: Number(prodCount) || 0,
-            size_info: prodSizeInfo.trim() || null,
-            photo_url: photoUrl,
-          })
-          .select()
-          .single();
-
-        if (error) {
-          onStatus("Ürün eklenemedi: " + error.message);
-          return;
-        }
-        if (data) {
-          const createdStock = data as StockItem;
-          setStockItems((prev) => [...prev, createdStock]);
-          setSelStockName(createdStock.product_name);
-          setProdName("");
-          setProdNumberInfo("");
-          setHasNumberField(false);
-          setProdPhotoFile(null);
-          onStatus("Yeni malzeme stoğu eklendi.");
-        }
-      }
-    } finally {
-      setSavingCreate(false);
-    }
-  }
-
-  async function handleSaveStockEdit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!editingStock) return;
-    const { data, error } = await supabase
-      .from("equipment_stock")
-      .update({
-        product_name: editingStock.product_name.trim(),
-        category: editingStock.category.trim(),
-        stock_count: Number(editingStock.stock_count) || 0,
-        size_info: editingStock.size_info?.trim() || null,
-      })
-      .eq("id", editingStock.id)
-      .select()
-      .single();
-
-    if (!error && data) {
-      setStockItems((prev) =>
-        prev.map((s) => (s.id === editingStock.id ? (data as StockItem) : s))
-      );
-      setEditingStock(null);
-      onStatus("Ürün bilgileri güncellendi.");
-    }
-  }
-
-  async function handleUploadStockPhotoAfter(stockId: string, file: File) {
-    const url = await uploadPhoto("stock", file);
-    if (!url) {
-      onStatus("Görsel yüklenemedi.");
-      return;
-    }
-    const { error } = await supabase
-      .from("equipment_stock")
-      .update({ photo_url: url })
-      .eq("id", stockId);
-    if (!error) {
-      setStockItems((prev) =>
-        prev.map((s) => (s.id === stockId ? { ...s, photo_url: url } : s))
-      );
-      onStatus("Ürün görseli güncellendi.");
-    }
-  }
-
-  async function handleDeleteStock(id: string, name: string) {
-    if (!confirm(`"${name}" ürününü silmek istediğinize emin misiniz?`))
-      return;
-    await supabase.from("equipment_stock").delete().eq("id", id);
-    setStockItems((prev) => prev.filter((s) => s.id !== id));
-  }
-
-  async function handleMarkStockMissing(stockItem: StockItem) {
-    const targetPlayerId = effectivePlayerId || players[0]?.id;
-    if (!targetPlayerId) {
-      onStatus(
-        "Eksik/kayıp kaydı için önce en az 1 sporcu kaydı bulunmalıdır."
-      );
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("equipment_logs")
-      .insert({
-        player_id: targetPlayerId,
-        jersey_set_id: null,
-        item_name: stockItem.product_name,
-        item_size: stockItem.size_info || "M",
-        jersey_number_given: null,
-        category: "Malzeme",
-        status: "kayip_eksik",
-      })
-      .select()
-      .single();
-
-    if (error) {
-      onStatus("Eksik/kayıp kaydı açılamadı: " + error.message);
-      return;
-    }
-    if (data) {
-      setLogs((prev) => [data as EquipmentLog, ...prev]);
-      onStatus(
-        `"${stockItem.product_name}" tekil olarak Eksik / Kayıp işaretlendi.`
-      );
-    }
-  }
-
-  async function handleGiveItem(e: React.FormEvent) {
-    e.preventDefault();
-    if (!effectivePlayerId) return;
-    const chosenSet = jerseySets.find((j) => j.id === effectiveJerseySetId);
-    const parsedNum = jerseyNo.trim() ? Number(jerseyNo.trim()) : null;
-
-    if (giveMode === "forma" && effectiveJerseySetId && parsedNum) {
-      const existingHolderLog = logs.find(
-        (l) =>
-          l.status === "teslim_edildi" &&
-          l.jersey_set_id === effectiveJerseySetId &&
-          l.jersey_number_given === parsedNum
-      );
-      if (existingHolderLog) {
-        const holder = players.find(
-          (p) => p.id === existingHolderLog.player_id
-        );
-        const proceed = confirm(
-          `#${parsedNum} numaralı forma şu an "${
-            holder?.full_name || "başka bir sporcu"
-          }" üzerinde görünüyor. Yine de teslim etmek istiyor musunuz?`
-        );
-        if (!proceed) return;
-      }
-    }
-
-    const handoverLabel =
-      handoverType === "emanet" ? "Emanet" : "Tam Teslim";
-
-    const payload =
-      giveMode === "forma"
-        ? {
-            player_id: effectivePlayerId,
-            jersey_set_id: effectiveJerseySetId || null,
-            item_name: chosenSet
-              ? `${chosenSet.set_name} (${chosenSet.kit_type}) [${handoverLabel}]`
-              : `Forma [${handoverLabel}]`,
-            item_size: itemSize.trim() || "M",
-            jersey_number_given: parsedNum,
-            category: "Forma",
-            status: "teslim_edildi",
-          }
-        : {
-            player_id: effectivePlayerId,
-            jersey_set_id: null,
-            item_name: `${effectiveStockName}${
-              parsedNum ? ` #${parsedNum}` : ""
-            } [${handoverLabel}]`,
-            item_size: itemSize.trim() || "M",
-            jersey_number_given: parsedNum,
-            category: "Malzeme",
-            status: "teslim_edildi",
-          };
-
-    const { data, error } = await supabase
-      .from("equipment_logs")
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) {
-      onStatus("Teslimat kaydedilemedi: " + error.message);
-      return;
-    }
-
-    if (data) {
-      setLogs((prev) => [data as EquipmentLog, ...prev]);
-
-      if (giveMode === "malzeme") {
-        const targetStock = stockItems.find(
-          (s) => s.product_name === effectiveStockName
-        );
-        if (targetStock && targetStock.stock_count > 0) {
-          const nextCount = targetStock.stock_count - 1;
-          await supabase
-            .from("equipment_stock")
-            .update({ stock_count: nextCount })
-            .eq("id", targetStock.id);
-          setStockItems((prev) =>
-            prev.map((s) =>
-              s.id === targetStock.id ? { ...s, stock_count: nextCount } : s
-            )
-          );
-        }
-      }
-
-      setJerseyNo("");
-      onStatus(`${handoverLabel} kaydı oluşturuldu.`);
-    }
-  }
-
-  const selectedSetObj = jerseySets.find((j) => j.id === effectiveJerseySetId);
-  const selectedSetPieces = Array.isArray(selectedSetObj?.items)
-    ? selectedSetObj.items
-    : [];
+  const activeLogs = useMemo(
+    () => equipmentLogs.filter((l) => l.status !== "İade Edildi"),
+    [equipmentLogs]
+  );
 
   return (
     <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
-      <form
-        onSubmit={handleGiveItem}
-        className="bg-[var(--bg-surface)] rounded-2xl border-2 border-[var(--brand-navy)]/30 p-6 space-y-4 shadow-xs"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-black text-[var(--text-primary)]">
-            Hızlı Forma / Malzeme Teslim Et
-          </h3>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setGiveMode("forma")}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer ${
-                giveMode === "forma"
-                  ? "bg-[var(--brand-red)] text-white"
-                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-              }`}
-            >
-              Forma Ver
-            </button>
-            <button
-              type="button"
-              onClick={() => setGiveMode("malzeme")}
-              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold cursor-pointer ${
-                giveMode === "malzeme"
-                  ? "bg-[var(--brand-red)] text-white"
-                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-              }`}
-            >
-              Diğer Malzeme Ver
-            </button>
-          </div>
+      {/* Ortak Malzeme Paneli Sekmeleri */}
+      <div className="bg-[var(--bg-surface)] p-4 rounded-2xl border border-[var(--border-subtle)] shadow-xs flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-black text-[var(--text-primary)]">
+            Ortak Forma &amp; Malzeme Envanter Paneli
+          </h2>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Formalar ve diğer malzemeler tek panel altında; kapak görseli,
+            numaralandırma ve beden/numara/durum düzenleme aktif.
+          </p>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-3 bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-subtle)]">
-          <select
-            value={playerCategoryFilter}
-            onChange={(e) => setPlayerCategoryFilter(e.target.value)}
-            className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab("jerseys")}
+            className={`px-4 py-2 rounded-xl text-xs font-black cursor-pointer transition ${
+              activeSubTab === "jerseys"
+                ? "bg-[var(--brand-navy)] text-white"
+                : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+            }`}
           >
-            <option value="Tümü">Kategori: Tüm Yaş Grupları</option>
-            {AGE_GROUPS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="text"
-            value={playerQuery}
-            onChange={(e) => setPlayerQuery(e.target.value)}
-            placeholder="Oyuncu adı yazarak hızlı bul..."
-            className="sm:col-span-2 min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] text-xs sm:text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-          />
+            Formalar ({jerseySets.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSubTab("other")}
+            className={`px-4 py-2 rounded-xl text-xs font-black cursor-pointer transition ${
+              activeSubTab === "other"
+                ? "bg-[var(--brand-red)] text-white"
+                : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)]"
+            }`}
+          >
+            Diğer Malzemeler ({stockItems.length})
+          </button>
         </div>
+      </div>
 
-        <div className="grid sm:grid-cols-6 gap-3">
-          <select
-            value={effectivePlayerId}
-            onChange={(e) => setSelPlayer(e.target.value)}
-            className="sm:col-span-2 min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
+      {/* Sekme 1: Formalar */}
+      {activeSubTab === "jerseys" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <form
+            onSubmit={handleCreateJersey}
+            className="lg:col-span-5 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5"
           >
-            {filteredPlayers.length === 0 ? (
-              <option value="">Eşleşen oyuncu bulunamadı</option>
-            ) : (
-              filteredPlayers.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.age_group} - {p.full_name}
-                </option>
-              ))
-            )}
-          </select>
-
-          <select
-            value={handoverType}
-            onChange={(e) =>
-              setHandoverType(e.target.value as "emanet" | "tam_teslim")
-            }
-            className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-          >
-            <option value="emanet">Emanet</option>
-            <option value="tam_teslim">Tam Teslim</option>
-          </select>
-
-          {giveMode === "forma" ? (
-            <select
-              value={effectiveJerseySetId}
-              onChange={(e) => setSelJerseySet(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-            >
-              {jerseySets.map((j) => (
-                <option key={j.id} value={j.id}>
-                  {j.set_name} ({j.kit_type})
-                </option>
-              ))}
-            </select>
-          ) : (
-            <select
-              value={effectiveStockName}
-              onChange={(e) => setSelStockName(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-            >
-              {stockItems.map((s) => (
-                <option key={s.id} value={s.product_name}>
-                  {s.product_name} ({s.stock_count})
-                </option>
-              ))}
-            </select>
-          )}
-
-          {giveMode === "forma" && selectedSetPieces.length > 0 ? (
-            <select
-              value={jerseyNo}
-              onChange={(e) => {
-                const num = e.target.value;
-                setJerseyNo(num);
-                const found = selectedSetPieces.find(
-                  (x) => String(x.number) === num
-                );
-                if (found) setItemSize(found.size || "M");
-              }}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-            >
-              <option value="">-- Forma No Seç --</option>
-              {selectedSetPieces.map((piece) => {
-                const assignedLog = logs.find(
-                  (l) =>
-                    l.status === "teslim_edildi" &&
-                    l.jersey_set_id === effectiveJerseySetId &&
-                    l.jersey_number_given === piece.number
-                );
-                const holder = assignedLog
-                  ? players.find((p) => p.id === assignedLog.player_id)
-                  : null;
-                return (
-                  <option key={piece.id} value={piece.number}>
-                    #{piece.number} ({piece.size || "M"}){" "}
-                    {piece.is_goalkeeper ? "[Kaleci]" : ""}{" "}
-                    {holder ? `[Zimmetli: ${holder.full_name}]` : "[Boşta]"}
-                  </option>
-                );
-              })}
-            </select>
-          ) : (
-            <input
-              type="number"
-              min={1}
-              max={999}
-              placeholder={
-                giveMode === "forma"
-                  ? "Forma Numarası"
-                  : "Numara (Opsiyonel)"
-              }
-              value={jerseyNo}
-              onChange={(e) => setJerseyNo(e.target.value)}
-              className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-            />
-          )}
-
-          <select
-            value={itemSize}
-            onChange={(e) => setItemSize(e.target.value)}
-            className="min-h-[46px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-          >
-            {SIZE_OPTIONS.map((sz) => (
-              <option key={sz} value={sz}>
-                Beden: {sz}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="px-6 min-h-[46px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm cursor-pointer"
-        >
-          {handoverType === "emanet"
-            ? "Emanet Olarak Ver"
-            : "Tam Teslim Et"}
-        </button>
-      </form>
-
-      <form
-        onSubmit={handleUnifiedCreate}
-        className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="text-base font-black text-[var(--text-primary)]">
-              Yeni Kayıt Ekle (Forma Takımı veya Malzeme Stok)
+            <h3 className="text-base font-black">
+              Yeni Forma Ekle (Otomatik 1&apos;den Numaralandır)
             </h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Eklemek istediğiniz türü seçin; diğer malzemelerde isterseniz
-              numara bilgisi ekleyin.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => setCreateType("forma_takimi")}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer ${
-                createType === "forma_takimi"
-                  ? "bg-[var(--brand-navy)] text-white"
-                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-              }`}
-            >
-              Forma Takımı Oluştur
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreateType("malzeme_stok")}
-              className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer ${
-                createType === "malzeme_stok"
-                  ? "bg-[var(--brand-red)] text-white"
-                  : "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-              }`}
-            >
-              Yeni Malzeme Stok
-            </button>
-          </div>
-        </div>
 
-        {createType === "forma_takimi" ? (
-          <>
-            <div className="grid sm:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Forma Seti Adı
+              </label>
               <input
                 type="text"
-                required
-                placeholder="Forma Takımı Adı (Örn: 2026 Çubuklu)"
-                value={setName}
-                onChange={(e) => setSetName(e.target.value)}
-                className="sm:col-span-2 min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
-              />
-              <select
-                value={kitType}
-                onChange={(e) =>
-                  setKitType(e.target.value as JerseySet["kit_type"])
-                }
-                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] font-bold text-sm bg-[var(--bg-subtle)] text-[var(--text-primary)]"
-              >
-                <option value="Ev">Ev Forması</option>
-                <option value="Deplasman">Deplasman Forması</option>
-                <option value="Alternatif">Alternatif Forma</option>
-                <option value="Özel">Özel Seri</option>
-              </select>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                placeholder="Adet (1..N)"
-                value={setQty}
-                onChange={(e) => setSetQty(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
+                value={jerseyName}
+                onChange={(e) => setJerseyName(e.target.value)}
+                placeholder="Örn: U11 İç Saha Çubuklu"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
               />
             </div>
 
-            <div className="grid sm:grid-cols-3 gap-3 items-center">
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  Tür
+                </label>
+                <select
+                  value={kitType}
+                  onChange={(e) => setKitType(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
+                >
+                  <option value="İç Saha">İç Saha</option>
+                  <option value="Deplasman">Deplasman</option>
+                  <option value="Alternatif">Alternatif</option>
+                  <option value="Kaleci">Kaleci</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  Adet *
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={200}
+                  required
+                  value={jerseyQty}
+                  onChange={(e) => setJerseyQty(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-black"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
                   Varsayılan Beden
                 </label>
                 <select
-                  value={defaultJerseySize}
-                  onChange={(e) => setDefaultJerseySize(e.target.value)}
-                  className="w-full min-h-[42px] px-3 rounded-xl border-2 border-[var(--border-strong)] text-sm font-bold bg-[var(--bg-subtle)] text-[var(--text-primary)]"
+                  value={jerseyDefaultSize}
+                  onChange={(e) => setJerseyDefaultSize(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
                 >
-                  {SIZE_OPTIONS.map((sz) => (
+                  {SIZES.map((sz) => (
+                    <option key={sz} value={sz}>
+                      {sz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-bold text-[var(--text-secondary)]">
+                  Kapak Görseli
+                </label>
+                <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+                  Görsel Yükle
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) void handleUploadCover(f, setJerseyPhotoUrl);
+                    }}
+                  />
+                </label>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <img
+                  src={jerseyPhotoUrl || "/logo.png"}
+                  alt="Forma kapak önizleme"
+                  className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
+                />
+                <input
+                  type="text"
+                  value={jerseyPhotoUrl}
+                  onChange={(e) => setJerseyPhotoUrl(e.target.value)}
+                  placeholder="/logo.png veya görsel URL"
+                  className="flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={creatingJersey}
+              className="w-full py-2.5 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-xs font-black cursor-pointer"
+            >
+              {creatingJersey
+                ? "Ekleniyor..."
+                : "Formayı Adetle Ekle (1'den Numaralandır)"}
+            </button>
+          </form>
+
+          {/* Forma Listesi & Beden / Numara / Durum Paneli */}
+          <div className="lg:col-span-7 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-base font-black">
+                Forma Setleri &amp; Beden / Numara / Durum Paneli
+              </h3>
+              <select
+                value={activeJerseySet?.id || ""}
+                onChange={(e) => {
+                  setSelectedJerseyId(e.target.value);
+                  setDetailTargetType("jersey");
+                }}
+                className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold"
+              >
+                {jerseySets.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {j.set_name} ({j.available_count}/{j.total_count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {jerseySets.map((j) => (
+                <button
+                  type="button"
+                  key={j.id}
+                  onClick={() => {
+                    setSelectedJerseyId(j.id);
+                    setDetailTargetType("jersey");
+                  }}
+                  className={`flex items-center gap-3 p-2.5 rounded-xl border text-left cursor-pointer transition ${
+                    activeJerseySet?.id === j.id
+                      ? "border-[var(--brand-navy)] bg-[var(--brand-navy-soft)]"
+                      : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                  }`}
+                >
+                  <img
+                    src={j.photo_url || "/logo.png"}
+                    alt={j.set_name}
+                    className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black truncate">
+                      {j.set_name}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      {j.kit_type} • Beden: {j.size_label || "M"} • Stok:{" "}
+                      {j.available_count}/{j.total_count}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {activeJerseySet && detailTargetType === "jersey" && (
+              <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-black">
+                    {activeJerseySet.set_name} — Tekil Forma Beden / Numara /
+                    Durum ({currentUnits.length} adet)
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={customAddNumber}
+                      onChange={(e) => setCustomAddNumber(e.target.value)}
+                      placeholder="No (örn: 95)"
+                      className="w-24 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
+                    />
+                    <select
+                      value={customAddSize}
+                      onChange={(e) => setCustomAddSize(e.target.value)}
+                      className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
+                    >
+                      {SIZES.map((sz) => (
+                        <option key={sz} value={sz}>
+                          {sz}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomNumberUnit}
+                      className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer"
+                    >
+                      + Numara Ekle
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {currentUnits.map((unit) => (
+                    <div
+                      key={unit.id}
+                      className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-2.5 space-y-1.5 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-black text-[var(--brand-navy)] dark:text-sky-300">
+                          #{unit.number}
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={999}
+                          value={unit.number}
+                          onChange={(e) => {
+                            const nextNum = parseInt(e.target.value, 10);
+                            if (!Number.isNaN(nextNum) && nextNum > 0) {
+                              handleUpdateUnit(unit.id, { number: nextNum });
+                            }
+                          }}
+                          className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-1.5 py-0.5 text-[11px] font-bold"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1">
+                        <select
+                          value={unit.size}
+                          onChange={(e) =>
+                            handleUpdateUnit(unit.id, { size: e.target.value })
+                          }
+                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-1.5 py-1 text-[11px] font-bold"
+                        >
+                          {SIZES.map((sz) => (
+                            <option key={sz} value={sz}>
+                              {sz}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={unit.status}
+                          onChange={(e) =>
+                            handleUpdateUnit(unit.id, {
+                              status: e.target.value as JerseyUnitDetail["status"],
+                            })
+                          }
+                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-1.5 py-1 text-[11px] font-bold"
+                        >
+                          {ITEM_STATUSES.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sekme 2: Diğer Malzemeler (Yağmurluk, Eşofman Takımı vb. + Numara/Beden/Durum) */}
+      {activeSubTab === "other" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <form
+            onSubmit={handleCreateOtherItem}
+            className="lg:col-span-5 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5"
+          >
+            <h3 className="text-base font-black">
+              Yeni Malzeme Ekle (Yağmurluk, Eşofman Takımı vb.)
+            </h3>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Malzeme Adı *
+              </label>
+              <input
+                type="text"
+                required
+                value={productName}
+                onChange={(e) => setProductName(e.target.value)}
+                placeholder="Örn: Kulüp Yağmurluğu veya Eşofman Takımı"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  Kategori
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold"
+                >
+                  <option value="Eşofman Takımı">Eşofman Takımı</option>
+                  <option value="Yağmurluk">Yağmurluk</option>
+                  <option value="Antrenman Yeleği">Antrenman Yeleği</option>
+                  <option value="Çanta / Top">Çanta / Top</option>
+                  <option value="Diğer">Diğer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  Adet
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  value={otherQty}
+                  onChange={(e) => setOtherQty(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-black"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                  Beden
+                </label>
+                <select
+                  value={otherSize}
+                  onChange={(e) => setOtherSize(e.target.value)}
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold"
+                >
+                  {SIZES.map((sz) => (
                     <option key={sz} value={sz}>
                       {sz}
                     </option>
@@ -692,280 +1006,370 @@ export function StockAndGiveSection({
                 </select>
               </div>
 
-              <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] p-3 rounded-xl border border-[var(--border-subtle)] cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={gkDefault1And12}
-                  onChange={(e) => setGkDefault1And12(e.target.checked)}
-                />
-                1 ve 12 numaralar ön tanımlı Kaleci Forması olsun
-              </label>
-
               <div>
                 <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Forma Görseli (İsteğe Bağlı)
+                  Numara (Ops.)
                 </label>
                 <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setSetPhotoFile(e.target.files?.[0] || null)}
-                  className="w-full text-xs text-[var(--text-secondary)]"
+                  type="number"
+                  min={1}
+                  max={999}
+                  value={otherNumber}
+                  onChange={(e) => setOtherNumber(e.target.value)}
+                  placeholder="No"
+                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold"
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={savingCreate}
-              className="px-6 min-h-[44px] rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold text-sm cursor-pointer"
-            >
-              {savingCreate
-                ? "Oluşturuluyor..."
-                : "Forma Takımı Ekle (1'den Adede Numaralandır)"}
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="grid sm:grid-cols-4 gap-3">
-              <input
-                type="text"
-                required
-                placeholder="Ürün Adı (Örn: Eşofman Takımı, Yağmurluk)"
-                value={prodName}
-                onChange={(e) => setProdName(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Kategori (Dış Giyim, Eşofman...)"
-                value={prodCat}
-                onChange={(e) => setProdCat(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
-              />
-              <input
-                type="number"
-                placeholder="Stok Adedi"
-                value={prodCount}
-                onChange={(e) => setProdCount(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
-              />
-              <input
-                type="text"
-                placeholder="Bedenler (Örn: S, M, L, XL)"
-                value={prodSizeInfo}
-                onChange={(e) => setProdSizeInfo(e.target.value)}
-                className="min-h-[44px] px-3 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] text-sm"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setHasNumberField((prev) => !prev)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-extrabold border cursor-pointer ${
-                  hasNumberField
-                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                    : "bg-[var(--bg-subtle)] text-[var(--text-primary)] border-[var(--border-strong)]"
-                }`}
-              >
-                {hasNumberField ? "Numara Alanını Kapat" : "+ Numara Ekle"}
-              </button>
-
-              {hasNumberField && (
-                <input
-                  type="text"
-                  placeholder="Numara bilgisi girin (Örn: #1-#20 veya #5)"
-                  value={prodNumberInfo}
-                  onChange={(e) => setProdNumberInfo(e.target.value)}
-                  className="min-h-[40px] px-3 rounded-xl border-2 border-[var(--brand-navy)]/40 text-xs sm:text-sm font-bold text-[var(--text-primary)] bg-[var(--brand-navy-soft)]"
-                />
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setProdPhotoFile(e.target.files?.[0] || null)}
-                className="text-xs text-[var(--text-secondary)]"
-              />
-              <button
-                type="submit"
-                disabled={savingCreate}
-                className="px-6 min-h-[44px] rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold text-sm cursor-pointer"
-              >
-                {savingCreate ? "Ekleniyor..." : "Yeni Ürün Stoğu Ekle"}
-              </button>
-            </div>
-          </>
-        )}
-      </form>
-
-      {editingStock && (
-        <form
-          onSubmit={handleSaveStockEdit}
-          className="bg-[var(--bg-surface)] rounded-2xl border-2 border-[var(--brand-red)] p-5 space-y-3"
-        >
-          <div className="flex justify-between items-center">
-            <h4 className="font-black text-[var(--text-primary)] text-sm">
-              Ürün Düzenle: {editingStock.product_name}
-            </h4>
-            <button
-              type="button"
-              onClick={() => setEditingStock(null)}
-              className="text-xs text-[var(--text-secondary)] underline cursor-pointer"
-            >
-              Vazgeç
-            </button>
-          </div>
-          <div className="grid sm:grid-cols-4 gap-3">
-            <input
-              type="text"
-              required
-              value={editingStock.product_name}
-              onChange={(e) =>
-                setEditingStock({
-                  ...editingStock,
-                  product_name: e.target.value,
-                })
-              }
-              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
-            />
-            <input
-              type="text"
-              value={editingStock.category}
-              onChange={(e) =>
-                setEditingStock({ ...editingStock, category: e.target.value })
-              }
-              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
-            />
-            <input
-              type="number"
-              value={editingStock.stock_count}
-              onChange={(e) =>
-                setEditingStock({
-                  ...editingStock,
-                  stock_count: Number(e.target.value),
-                })
-              }
-              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
-            />
-            <input
-              type="text"
-              placeholder="Bedenler (S, M, L...)"
-              value={editingStock.size_info || ""}
-              onChange={(e) =>
-                setEditingStock({ ...editingStock, size_info: e.target.value })
-              }
-              className="min-h-[42px] px-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold cursor-pointer"
-          >
-            Değişiklikleri Kaydet
-          </button>
-        </form>
-      )}
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {stockItems.map((s) => (
-          <div
-            key={s.id}
-            className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden shadow-xs"
-          >
-            {s.photo_url ? (
-              <img
-                src={s.photo_url}
-                alt={s.product_name}
-                className="w-full h-36 object-cover bg-[var(--bg-subtle)]"
-              />
-            ) : (
-              <div className="w-full h-24 bg-[var(--bg-subtle)] flex items-center justify-center text-[var(--text-muted)] text-xs font-bold">
-                Görsel Yok
-              </div>
-            )}
-            <div className="p-4 space-y-2">
-              <div className="flex justify-between items-start gap-2">
-                <div>
-                  <span className="text-[11px] font-bold text-[var(--brand-red)] uppercase">
-                    {s.category}
-                  </span>
-                  <h4 className="font-black text-[var(--text-primary)]">
-                    {s.product_name}
-                  </h4>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)]">
-                  {s.stock_count} adet
-                </span>
-              </div>
-              {s.size_info && (
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Bedenler: {s.size_info}
-                </p>
-              )}
-
-              <div className="pt-2 border-t border-[var(--border-subtle)] flex flex-wrap gap-1.5 items-center">
-                <button
-                  type="button"
-                  onClick={() => setEditingStock({ ...s })}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold cursor-pointer"
-                >
-                  Düzenle
-                </button>
-                <div className="inline-flex items-center gap-1">
-                  <select
-                    aria-label={`${s.product_name} eksik/kayıp adet`}
-                    value={missingQtyById[s.id] || 1}
-                    onChange={(e) =>
-                      setMissingQtyById((prev) => ({
-                        ...prev,
-                        [s.id]: Number(e.target.value) || 1,
-                      }))
-                    }
-                    className="rounded-lg border border-amber-400/70 bg-[var(--bg-subtle)] text-[var(--text-primary)] px-2 py-1 text-xs font-extrabold"
-                  >
-                    {Array.from(
-                      { length: Math.max(1, Number(s.stock_count) || 1) },
-                      (_, idx) => idx + 1
-                    ).map((qtyVal) => (
-                      <option key={qtyVal} value={qtyVal}>
-                        {qtyVal} Adet
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkStockMissing(s)}
-                    className="px-2.5 py-1 rounded-lg bg-[var(--status-warning-bg)] hover:opacity-85 text-[var(--status-warning-text)] text-xs font-extrabold cursor-pointer"
-                  >
-                    Eksik / Kayıp
-                  </button>
-                </div>
-                <label className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-subtle)] text-[var(--text-primary)] text-xs font-bold cursor-pointer">
-                  Görsel {s.photo_url ? "Değiştir" : "Ekle"}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-bold text-[var(--text-secondary)]">
+                  Kapak Görseli
+                </label>
+                <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+                  Görsel Yükle
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) handleUploadStockPhotoAfter(s.id, f);
+                      if (f) void handleUploadCover(f, setOtherPhotoUrl);
                     }}
                   />
                 </label>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteStock(s.id, s.product_name)}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-bold cursor-pointer ml-auto"
-                >
-                  Sil
-                </button>
+              </div>
+              <div className="flex items-center gap-2.5">
+                <img
+                  src={otherPhotoUrl || "/logo.png"}
+                  alt="Malzeme kapak önizleme"
+                  className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
+                />
+                <input
+                  type="text"
+                  value={otherPhotoUrl}
+                  onChange={(e) => setOtherPhotoUrl(e.target.value)}
+                  placeholder="/logo.png veya görsel URL"
+                  className="flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs"
+                />
               </div>
             </div>
+
+            <button
+              type="submit"
+              disabled={creatingOther}
+              className="w-full py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-black cursor-pointer"
+            >
+              {creatingOther ? "Ekleniyor..." : "Malzemeyi Envantere Ekle"}
+            </button>
+          </form>
+
+          {/* Diğer Malzemeler + Beden / Numara / Durum Paneli */}
+          <div className="lg:col-span-7 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4">
+            <h3 className="text-base font-black">
+              Diğer Malzemeler &amp; Numara / Beden / Durum Paneli
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {stockItems.map((s) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  onClick={() => {
+                    setSelectedOtherId(s.id);
+                    setDetailTargetType("other");
+                    setEditOtherSize(s.size_label || "M");
+                    setEditOtherNum(s.item_number ? String(s.item_number) : "");
+                  }}
+                  className={`flex items-center gap-3 p-2.5 rounded-xl border text-left cursor-pointer transition ${
+                    activeOtherItem?.id === s.id
+                      ? "border-[var(--brand-red)] bg-[var(--status-warning-bg)]/20"
+                      : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                  }`}
+                >
+                  <img
+                    src={s.photo_url || "/logo.png"}
+                    alt={s.product_name}
+                    className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black truncate">
+                      {s.product_name}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      {s.category} • Beden: {s.size_label || "M"} • Stok:{" "}
+                      {s.available_count}/{s.total_count}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {activeOtherItem && detailTargetType === "other" && (
+              <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-3">
+                <div className="text-xs font-black">
+                  {activeOtherItem.product_name} — Numara / Beden / Durum
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
+                      Malzeme Numarası
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={999}
+                      value={editOtherNum}
+                      onChange={(e) => setEditOtherNum(e.target.value)}
+                      placeholder="Örn: 12"
+                      className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
+                      Beden
+                    </label>
+                    <select
+                      value={editOtherSize}
+                      onChange={(e) => setEditOtherSize(e.target.value)}
+                      className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold"
+                    >
+                      {SIZES.map((sz) => (
+                        <option key={sz} value={sz}>
+                          {sz}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
+                      Durum
+                    </label>
+                    <select
+                      value={editOtherStatus}
+                      onChange={(e) =>
+                        setEditOtherStatus(
+                          e.target.value as
+                            | "Müsait"
+                            | "Teslim Edildi"
+                            | "Bakımda"
+                            | "Kayıp"
+                        )
+                      }
+                      className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold"
+                    >
+                      {ITEM_STATUSES.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveOtherItemDetails}
+                  className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer"
+                >
+                  Numara / Beden / Durumu Kaydet
+                </button>
+              </div>
+            )}
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Ortak Teslim Et & Aktif Zimmet / İade Alanı */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <form
+          onSubmit={handleDeliverEquipment}
+          className="lg:col-span-6 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5"
+        >
+          <h3 className="text-base font-black">Sporcuya Teslim Et</h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Yaş Grubu Filtresi
+              </label>
+              <select
+                value={ageFilter}
+                onChange={(e) => setAgeFilter(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
+              >
+                <option value="Tümü">Tümü</option>
+                {AGE_GROUPS.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Sporcu Seç *
+              </label>
+              <select
+                value={selectedPlayerId}
+                onChange={(e) => setSelectedPlayerId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
+              >
+                <option value="">Sporcu seçin...</option>
+                {filteredPlayers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name} ({p.age_group})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Tür
+              </label>
+              <select
+                value={deliverKind}
+                onChange={(e) => {
+                  const nextKind = e.target.value as "jersey" | "other";
+                  setDeliverKind(nextKind);
+                  if (nextKind === "jersey" && jerseySets[0]) {
+                    setDeliverItemId(jerseySets[0].id);
+                  } else if (nextKind === "other" && stockItems[0]) {
+                    setDeliverItemId(stockItems[0].id);
+                  }
+                }}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
+              >
+                <option value="jersey">Forma</option>
+                <option value="other">Diğer Malzeme</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Malzeme / Forma
+              </label>
+              <select
+                value={deliverItemId}
+                onChange={(e) => setDeliverItemId(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
+              >
+                {deliverKind === "jersey"
+                  ? jerseySets.map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.set_name} ({j.available_count} müsait)
+                      </option>
+                    ))
+                  : stockItems.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.product_name} ({s.available_count} müsait)
+                      </option>
+                    ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Beden
+              </label>
+              <select
+                value={deliverSize}
+                onChange={(e) => setDeliverSize(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
+              >
+                {SIZES.map((sz) => (
+                  <option key={sz} value={sz}>
+                    {sz}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Numara (Ops.)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={deliverNumber}
+                onChange={(e) => setDeliverNumber(e.target.value)}
+                placeholder="Örn: 95"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Not
+              </label>
+              <input
+                type="text"
+                value={deliverNotes}
+                onChange={(e) => setDeliverNotes(e.target.value)}
+                placeholder="İsteğe bağlı not..."
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={delivering}
+            className="w-full py-2.5 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-xs font-black cursor-pointer"
+          >
+            {delivering ? "Teslim Ediliyor..." : "Teslim Et"}
+          </button>
+        </form>
+
+        <div className="lg:col-span-6 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3">
+          <h3 className="text-base font-black">
+            Teslim Edilmiş Malzemeler &amp; İade Al ({activeLogs.length})
+          </h3>
+          {activeLogs.length === 0 ? (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Şu an iade bekleyen teslim kaydı bulunmuyor.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {activeLogs.map((log) => {
+                const pName =
+                  players.find((p) => p.id === log.player_id)?.full_name ||
+                  "Sporcu";
+                return (
+                  <div
+                    key={log.id}
+                    className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs"
+                  >
+                    <div>
+                      <div className="font-black">
+                        {pName} • {log.item_name}
+                        {log.jersey_number ? ` #${log.jersey_number}` : ""}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-secondary)]">
+                        Beden: {log.size_label || "M"} • Durum: {log.status}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void handleReturnLog(log)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold cursor-pointer shrink-0"
+                    >
+                      İade Al
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
