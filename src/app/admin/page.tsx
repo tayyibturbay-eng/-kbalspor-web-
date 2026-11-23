@@ -21,7 +21,7 @@ import { PlayersTab } from "@/components/admin/PlayersTab";
 import { RequestsTab } from "@/components/admin/RequestsTab";
 import { TrainingsTab } from "@/components/admin/TrainingsTab";
 import { DuesTab } from "@/components/admin/DuesTab";
-import { InventoryManager } from "@/components/admin/InventoryManager";
+import { InventoryManager } from "@/components/admin/inventory/InventoryManager";
 import { TasksTab } from "@/components/admin/TasksTab";
 import { MatchResultsTab } from "@/components/admin/MatchResultsTab";
 import { NotificationsTab } from "@/components/admin/NotificationsTab";
