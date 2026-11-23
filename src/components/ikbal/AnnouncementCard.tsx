@@ -89,9 +89,36 @@ export function extractAnnouncementMediaAndCleanText(item: AnnouncementItem): {
       .replace(/\s{2,}/g, " ")
       .trim();
 
+  let cleanedTitle = cleanStr(rawTitle);
+  let cleanedBody = cleanStr(rawBody);
+
+  // Eğer title boşsa ve gövdede ilk satır açıkça bir başlık niteliğindeyse ayır
+  if (!cleanedTitle && cleanedBody) {
+    const lines = cleanedBody
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
+
+    if (lines.length > 1 && lines[0].length <= 120) {
+      cleanedTitle = lines[0];
+      cleanedBody = lines.slice(1).join("\n").trim();
+    } else if (
+      cleanedBody.includes("MAÇ / ETKİNLİK BİLGİLENDİRMESİ") &&
+      cleanedBody.includes("Selam şampiyonlar")
+    ) {
+      const idx = cleanedBody.indexOf("Selam şampiyonlar");
+      const head = cleanedBody.slice(0, idx).trim();
+      const rest = cleanedBody.slice(idx).trim();
+      if (head && rest) {
+        cleanedTitle = head.replace(/[•\-–—]+$/g, "").trim();
+        cleanedBody = rest;
+      }
+    }
+  }
+
   return {
-    cleanedTitle: cleanStr(rawTitle),
-    cleanedBody: cleanStr(rawBody),
+    cleanedTitle,
+    cleanedBody,
     extractedImageUrl,
   };
 }
@@ -132,13 +159,13 @@ export function AnnouncementCard({
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-[var(--brand-red)] truncate">
+            <span className="text-[11px] font-black text-[var(--brand-red)] truncate">
               {groupLabel}
             </span>
           </div>
 
           {cleanedTitle && (
-            <div className="text-sm font-black text-[var(--text-primary)] tracking-tight truncate">
+            <div className="text-sm font-black text-[#0f172a] dark:text-white tracking-tight truncate">
               {cleanedTitle}
             </div>
           )}
@@ -182,7 +209,7 @@ export function AnnouncementCard({
         </div>
 
         {cleanedTitle && (
-          <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] tracking-tight">
+          <h2 className="text-base sm:text-[17px] font-black text-[#0f172a] dark:text-white tracking-tight">
             {cleanedTitle}
           </h2>
         )}
