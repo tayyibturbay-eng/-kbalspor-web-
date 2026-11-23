@@ -115,7 +115,21 @@ export function AnnouncementCard({
 
   if (compact) {
     return (
-      <article className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] border-l-4 border-l-[var(--brand-red)] p-3.5 transition hover:border-[var(--brand-red)]/50">
+      <article className="flex items-center gap-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 transition hover:border-[var(--brand-red)]/50">
+        <div className="shrink-0 w-14 h-14 rounded-2xl overflow-hidden bg-[var(--brand-red)] border-2 border-[var(--brand-red)] shadow-xs">
+          <img
+            src={imgSrc}
+            alt={cleanedTitle || groupLabel}
+            onError={(e) => {
+              const target = e.currentTarget;
+              if (!target.src.endsWith(fallbackLogoUrl)) {
+                target.src = fallbackLogoUrl;
+              }
+            }}
+            className="w-full h-full object-cover"
+          />
+        </div>
+
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-extrabold text-[var(--brand-red)] truncate">
@@ -135,26 +149,26 @@ export function AnnouncementCard({
             </p>
           )}
         </div>
-
-        <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden bg-[var(--brand-red)] border border-[var(--brand-red)]/35 shadow-2xs">
-          <img
-            src={imgSrc}
-            alt={cleanedTitle || groupLabel}
-            onError={(e) => {
-              const target = e.currentTarget;
-              if (!target.src.endsWith(fallbackLogoUrl)) {
-                target.src = fallbackLogoUrl;
-              }
-            }}
-            className="w-full h-full object-cover"
-          />
-        </div>
       </article>
     );
   }
 
   return (
-    <article className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] border-l-4 border-l-[var(--brand-red)] p-5 shadow-xs flex items-start justify-between gap-4">
+    <article className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 sm:p-5 shadow-xs flex items-start gap-4">
+      <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--brand-red)] border-2 border-[var(--brand-red)] shadow-xs">
+        <img
+          src={imgSrc}
+          alt={cleanedTitle || groupLabel}
+          onError={(e) => {
+            const target = e.currentTarget;
+            if (!target.src.endsWith(fallbackLogoUrl)) {
+              target.src = fallbackLogoUrl;
+            }
+          }}
+          className="w-full h-full object-cover"
+        />
+      </div>
+
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-red)]/12 text-[var(--brand-red)] font-extrabold">
@@ -184,20 +198,6 @@ export function AnnouncementCard({
             Gönderen: {announcement.sender_name}
           </div>
         )}
-      </div>
-
-      <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--brand-red)] border border-[var(--brand-red)]/35 shadow-xs">
-        <img
-          src={imgSrc}
-          alt={cleanedTitle || groupLabel}
-          onError={(e) => {
-            const target = e.currentTarget;
-            if (!target.src.endsWith(fallbackLogoUrl)) {
-              target.src = fallbackLogoUrl;
-            }
-          }}
-          className="w-full h-full object-cover"
-        />
       </div>
     </article>
   );
