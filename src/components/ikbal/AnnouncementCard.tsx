@@ -49,10 +49,7 @@ export function extractAnnouncementMediaAndCleanText(item: AnnouncementItem): {
   ).trim();
 
   let extractedImageUrl: string | null = null;
-  if (
-    directImage &&
-    !/\.(mp3|wav|ogg|m4a)(\?|$)/i.test(directImage)
-  ) {
+  if (directImage && !/\.(mp3|wav|ogg|m4a)(\?|$)/i.test(directImage)) {
     extractedImageUrl = directImage;
   } else {
     const labeledMatch = rawBody.match(
@@ -81,10 +78,7 @@ export function extractAnnouncementMediaAndCleanText(item: AnnouncementItem): {
 
   const cleanStr = (text: string) =>
     text
-      .replace(
-        /\b(?:Görsel|Resim|Fotoğraf|Ses|Link|URL)\s*:\s*\S+/gi,
-        ""
-      )
+      .replace(/\b(?:Görsel|Resim|Fotoğraf|Ses|Link|URL)\s*:\s*\S+/gi, "")
       .replace(/https?:\/\/\S+/gi, "")
       .replace(/\s{2,}/g, " ")
       .trim();
@@ -92,26 +86,26 @@ export function extractAnnouncementMediaAndCleanText(item: AnnouncementItem): {
   let cleanedTitle = cleanStr(rawTitle);
   let cleanedBody = cleanStr(rawBody);
 
-  // Eğer title boşsa ve gövdede ilk satır açıkça bir başlık niteliğindeyse ayır
   if (!cleanedTitle && cleanedBody) {
     const lines = cleanedBody
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
 
-    if (lines.length > 1 && lines[0].length <= 120) {
+    if (lines.length > 1 && lines[0].length <= 140) {
       cleanedTitle = lines[0];
       cleanedBody = lines.slice(1).join("\n").trim();
-    } else if (
-      cleanedBody.includes("MAÇ / ETKİNLİK BİLGİLENDİRMESİ") &&
-      cleanedBody.includes("Selam şampiyonlar")
-    ) {
-      const idx = cleanedBody.indexOf("Selam şampiyonlar");
-      const head = cleanedBody.slice(0, idx).trim();
-      const rest = cleanedBody.slice(idx).trim();
-      if (head && rest) {
-        cleanedTitle = head.replace(/[•\-–—]+$/g, "").trim();
-        cleanedBody = rest;
+    } else {
+      const greetingIdx = cleanedBody.search(
+        /\b(?:Selam|Merhaba|Değerli|Sevgili)\b/i
+      );
+      if (greetingIdx > 6 && greetingIdx < 160) {
+        const head = cleanedBody.slice(0, greetingIdx).trim();
+        const rest = cleanedBody.slice(greetingIdx).trim();
+        if (head && rest) {
+          cleanedTitle = head.replace(/[•\-–—|]+$/g, "").trim();
+          cleanedBody = rest;
+        }
       }
     }
   }
@@ -159,19 +153,28 @@ export function AnnouncementCard({
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-black text-[var(--brand-red)] truncate">
+            <span
+              style={{ color: "#b91c1c", fontWeight: 900 }}
+              className="text-[11px] uppercase tracking-wide truncate"
+            >
               {groupLabel}
             </span>
           </div>
 
           {cleanedTitle && (
-            <div className="text-sm font-black text-[#0f172a] dark:text-white tracking-tight truncate">
+            <div
+              style={{ color: "#020617", fontWeight: 900 }}
+              className="text-sm leading-snug truncate"
+            >
               {cleanedTitle}
             </div>
           )}
 
           {cleanedBody && (
-            <p className="text-xs text-[var(--text-secondary)] line-clamp-2 leading-relaxed">
+            <p
+              style={{ color: "#475569", fontWeight: 500 }}
+              className="text-xs line-clamp-2 leading-relaxed"
+            >
               {cleanedBody}
             </p>
           )}
@@ -198,30 +201,45 @@ export function AnnouncementCard({
 
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-red)]/12 text-[var(--brand-red)] font-black">
+          <span
+            style={{ color: "#b91c1c", fontWeight: 900 }}
+            className="px-2.5 py-0.5 rounded-full bg-red-600/12"
+          >
             {groupLabel}
           </span>
           {dateLabel && (
-            <span className="text-[var(--text-muted)] font-semibold tabular-nums">
+            <span
+              style={{ color: "#64748b", fontWeight: 600 }}
+              className="tabular-nums"
+            >
               {dateLabel}
             </span>
           )}
         </div>
 
         {cleanedTitle && (
-          <h2 className="text-base sm:text-[17px] font-black text-[#0f172a] dark:text-white tracking-tight">
+          <h2
+            style={{ color: "#020617", fontWeight: 900 }}
+            className="text-base sm:text-lg leading-snug"
+          >
             {cleanedTitle}
           </h2>
         )}
 
         {cleanedBody && (
-          <p className="text-sm text-[var(--text-secondary)] whitespace-pre-line leading-relaxed">
+          <p
+            style={{ color: "#475569", fontWeight: 500 }}
+            className="text-sm whitespace-pre-line leading-relaxed"
+          >
             {cleanedBody}
           </p>
         )}
 
         {announcement.sender_name && (
-          <div className="pt-1 text-[11px] font-bold text-[var(--text-muted)]">
+          <div
+            style={{ color: "#64748b", fontWeight: 700 }}
+            className="pt-1 text-[11px]"
+          >
             Gönderen: {announcement.sender_name}
           </div>
         )}
