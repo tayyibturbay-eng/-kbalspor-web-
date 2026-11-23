@@ -25,16 +25,6 @@ interface HomeAnnouncementRow {
   created_at?: string | null;
 }
 
-interface TopPlayerCardRow {
-  id: string;
-  full_name: string;
-  age_group: string;
-  position?: string | null;
-  jersey_number?: number | null;
-  skill_points?: number | null;
-  photo_url?: string | null;
-}
-
 function formatShortDateTR(raw?: string | null, timeStr?: string | null): string {
   if (!raw) return "Tarih belirtilmedi";
   const dateOnly = raw.slice(0, 10);
@@ -51,10 +41,9 @@ export default function HomePage() {
     HomeAnnouncementRow[]
   >([]);
   const [playerCount, setPlayerCount] = useState<number>(0);
-  const [topPlayers, setTopPlayers] = useState<TopPlayerCardRow[]>([]);
 
   const loadHomeSummary = useCallback(async () => {
-    const [tasksRes, msgsRes, playersCountRes, topRes] = await Promise.all([
+    const [tasksRes, msgsRes, playersCountRes] = await Promise.all([
       supabase
         .from("tasks_assignments")
         .select("id, title, age_group, event_date, match_time, location")
@@ -66,11 +55,6 @@ export default function HomePage() {
         .order("created_at", { ascending: false })
         .limit(4),
       supabase.from("players").select("id", { count: "exact", head: true }),
-      supabase
-        .from("players")
-        .select("id, full_name, age_group, position, jersey_number, skill_points, photo_url")
-        .order("skill_points", { ascending: false, nullsFirst: false })
-        .limit(6),
     ]);
 
     if (tasksRes.data) setUpcomingMatches(tasksRes.data as HomeTaskRow[]);
@@ -78,7 +62,6 @@ export default function HomePage() {
       setRecentAnnouncements(msgsRes.data as HomeAnnouncementRow[]);
     if (typeof playersCountRes.count === "number")
       setPlayerCount(playersCountRes.count);
-    if (topRes.data) setTopPlayers(topRes.data as TopPlayerCardRow[]);
   }, []);
 
   useEffect(() => {
@@ -127,12 +110,6 @@ export default function HomePage() {
             >
               Taktik Tahtası &amp; Kadro Kur
             </Link>
-            <Link
-              href="/sporcu"
-              className="px-5 py-3 rounded-2xl bg-white text-[var(--brand-navy)] hover:bg-slate-100 text-xs sm:text-sm font-black shadow-sm transition"
-            >
-              Sporcu Paneli
-            </Link>
           </div>
         </div>
       </section>
@@ -180,67 +157,6 @@ export default function HomePage() {
             </p>
           </div>
         </div>
-
-        {/* Sporcu Kartları & Puan Paneli */}
-        <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
-                Kulüp Puan &amp; Kart Vitrini
-              </span>
-              <h2 className="text-lg font-black text-[var(--text-primary)]">
-                Sporcu Kartları &amp; Puan Paneli
-              </h2>
-            </div>
-            <Link
-              href="/sporcu"
-              className="text-xs font-extrabold text-[var(--brand-red)] hover:underline"
-            >
-              Sporcu Paneli &amp; Sıralama →
-            </Link>
-          </div>
-
-          {topPlayers.length === 0 ? (
-            <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center text-xs font-bold text-[var(--text-secondary)]">
-              Henüz sporcu puan kaydı bulunmuyor.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {topPlayers.map((p, idx) => {
-                const pts = Number(p.skill_points ?? 20);
-                return (
-                  <div
-                    key={p.id}
-                    className="rounded-2xl border border-[var(--border-subtle)] bg-gradient-to-br from-[var(--bg-subtle)] to-[var(--bg-surface)] p-4 flex items-center justify-between gap-3 shadow-2xs"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-11 h-11 rounded-2xl bg-[var(--brand-navy)] text-white font-black text-xs flex items-center justify-center shrink-0 border-2 border-[var(--brand-red)]">
-                        #{p.jersey_number ?? idx + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-black text-[var(--text-primary)] truncate">
-                          {p.full_name}
-                        </div>
-                        <div className="text-[11px] font-bold text-[var(--text-secondary)] truncate">
-                          {p.age_group} • {p.position || "Oyuncu"}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <span className="inline-block px-2.5 py-1 rounded-xl bg-[var(--brand-red)] text-white text-xs font-black">
-                        {pts}p
-                      </span>
-                      <div className="text-[10px] font-extrabold text-[var(--text-muted)] mt-0.5">
-                        Sıra #{idx + 1}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <section className="lg:col-span-7 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">

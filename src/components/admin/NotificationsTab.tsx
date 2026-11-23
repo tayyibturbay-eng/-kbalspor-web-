@@ -360,7 +360,6 @@ export function NotificationsTab({
           </button>
         </form>
 
-        {/* Canlı Bildirim Önizleme */}
         <aside className="lg:col-span-5 bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
@@ -413,10 +412,11 @@ export function NotificationsTab({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-base font-black text-[var(--text-primary)]">
-              Geçmiş Bildirimler &amp; Duyurular ({historyMessages.length})
+              Geçmiş Bildirimler, Duyurular &amp; Gelen Mesajlar (
+              {historyMessages.length})
             </h3>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Tekil olarak silebilir veya tüm geçmiş kayıtları temizleyebilirsiniz.
+              Kulübe gönderilen iletişim mesajları ve geçmiş bildirimleri yönetin.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -447,15 +447,30 @@ export function NotificationsTab({
           <div className="space-y-2.5">
             {historyMessages.map((msg) => {
               const text = (msg.body || msg.message_text || "").trim();
+              const isContactMsg =
+                msg.age_group === "Admin" ||
+                text.startsWith("İletişim Mesajı");
               return (
                 <div
                   key={msg.id}
-                  className="flex items-start justify-between gap-3 p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                  className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border ${
+                    isContactMsg
+                      ? "border-amber-400/60 bg-[var(--status-warning-bg)]/30"
+                      : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--text-muted)] mb-1">
-                      <span className="px-2 py-0.5 rounded bg-[var(--brand-navy)] text-white">
-                        {msg.age_group || "Tümü"}
+                      <span
+                        className={`px-2 py-0.5 rounded text-white ${
+                          isContactMsg
+                            ? "bg-[var(--brand-red)]"
+                            : "bg-[var(--brand-navy)]"
+                        }`}
+                      >
+                        {isContactMsg
+                          ? "Gelen Mesaj"
+                          : msg.age_group || "Tümü"}
                       </span>
                       <span>{msg.sender_name || "Yönetici"}</span>
                       {msg.created_at && (

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
+import { sendPushViaApi } from "@/lib/club-utils";
 
 const supabase = createClient();
 
@@ -91,20 +92,23 @@ export default function ContactPage() {
     }
 
     setSending(true);
-    const composedBody = `İletişim Mesajı [${targetGroup}] — ${senderName.trim()}${
-      senderContact.trim() ? ` (${senderContact.trim()})` : ""
-    }: ${messageText.trim()}`;
+    const cleanName = senderName.trim();
+    const cleanContact = senderContact.trim();
+    const cleanBody = messageText.trim();
+    const composedBody = `İletişim Mesajı [${targetGroup}] — ${cleanName}${
+      cleanContact ? ` (${cleanContact})` : ""
+    }: ${cleanBody}`;
 
     const { error } = await supabase.from("club_messages").insert({
       body: composedBody,
       message_text: composedBody,
-      age_group: "Tümü",
-      sender_name: senderName.trim(),
+      age_group: "Admin",
+      sender_name: cleanName,
       created_at: new Date().toISOString(),
     });
-    setSending(false);
 
     if (error) {
+      setSending(false);
       setFeedback({
         ok: false,
         text: "Mesaj gönderilemedi: " + error.message,
@@ -112,9 +116,31 @@ export default function ContactPage() {
       return;
     }
 
+    try {
+      await supabase.from("activity_logs").insert({
+        actor: cleanName,
+        action: "Kulübe İletişim Mesajı",
+        details: `[${targetGroup}] ${cleanBody}`,
+      });
+    } catch {
+      // log kaydı başarısız olsa da mesaj kaydedildi
+    }
+
+    try {
+      await sendPushViaApi(
+        ["Admin"],
+        `Yeni Kulüp Mesajı (${targetGroup})`,
+        `${cleanName}: ${cleanBody}`,
+        { sound: "default" }
+      );
+    } catch {
+      // bildirim servisi yanıt vermezse sessiz geç
+    }
+
+    setSending(false);
     setFeedback({
       ok: true,
-      text: "Mesajınız kulüp yönetimine iletildi. En kısa sürede dönüş yapılacaktır.",
+      text: "Mesajınız kulüp yönetimine ve admin paneline iletildi.",
     });
     setSenderName("");
     setSenderContact("");

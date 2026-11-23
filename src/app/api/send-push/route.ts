@@ -79,17 +79,16 @@ export async function POST(req: Request) {
     for (const chunk of tokenChunks) {
       const messages = chunk.map((token) => ({
         to: token,
-        sound: "default" as const,
+        sound: cleanSound,
         title: title.trim(),
         body: body.trim(),
-        ...(cleanImage || cleanSound !== "default"
-          ? {
-              data: {
-                ...(cleanImage ? { imageUrl: cleanImage } : {}),
-                sound: cleanSound,
-              },
-            }
-          : {}),
+        ...(cleanImage ? { image: cleanImage } : {}),
+        data: {
+          ...(cleanImage ? { imageUrl: cleanImage } : {}),
+          sound: cleanSound,
+          title: title.trim(),
+          body: body.trim(),
+        },
       }));
 
       const expoRes = await fetch("https://exp.host/--/api/v2/push/send", {
