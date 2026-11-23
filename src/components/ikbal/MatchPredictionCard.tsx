@@ -232,10 +232,10 @@ export function MatchPredictionCard({
     }
 
     const isEarlySeason = scoredMatchSet.size < 2;
-    const refNow = nowMs || Date.now();
+    const refNow = nowMs;
 
     return filtered.map((p) => {
-      if (isEarlySeason) {
+      if (!refNow || isEarlySeason) {
         return { ...p, multiplier: 1 as 1 | 2 | 3 };
       }
       const stat = scorerStats.get(p.full_name.trim().toLocaleLowerCase("tr-TR"));
