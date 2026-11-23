@@ -132,13 +132,13 @@ export function AnnouncementCard({
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-extrabold text-[var(--brand-red)] truncate">
+            <span className="text-xs font-black text-[var(--brand-red)] truncate">
               {groupLabel}
             </span>
           </div>
 
           {cleanedTitle && (
-            <div className="text-xs font-black text-[var(--text-primary)] truncate">
+            <div className="text-sm font-black text-[var(--text-primary)] tracking-tight truncate">
               {cleanedTitle}
             </div>
           )}
@@ -171,7 +171,7 @@ export function AnnouncementCard({
 
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-red)]/12 text-[var(--brand-red)] font-extrabold">
+          <span className="px-2.5 py-0.5 rounded-full bg-[var(--brand-red)]/12 text-[var(--brand-red)] font-black">
             {groupLabel}
           </span>
           {dateLabel && (
@@ -182,7 +182,7 @@ export function AnnouncementCard({
         </div>
 
         {cleanedTitle && (
-          <h2 className="text-base font-black text-[var(--text-primary)]">
+          <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] tracking-tight">
             {cleanedTitle}
           </h2>
         )}
