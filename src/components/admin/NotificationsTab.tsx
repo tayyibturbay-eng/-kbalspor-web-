@@ -25,10 +25,15 @@ interface NotificationsTabProps {
 }
 
 const SOUND_OPTIONS = [
-  { value: "default", label: "Varsayılan Bildirim Sesi" },
-  { value: "whistle_alert", label: "Düdük & Tribün Sesi" },
-  { value: "chime_soft", label: "Yumuşak Kulüp Sinyali" },
-  { value: "urgent_horn", label: "Acil Maç / Duyuru Uyarısı" },
+  { value: "default", label: "Varsayılan Bildirim Sesi", freq: 740, type: "sine" as OscillatorType },
+  { value: "whistle_alert", label: "Düdük & Tribün Sesi", freq: 880, type: "triangle" as OscillatorType },
+  { value: "chime_soft", label: "Yumuşak Kulüp Sinyali", freq: 660, type: "sine" as OscillatorType },
+  { value: "urgent_horn", label: "Acil Maç / Duyuru Uyarısı", freq: 520, type: "sawtooth" as OscillatorType },
+] as const;
+
+const PRESET_IMAGES = [
+  { label: "Kulüp Logosu", url: "/logo.png" },
+  { label: "Uygulama İkonu", url: "/icon.png" },
 ] as const;
 
 export function NotificationsTab({
@@ -41,7 +46,7 @@ export function NotificationsTab({
   const [notifTargetGroups, setNotifTargetGroups] = useState<string[]>(["Tümü"]);
   const [notifTitle, setNotifTitle] = useState("");
   const [notifBody, setNotifBody] = useState("");
-  const [notifImageUrl, setNotifImageUrl] = useState("");
+  const [notifImageUrl, setNotifImageUrl] = useState("/logo.png");
   const [notifSound, setNotifSound] = useState<string>("default");
   const [notifSaveAnnouncement, setNotifSaveAnnouncement] = useState(true);
   const [notifSending, setNotifSending] = useState(false);
@@ -93,23 +98,13 @@ export function NotificationsTab({
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
           .webkitAudioContext;
       if (!AudioCtx) return;
+      const selected =
+        SOUND_OPTIONS.find((s) => s.value === notifSound) || SOUND_OPTIONS[0];
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type =
-        notifSound === "urgent_horn"
-          ? "sawtooth"
-          : notifSound === "whistle_alert"
-          ? "triangle"
-          : "sine";
-      osc.frequency.value =
-        notifSound === "urgent_horn"
-          ? 520
-          : notifSound === "whistle_alert"
-          ? 880
-          : notifSound === "chime_soft"
-          ? 660
-          : 740;
+      osc.type = selected.type;
+      osc.frequency.value = selected.freq;
       gain.gain.value = 0.08;
       osc.connect(gain);
       gain.connect(ctx.destination);
@@ -120,6 +115,17 @@ export function NotificationsTab({
     }
   }
 
+  function resolveAbsoluteImageUrl(rawUrl: string): string | undefined {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return undefined;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    const origin =
+      typeof window !== "undefined" && window.location?.origin
+        ? window.location.origin
+        : "https://ikbalspor.com";
+    return `${origin}${trimmed.startsWith("/") ? "" : "/"}${trimmed}`;
+  }
+
   async function handleSendCustomPush(e: React.FormEvent) {
     e.preventDefault();
     if (!notifTitle.trim() || !notifBody.trim()) {
@@ -128,21 +134,21 @@ export function NotificationsTab({
     }
     setNotifSending(true);
     const groups = notifTargetGroups.length === 0 ? ["Tümü"] : notifTargetGroups;
-    const cleanImage = notifImageUrl.trim() || null;
+    const resolvedImage = resolveAbsoluteImageUrl(notifImageUrl);
 
     const pushRes = await sendPushViaApi(
       groups,
       notifTitle.trim(),
       notifBody.trim(),
       {
-        imageUrl: cleanImage || undefined,
+        imageUrl: resolvedImage,
         sound: notifSound,
       }
     );
 
     if (notifSaveAnnouncement) {
       const notifCombined = `${notifTitle.trim()}\n${notifBody.trim()}${
-        cleanImage ? `\nGörsel: ${cleanImage}` : ""
+        resolvedImage ? `\nGörsel: ${resolvedImage}` : ""
       }${notifSound !== "default" ? `\nSes: ${notifSound}` : ""}`.trim();
 
       await supabase.from("club_messages").insert({
@@ -161,7 +167,7 @@ export function NotificationsTab({
     await onLogActivity(
       "Bildirim Gönderimi",
       `[${groups.join(", ")}] ${notifTitle.trim()} • Ses: ${notifSound}${
-        cleanImage ? " • Özel Görsel" : ""
+        resolvedImage ? ` • Görsel: ${resolvedImage}` : ""
       } (${pushRes.sentCount} cihaz)`
     );
     setNotifSending(false);
@@ -174,10 +180,11 @@ export function NotificationsTab({
           (notifSaveAnnouncement ? " Duyuru siteye/uygulamaya kaydedildi." : "")
       );
     } else {
-      onFeedback(`${pushRes.sentCount} cihaza anlık bildirim gönderildi.`);
+      onFeedback(
+        `${pushRes.sentCount} cihaza anlık bildirim gönderildi (Ses: ${notifSound}).`
+      );
       setNotifTitle("");
       setNotifBody("");
-      setNotifImageUrl("");
     }
   }
 
@@ -215,6 +222,8 @@ export function NotificationsTab({
   const activeSoundLabel =
     SOUND_OPTIONS.find((s) => s.value === notifSound)?.label || notifSound;
 
+  const previewImgSrc = notifImageUrl.trim() || "/logo.png";
+
   return (
     <div className="space-y-6 max-w-4xl text-[var(--text-primary)] tabular-nums">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -228,7 +237,7 @@ export function NotificationsTab({
                 İsteğe Bağlı Anlık Bildirim Gönder
               </h2>
               <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                Hedef kitle, özel görsel ve bildirim sesi seçerek anlık bildirim gönderin.
+                Hedef kitle, bildirim görseli ve bildirim sesi seçerek gönderin.
               </p>
             </div>
             <span className="px-2.5 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-[11px] font-extrabold">
@@ -301,44 +310,60 @@ export function NotificationsTab({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Özel Bildirim Görseli (URL)
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="block text-xs font-bold text-[var(--text-secondary)]">
+                Bildirim Görseli (Hazır Seçim veya URL)
               </label>
-              <input
-                type="url"
-                value={notifImageUrl}
-                onChange={(e) => setNotifImageUrl(e.target.value)}
-                placeholder="https://... (Boşsa uygulama simgesi görünür)"
-                className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Bildirim Sesi
-              </label>
-              <div className="flex gap-1.5">
-                <select
-                  value={notifSound}
-                  onChange={(e) => setNotifSound(e.target.value)}
-                  className="flex-1 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2.5 text-xs sm:text-sm font-bold"
-                >
-                  {SOUND_OPTIONS.map((snd) => (
-                    <option key={snd.value} value={snd.value}>
-                      {snd.label}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={handlePreviewSound}
-                  className="px-3 py-2.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer shrink-0"
-                >
-                  Dinle
-                </button>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_IMAGES.map((preset) => (
+                  <button
+                    type="button"
+                    key={preset.url}
+                    onClick={() => setNotifImageUrl(preset.url)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-extrabold border cursor-pointer transition ${
+                      notifImageUrl.trim() === preset.url
+                        ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+                        : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
+            </div>
+            <input
+              type="text"
+              value={notifImageUrl}
+              onChange={(e) => setNotifImageUrl(e.target.value)}
+              placeholder="/logo.png veya https://..."
+              className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Bildirim Sesi
+            </label>
+            <div className="flex gap-2">
+              <select
+                value={notifSound}
+                onChange={(e) => setNotifSound(e.target.value)}
+                className="flex-1 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold"
+              >
+                {SOUND_OPTIONS.map((snd) => (
+                  <option key={snd.value} value={snd.value}>
+                    {snd.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handlePreviewSound}
+                className="px-4 py-2.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer shrink-0"
+              >
+                Sesi Dinle
+              </button>
             </div>
           </div>
 
@@ -373,7 +398,7 @@ export function NotificationsTab({
           <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-3 shadow-xs">
             <div className="flex items-start gap-3">
               <img
-                src={notifImageUrl.trim() || "/logo.png"}
+                src={previewImgSrc}
                 alt="Bildirim görseli önizleme"
                 className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
               />
@@ -392,13 +417,11 @@ export function NotificationsTab({
               </div>
             </div>
 
-            {notifImageUrl.trim() && (
-              <img
-                src={notifImageUrl.trim()}
-                alt="Seçilen bildirim banner görseli"
-                className="w-full h-32 rounded-xl object-cover border border-[var(--border-subtle)]"
-              />
-            )}
+            <img
+              src={previewImgSrc}
+              alt="Seçilen bildirim banner görseli"
+              className="w-full h-32 rounded-xl object-cover border border-[var(--border-subtle)] bg-white"
+            />
 
             <div className="pt-2 border-t border-[var(--border-subtle)] flex items-center justify-between text-[11px] font-bold text-[var(--text-muted)]">
               <span>Hedef: {notifTargetGroups.join(", ")}</span>
