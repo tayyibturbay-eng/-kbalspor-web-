@@ -41,9 +41,9 @@ interface EquipmentLogRow {
   created_at: string;
 }
 
-interface JerseyUnitDetail {
+interface UnitDetail {
   id: string;
-  set_id: string;
+  parent_id: string;
   number: number;
   size: string;
   status: "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp";
@@ -63,7 +63,6 @@ const CONDITION_OPTIONS = [
   "İyi Durumda",
   "Kullanılmış",
   "Yıpranmış",
-  "Kayıp / Hasarlı",
 ] as const;
 
 const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"> = [
@@ -79,7 +78,7 @@ const STATUS_FALLBACKS: Record<string, string[]> = {
   kayip: ["Kayıp", "Kayıp / Hasarlı", "lost", "damaged"],
 };
 
-function getUnitCardStyle(status: JerseyUnitDetail["status"]): string {
+function getUnitCardStyle(status: UnitDetail["status"]): string {
   if (status === "Kayıp") {
     return "bg-rose-950/65 border-rose-500 ring-1 ring-rose-400/60";
   }
@@ -92,7 +91,7 @@ function getUnitCardStyle(status: JerseyUnitDetail["status"]): string {
   return "bg-[var(--bg-surface)] border-[var(--border-subtle)]";
 }
 
-function getUnitBadgeStyle(status: JerseyUnitDetail["status"]): string {
+function getUnitBadgeStyle(status: UnitDetail["status"]): string {
   if (status === "Kayıp") {
     return "bg-rose-600 text-white";
   }
@@ -105,21 +104,29 @@ function getUnitBadgeStyle(status: JerseyUnitDetail["status"]): string {
   return "bg-emerald-700/30 text-emerald-300";
 }
 
-function buildDefaultUnitsForSet(set: JerseySetRow): JerseyUnitDetail[] {
-  const count = Math.max(1, Number(set.total_count || 1));
-  const defaultSize = set.size_label || "M";
+function buildDefaultUnits(
+  parentId: string,
+  totalCount: number,
+  availableCount: number,
+  defaultSize: string,
+  preferredFirstNumber?: number | null
+): UnitDetail[] {
+  const count = Math.max(1, Number(totalCount || 1));
   const unavailableCount = Math.max(
     0,
-    count - Number(set.available_count ?? count)
+    Math.min(count, count - Number(availableCount ?? count))
   );
   return Array.from({ length: count }, (_, idx) => {
-    const num = idx + 1;
+    const num =
+      idx === 0 && preferredFirstNumber && preferredFirstNumber > 0
+        ? preferredFirstNumber
+        : idx + 1;
     const isOut = idx < unavailableCount;
     return {
-      id: `${set.id}-u-${num}`,
-      set_id: set.id,
+      id: `${parentId}-u-${num}-${idx}`,
+      parent_id: parentId,
       number: num,
-      size: defaultSize,
+      size: defaultSize || "M",
       status: isOut ? "Teslim Edildi" : "Müsait",
     };
   });
@@ -155,17 +162,19 @@ export function InventoryManager({
   const [selectedStockId, setSelectedStockId] = useState<string>("");
   const [deletingSetId, setDeletingSetId] = useState<string | null>(null);
   const [deletingStockId, setDeletingStockId] = useState<string | null>(null);
-  const [jerseyUnitsMap, setJerseyUnitsMap] = useState<
-    Record<string, JerseyUnitDetail[]>
-  >({});
-  const [customAddNumber, setCustomAddNumber] = useState("");
-  const [customAddSize, setCustomAddSize] = useState("M");
 
-  const [editOtherNum, setEditOtherNum] = useState("");
-  const [editOtherSize, setEditOtherSize] = useState("M");
-  const [editOtherStatus, setEditOtherStatus] = useState<
-    "Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"
-  >("Müsait");
+  const [jerseyUnitsMap, setJerseyUnitsMap] = useState<
+    Record<string, UnitDetail[]>
+  >({});
+  const [stockUnitsMap, setStockUnitsMap] = useState<
+    Record<string, UnitDetail[]>
+  >({});
+
+  const [customJerseyNumber, setCustomJerseyNumber] = useState("");
+  const [customJerseySize, setCustomJerseySize] = useState("M");
+
+  const [customStockNumber, setCustomStockNumber] = useState("");
+  const [customStockSize, setCustomStockSize] = useState("M");
 
   const [ageFilter, setAgeFilter] = useState<string>("Tümü");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>("");
@@ -173,7 +182,7 @@ export function InventoryManager({
   const [sizeLabel, setSizeLabel] = useState<string>("L");
   const [conditionStatus, setConditionStatus] = useState<string>("Yeni / Sıfır");
   const [actionStatus, setActionStatus] = useState<
-    "teslim_edildi" | "iade_alindi" | "kayip"
+    "teslim_edildi" | "iade_alindi"
   >("teslim_edildi");
   const [notes, setNotes] = useState<string>("");
 
@@ -243,11 +252,13 @@ export function InventoryManager({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const raw = localStorage.getItem("ikbal_jersey_units_v1");
-        if (raw) {
-          setJerseyUnitsMap(
-            JSON.parse(raw) as Record<string, JerseyUnitDetail[]>
-          );
+        const rawJ = localStorage.getItem("ikbal_jersey_units_v1");
+        if (rawJ) {
+          setJerseyUnitsMap(JSON.parse(rawJ) as Record<string, UnitDetail[]>);
+        }
+        const rawS = localStorage.getItem("ikbal_stock_units_v1");
+        if (rawS) {
+          setStockUnitsMap(JSON.parse(rawS) as Record<string, UnitDetail[]>);
         }
       } catch {
         // yoksay
@@ -269,13 +280,284 @@ export function InventoryManager({
     };
   }, [fetchInventoryData]);
 
-  function saveUnitsMap(next: Record<string, JerseyUnitDetail[]>) {
+  function saveJerseyUnitsMap(next: Record<string, UnitDetail[]>) {
     setJerseyUnitsMap(next);
     try {
       localStorage.setItem("ikbal_jersey_units_v1", JSON.stringify(next));
     } catch {
       // yoksay
     }
+  }
+
+  function saveStockUnitsMap(next: Record<string, UnitDetail[]>) {
+    setStockUnitsMap(next);
+    try {
+      localStorage.setItem("ikbal_stock_units_v1", JSON.stringify(next));
+    } catch {
+      // yoksay
+    }
+  }
+
+  const activeJerseySet = useMemo(
+    () =>
+      jerseySets.find((j) => j.id === selectedJerseySetId) ||
+      jerseySets[0] ||
+      null,
+    [jerseySets, selectedJerseySetId]
+  );
+
+  const activeOtherItem = useMemo(
+    () =>
+      stockItems.find((s) => s.id === selectedStockId) || stockItems[0] || null,
+    [stockItems, selectedStockId]
+  );
+
+  const currentJerseyUnits: UnitDetail[] = useMemo(() => {
+    if (!activeJerseySet) return [];
+    const existing = jerseyUnitsMap[activeJerseySet.id];
+    if (existing && existing.length > 0) return existing;
+    return buildDefaultUnits(
+      activeJerseySet.id,
+      activeJerseySet.total_count,
+      activeJerseySet.available_count,
+      activeJerseySet.size_label || "M"
+    );
+  }, [activeJerseySet, jerseyUnitsMap]);
+
+  const currentStockUnits: UnitDetail[] = useMemo(() => {
+    if (!activeOtherItem) return [];
+    const existing = stockUnitsMap[activeOtherItem.id];
+    if (existing && existing.length > 0) return existing;
+    return buildDefaultUnits(
+      activeOtherItem.id,
+      activeOtherItem.total_count,
+      activeOtherItem.available_count,
+      activeOtherItem.size_label || "M",
+      activeOtherItem.item_number
+    );
+  }, [activeOtherItem, stockUnitsMap]);
+
+  async function applyLostDeductionForJersey(
+    setRow: JerseySetRow,
+    unit: UnitDetail
+  ) {
+    const nextTotal = Math.max(0, Number(setRow.total_count || 0) - 1);
+    const nextAvail = Math.max(
+      0,
+      Math.min(nextTotal, Number(setRow.available_count || 0) - 1)
+    );
+
+    setJerseySets((prev) =>
+      prev.map((item) =>
+        item.id === setRow.id
+          ? { ...item, total_count: nextTotal, available_count: nextAvail }
+          : item
+      )
+    );
+
+    await supabase
+      .from("jersey_sets")
+      .update({
+        total_count: nextTotal,
+        available_count: nextAvail,
+      })
+      .eq("id", setRow.id);
+
+    await insertEquipmentLogSafe({
+      player_id: selectedPlayerId || players[0]?.id || "",
+      item_type: "forma",
+      item_name: setRow.set_name,
+      jersey_number: unit.number,
+      size_label: unit.size,
+      condition_status: "Kayıp / Hasarlı",
+      status: "kayip",
+      notes: `Beden/Numara/Durum panelinden #${unit.number} kayıp işaretlendi (-1 stok).`,
+      created_at: new Date().toISOString(),
+    });
+
+    await onLogActivity?.(
+      "Forma Kayıp Stok Düşümü",
+      `${setRow.set_name} #${unit.number} (${unit.size}) Kayıp seçildi -> Stok -1 (${nextAvail}/${nextTotal})`
+    );
+    notify(
+      true,
+      `${setRow.set_name} #${unit.number} Kayıp olarak işaretlendi ve stoktan 1 adet düşüldü.`
+    );
+  }
+
+  async function applyLostDeductionForStock(
+    stockRow: StockItemRow,
+    unit: UnitDetail
+  ) {
+    const nextTotal = Math.max(0, Number(stockRow.total_count || 0) - 1);
+    const nextAvail = Math.max(
+      0,
+      Math.min(nextTotal, Number(stockRow.available_count || 0) - 1)
+    );
+
+    setStockItems((prev) =>
+      prev.map((item) =>
+        item.id === stockRow.id
+          ? { ...item, total_count: nextTotal, available_count: nextAvail }
+          : item
+      )
+    );
+
+    await supabase
+      .from("equipment_stock")
+      .update({
+        total_count: nextTotal,
+        available_count: nextAvail,
+      })
+      .eq("id", stockRow.id);
+
+    await insertEquipmentLogSafe({
+      player_id: selectedPlayerId || players[0]?.id || "",
+      item_type: "ekipman",
+      item_name: stockRow.product_name,
+      jersey_number: unit.number,
+      size_label: unit.size,
+      condition_status: "Kayıp / Hasarlı",
+      status: "kayip",
+      notes: `Beden/Numara/Durum panelinden #${unit.number} kayıp işaretlendi (-1 stok).`,
+      created_at: new Date().toISOString(),
+    });
+
+    await onLogActivity?.(
+      "Malzeme Kayıp Stok Düşümü",
+      `${stockRow.product_name} #${unit.number} (${unit.size}) Kayıp seçildi -> Stok -1 (${nextAvail}/${nextTotal})`
+    );
+    notify(
+      true,
+      `${stockRow.product_name} #${unit.number} Kayıp olarak işaretlendi ve stoktan 1 adet düşüldü.`
+    );
+  }
+
+  async function handleUpdateJerseyUnit(
+    unitId: string,
+    patch: Partial<UnitDetail>
+  ) {
+    if (!activeJerseySet) return;
+    const prevUnit = currentJerseyUnits.find((u) => u.id === unitId);
+    if (!prevUnit) return;
+
+    const updatedUnit: UnitDetail = { ...prevUnit, ...patch };
+    const updatedList = currentJerseyUnits.map((u) =>
+      u.id === unitId ? updatedUnit : u
+    );
+    saveJerseyUnitsMap({
+      ...jerseyUnitsMap,
+      [activeJerseySet.id]: updatedList,
+    });
+
+    if (prevUnit.status !== "Kayıp" && updatedUnit.status === "Kayıp") {
+      await applyLostDeductionForJersey(activeJerseySet, updatedUnit);
+      await fetchInventoryData();
+    }
+  }
+
+  async function handleUpdateStockUnit(
+    unitId: string,
+    patch: Partial<UnitDetail>
+  ) {
+    if (!activeOtherItem) return;
+    const prevUnit = currentStockUnits.find((u) => u.id === unitId);
+    if (!prevUnit) return;
+
+    const updatedUnit: UnitDetail = { ...prevUnit, ...patch };
+    const updatedList = currentStockUnits.map((u) =>
+      u.id === unitId ? updatedUnit : u
+    );
+    saveStockUnitsMap({
+      ...stockUnitsMap,
+      [activeOtherItem.id]: updatedList,
+    });
+
+    if (prevUnit.status !== "Kayıp" && updatedUnit.status === "Kayıp") {
+      await applyLostDeductionForStock(activeOtherItem, updatedUnit);
+      await fetchInventoryData();
+    }
+  }
+
+  function handleAddCustomJerseyUnit() {
+    if (!activeJerseySet) return;
+    const num = parseInt(customJerseyNumber, 10);
+    if (Number.isNaN(num) || num < 1 || num > 999) {
+      notify(false, "Lütfen 1 ile 999 arasında geçerli bir forma numarası girin.");
+      return;
+    }
+
+    const baseList =
+      jerseyUnitsMap[activeJerseySet.id] &&
+      jerseyUnitsMap[activeJerseySet.id].length > 0
+        ? [...jerseyUnitsMap[activeJerseySet.id]]
+        : buildDefaultUnits(
+            activeJerseySet.id,
+            activeJerseySet.total_count,
+            activeJerseySet.available_count,
+            activeJerseySet.size_label || "M"
+          );
+
+    if (baseList.some((u) => u.number === num)) {
+      notify(false, `#${num} numarası zaten listede mevcut.`);
+      return;
+    }
+
+    baseList.push({
+      id: `${activeJerseySet.id}-u-${num}-${Date.now()}`,
+      parent_id: activeJerseySet.id,
+      number: num,
+      size: customJerseySize,
+      status: "Müsait",
+    });
+
+    saveJerseyUnitsMap({
+      ...jerseyUnitsMap,
+      [activeJerseySet.id]: baseList,
+    });
+    setCustomJerseyNumber("");
+    notify(true, `#${num} numaralı forma (${customJerseySize}) eklendi.`);
+  }
+
+  function handleAddCustomStockUnit() {
+    if (!activeOtherItem) return;
+    const num = parseInt(customStockNumber, 10);
+    if (Number.isNaN(num) || num < 1 || num > 999) {
+      notify(false, "Lütfen 1 ile 999 arasında geçerli bir malzeme numarası girin.");
+      return;
+    }
+
+    const baseList =
+      stockUnitsMap[activeOtherItem.id] &&
+      stockUnitsMap[activeOtherItem.id].length > 0
+        ? [...stockUnitsMap[activeOtherItem.id]]
+        : buildDefaultUnits(
+            activeOtherItem.id,
+            activeOtherItem.total_count,
+            activeOtherItem.available_count,
+            activeOtherItem.size_label || "M",
+            activeOtherItem.item_number
+          );
+
+    if (baseList.some((u) => u.number === num)) {
+      notify(false, `#${num} numarası zaten listede mevcut.`);
+      return;
+    }
+
+    baseList.push({
+      id: `${activeOtherItem.id}-u-${num}-${Date.now()}`,
+      parent_id: activeOtherItem.id,
+      number: num,
+      size: customStockSize,
+      status: "Müsait",
+    });
+
+    saveStockUnitsMap({
+      ...stockUnitsMap,
+      [activeOtherItem.id]: baseList,
+    });
+    setCustomStockNumber("");
+    notify(true, `#${num} numaralı malzeme (${customStockSize}) eklendi.`);
   }
 
   async function handleDeleteJerseySet(item: JerseySetRow) {
@@ -304,7 +586,7 @@ export function InventoryManager({
 
     const nextUnitsMap = { ...jerseyUnitsMap };
     delete nextUnitsMap[item.id];
-    saveUnitsMap(nextUnitsMap);
+    saveJerseyUnitsMap(nextUnitsMap);
 
     await onLogActivity?.(
       "Forma Takımı Silme",
@@ -337,6 +619,10 @@ export function InventoryManager({
       setSelectedStockId(nextStock[0]?.id || "");
     }
 
+    const nextStockMap = { ...stockUnitsMap };
+    delete nextStockMap[item.id];
+    saveStockUnitsMap(nextStockMap);
+
     await onLogActivity?.(
       "Malzeme Takımı Silme",
       `"${item.product_name}" malzeme takımı silindi.`
@@ -355,6 +641,8 @@ export function InventoryManager({
     notes: string | null;
     created_at: string;
   }) {
+    if (!payload.player_id) return { error: null };
+
     const res = await supabase.from("equipment_logs").insert(payload);
     if (!res.error) return { error: null };
 
@@ -432,27 +720,6 @@ export function InventoryManager({
     return firstTry;
   }
 
-  const activeJerseySet = useMemo(
-    () =>
-      jerseySets.find((j) => j.id === selectedJerseySetId) ||
-      jerseySets[0] ||
-      null,
-    [jerseySets, selectedJerseySetId]
-  );
-
-  const activeOtherItem = useMemo(
-    () =>
-      stockItems.find((s) => s.id === selectedStockId) || stockItems[0] || null,
-    [stockItems, selectedStockId]
-  );
-
-  const currentUnits: JerseyUnitDetail[] = useMemo(() => {
-    if (!activeJerseySet) return [];
-    const existing = jerseyUnitsMap[activeJerseySet.id];
-    if (existing && existing.length > 0) return existing;
-    return buildDefaultUnitsForSet(activeJerseySet);
-  }, [activeJerseySet, jerseyUnitsMap]);
-
   const filteredLogs = useMemo(() => {
     if (historyFilterPlayerId === "all") return logs;
     return logs.filter((l) => l.player_id === historyFilterPlayerId);
@@ -529,17 +796,13 @@ export function InventoryManager({
 
     const createdId = (data as { id?: string } | null)?.id;
     if (createdId) {
-      const autoUnits: JerseyUnitDetail[] = Array.from(
-        { length: qty },
-        (_, idx) => ({
-          id: `${createdId}-u-${idx + 1}`,
-          set_id: createdId,
-          number: idx + 1,
-          size: jerseyDefaultSize,
-          status: "Müsait",
-        })
+      const autoUnits = buildDefaultUnits(
+        createdId,
+        qty,
+        qty,
+        jerseyDefaultSize
       );
-      saveUnitsMap({ ...jerseyUnitsMap, [createdId]: autoUnits });
+      saveJerseyUnitsMap({ ...jerseyUnitsMap, [createdId]: autoUnits });
       setSelectedJerseySetId(createdId);
     }
 
@@ -581,28 +844,25 @@ export function InventoryManager({
       return;
     }
 
-    const createdId = (data as { id?: string } | null)?.id;
-    if (createdId) {
-      setSelectedStockId(createdId);
-      if (parsedNum !== null && !Number.isNaN(parsedNum)) {
-        try {
-          const metaRaw = localStorage.getItem("ikbal_other_meta_v1");
-          const meta = metaRaw
-            ? (JSON.parse(metaRaw) as Record<
-                string,
-                { number?: number | null; size?: string; status?: string }
-              >)
-            : {};
-          meta[createdId] = {
-            number: parsedNum,
-            size: otherSize,
-            status: "Müsait",
-          };
-          localStorage.setItem("ikbal_other_meta_v1", JSON.stringify(meta));
-        } catch {
-          // yoksay
-        }
-      }
+    const createdRow = data as StockItemRow | null;
+    if (createdRow?.id) {
+      setSelectedStockId(createdRow.id);
+      const autoStockUnits = buildDefaultUnits(
+        createdRow.id,
+        qty,
+        qty,
+        otherSize,
+        parsedNum && !Number.isNaN(parsedNum) ? parsedNum : null
+      );
+      saveStockUnitsMap({
+        ...stockUnitsMap,
+        [createdRow.id]: autoStockUnits,
+      });
+      setStockItems((prev) =>
+        prev.some((x) => x.id === createdRow.id)
+          ? prev.map((x) => (x.id === createdRow.id ? createdRow : x))
+          : [...prev, createdRow]
+      );
     }
 
     setProductName("");
@@ -613,79 +873,8 @@ export function InventoryManager({
         parsedNum ? `, No: #${parsedNum}` : ""
       })`
     );
-    notify(true, `${name} envantere eklendi.`);
+    notify(true, `${name} (${qty} adet) envantere ve birim paneline eklendi.`);
     await fetchInventoryData();
-  }
-
-  function handleAddCustomNumberUnit() {
-    if (!activeJerseySet) return;
-    const num = parseInt(customAddNumber, 10);
-    if (Number.isNaN(num) || num < 1 || num > 999) {
-      notify(
-        false,
-        "Lütfen 1 ile 999 arasında geçerli bir numara girin (örn: 95)."
-      );
-      return;
-    }
-
-    const list = [...currentUnits];
-    if (list.some((u) => u.number === num)) {
-      notify(false, `#${num} numarası zaten listede mevcut.`);
-      return;
-    }
-
-    list.push({
-      id: `${activeJerseySet.id}-u-${num}-${Date.now()}`,
-      set_id: activeJerseySet.id,
-      number: num,
-      size: customAddSize,
-      status: "Müsait",
-    });
-
-    saveUnitsMap({ ...jerseyUnitsMap, [activeJerseySet.id]: list });
-    setCustomAddNumber("");
-    notify(true, `#${num} numaralı forma (${customAddSize}) eklendi.`);
-  }
-
-  function handleUpdateUnit(
-    unitId: string,
-    patch: Partial<JerseyUnitDetail>
-  ) {
-    if (!activeJerseySet) return;
-    const updatedList = currentUnits.map((u) =>
-      u.id === unitId ? { ...u, ...patch } : u
-    );
-    saveUnitsMap({ ...jerseyUnitsMap, [activeJerseySet.id]: updatedList });
-  }
-
-  function handleSaveOtherItemDetails() {
-    if (!activeOtherItem) return;
-    const numVal = editOtherNum.trim() ? parseInt(editOtherNum, 10) : null;
-    try {
-      const metaRaw = localStorage.getItem("ikbal_other_meta_v1");
-      const meta = metaRaw
-        ? (JSON.parse(metaRaw) as Record<
-            string,
-            { number?: number | null; size?: string; status?: string }
-          >)
-        : {};
-      meta[activeOtherItem.id] = {
-        number: numVal && !Number.isNaN(numVal) ? numVal : null,
-        size: editOtherSize,
-        status: editOtherStatus,
-      };
-      localStorage.setItem("ikbal_other_meta_v1", JSON.stringify(meta));
-    } catch {
-      // yoksay
-    }
-    void supabase
-      .from("equipment_stock")
-      .update({ size_label: editOtherSize })
-      .eq("id", activeOtherItem.id);
-    notify(
-      true,
-      `${activeOtherItem.product_name} için numara/beden/durum güncellendi.`
-    );
   }
 
   async function handleAssignOrReturn(e: React.FormEvent) {
@@ -721,16 +910,16 @@ export function InventoryManager({
       if (parsedNum === null) {
         notify(
           false,
-          "Forma seçili değil / forma numarası girilmemiş! Emanet veya teslim işlemi için forma numarası zorunludur."
+          "Forma numarası girilmemiş! Emanet veya iade işlemi için forma numarası zorunludur."
         );
         return;
       }
 
       if (
-        (actionStatus === "teslim_edildi" || actionStatus === "kayip") &&
+        actionStatus === "teslim_edildi" &&
         chosenSet.available_count <= 0
       ) {
-        notify(false, "Seçilen forma setinde düşülecek müsait stok kalmadı.");
+        notify(false, "Seçilen forma setinde müsait stok kalmadı.");
         return;
       }
 
@@ -741,8 +930,7 @@ export function InventoryManager({
         item_name: chosenSet.set_name,
         jersey_number: parsedNum,
         size_label: sizeLabel,
-        condition_status:
-          actionStatus === "kayip" ? "Kayıp / Hasarlı" : conditionStatus,
+        condition_status: conditionStatus,
         status: actionStatus,
         notes: notes.trim() || null,
         created_at: new Date().toISOString(),
@@ -755,20 +943,14 @@ export function InventoryManager({
       }
 
       const nextAvail =
-        actionStatus === "teslim_edildi" || actionStatus === "kayip"
+        actionStatus === "teslim_edildi"
           ? Math.max(0, chosenSet.available_count - 1)
           : Math.min(chosenSet.total_count, chosenSet.available_count + 1);
-
-      const nextTotal =
-        actionStatus === "kayip"
-          ? Math.max(0, Number(chosenSet.total_count || 0) - 1)
-          : chosenSet.total_count;
 
       await supabase
         .from("jersey_sets")
         .update({
           available_count: nextAvail,
-          total_count: nextTotal,
           size_label: sizeLabel,
         })
         .eq("id", chosenSet.id);
@@ -776,15 +958,16 @@ export function InventoryManager({
       const baseUnits =
         jerseyUnitsMap[chosenSet.id] && jerseyUnitsMap[chosenSet.id].length > 0
           ? [...jerseyUnitsMap[chosenSet.id]]
-          : buildDefaultUnitsForSet(chosenSet);
+          : buildDefaultUnits(
+              chosenSet.id,
+              chosenSet.total_count,
+              chosenSet.available_count,
+              chosenSet.size_label || "M"
+            );
 
       const matchedIdx = baseUnits.findIndex((u) => u.number === parsedNum);
-      const unitStatus: JerseyUnitDetail["status"] =
-        actionStatus === "teslim_edildi"
-          ? "Teslim Edildi"
-          : actionStatus === "kayip"
-          ? "Kayıp"
-          : "Müsait";
+      const unitStatus: UnitDetail["status"] =
+        actionStatus === "teslim_edildi" ? "Teslim Edildi" : "Müsait";
 
       if (matchedIdx >= 0) {
         baseUnits[matchedIdx] = {
@@ -799,7 +982,7 @@ export function InventoryManager({
       } else {
         baseUnits.push({
           id: `${chosenSet.id}-u-${parsedNum}`,
-          set_id: chosenSet.id,
+          parent_id: chosenSet.id,
           number: parsedNum,
           size: sizeLabel,
           status: unitStatus,
@@ -809,7 +992,7 @@ export function InventoryManager({
               : undefined,
         });
       }
-      saveUnitsMap({ ...jerseyUnitsMap, [chosenSet.id]: baseUnits });
+      saveJerseyUnitsMap({ ...jerseyUnitsMap, [chosenSet.id]: baseUnits });
 
       setSubmitting(false);
       setJerseyNumber("");
@@ -818,15 +1001,13 @@ export function InventoryManager({
         "Forma İşlemi",
         `${targetPlayer?.full_name || "Sporcu"} -> ${
           chosenSet.set_name
-        } #${parsedNum} (Beden: ${sizeLabel}, İşlem: ${actionStatus}${
-          actionStatus === "kayip" ? ", Stoktan -1 düşüldü" : ""
-        })`
+        } #${parsedNum} (Beden: ${sizeLabel}, İşlem: ${actionStatus})`
       );
       notify(
         true,
-        actionStatus === "kayip"
-          ? `${chosenSet.set_name} (#${parsedNum}) kayıp/hasarlı işlendi ve stoktan 1 adet düşüldü.`
-          : `${chosenSet.set_name} (#${parsedNum}, Beden: ${sizeLabel}) için işlem kaydedildi.`
+        `${chosenSet.set_name} (#${parsedNum}, Beden: ${sizeLabel}) için ${
+          actionStatus === "teslim_edildi" ? "emanet teslim" : "iade"
+        } kaydedildi.`
       );
       await fetchInventoryData();
       return;
@@ -839,10 +1020,10 @@ export function InventoryManager({
     }
 
     if (
-      (actionStatus === "teslim_edildi" || actionStatus === "kayip") &&
+      actionStatus === "teslim_edildi" &&
       chosenStock.available_count <= 0
     ) {
-      notify(false, "Seçilen ekipmanda düşülecek müsait stok kalmadı.");
+      notify(false, "Seçilen ekipmanda müsait stok kalmadı.");
       return;
     }
 
@@ -853,8 +1034,7 @@ export function InventoryManager({
       item_name: chosenStock.product_name,
       jersey_number: parsedNum,
       size_label: sizeLabel,
-      condition_status:
-        actionStatus === "kayip" ? "Kayıp / Hasarlı" : conditionStatus,
+      condition_status: conditionStatus,
       status: actionStatus,
       notes: notes.trim() || null,
       created_at: new Date().toISOString(),
@@ -867,23 +1047,61 @@ export function InventoryManager({
     }
 
     const nextStockAvail =
-      actionStatus === "teslim_edildi" || actionStatus === "kayip"
+      actionStatus === "teslim_edildi"
         ? Math.max(0, chosenStock.available_count - 1)
         : Math.min(chosenStock.total_count, chosenStock.available_count + 1);
-
-    const nextStockTotal =
-      actionStatus === "kayip"
-        ? Math.max(0, Number(chosenStock.total_count || 0) - 1)
-        : chosenStock.total_count;
 
     await supabase
       .from("equipment_stock")
       .update({
         available_count: nextStockAvail,
-        total_count: nextStockTotal,
         size_label: sizeLabel,
       })
       .eq("id", chosenStock.id);
+
+    if (parsedNum !== null) {
+      const baseStockUnits =
+        stockUnitsMap[chosenStock.id] &&
+        stockUnitsMap[chosenStock.id].length > 0
+          ? [...stockUnitsMap[chosenStock.id]]
+          : buildDefaultUnits(
+              chosenStock.id,
+              chosenStock.total_count,
+              chosenStock.available_count,
+              chosenStock.size_label || "M",
+              chosenStock.item_number
+            );
+      const matchedIdx = baseStockUnits.findIndex((u) => u.number === parsedNum);
+      const unitStatus: UnitDetail["status"] =
+        actionStatus === "teslim_edildi" ? "Teslim Edildi" : "Müsait";
+      if (matchedIdx >= 0) {
+        baseStockUnits[matchedIdx] = {
+          ...baseStockUnits[matchedIdx],
+          size: sizeLabel,
+          status: unitStatus,
+          assigned_to:
+            actionStatus === "teslim_edildi"
+              ? targetPlayer?.full_name
+              : undefined,
+        };
+      } else {
+        baseStockUnits.push({
+          id: `${chosenStock.id}-u-${parsedNum}`,
+          parent_id: chosenStock.id,
+          number: parsedNum,
+          size: sizeLabel,
+          status: unitStatus,
+          assigned_to:
+            actionStatus === "teslim_edildi"
+              ? targetPlayer?.full_name
+              : undefined,
+        });
+      }
+      saveStockUnitsMap({
+        ...stockUnitsMap,
+        [chosenStock.id]: baseStockUnits,
+      });
+    }
 
     setSubmitting(false);
     setJerseyNumber("");
@@ -894,17 +1112,15 @@ export function InventoryManager({
         chosenStock.product_name
       } (Beden: ${sizeLabel}${
         parsedNum !== null ? `, No: #${parsedNum}` : ""
-      }, İşlem: ${actionStatus}${
-        actionStatus === "kayip" ? ", Stoktan -1 düşüldü" : ""
-      })`
+      }, İşlem: ${actionStatus})`
     );
     notify(
       true,
-      actionStatus === "kayip"
-        ? `${chosenStock.product_name} kayıp/hasarlı işlendi ve stoktan 1 adet düşüldü.`
-        : `${chosenStock.product_name} (Beden: ${sizeLabel}${
-            parsedNum !== null ? `, No: #${parsedNum}` : ""
-          }) işlemi kaydedildi.`
+      `${chosenStock.product_name} (Beden: ${sizeLabel}${
+        parsedNum !== null ? `, No: #${parsedNum}` : ""
+      }) için ${
+        actionStatus === "teslim_edildi" ? "emanet teslim" : "iade"
+      } kaydedildi.`
     );
     await fetchInventoryData();
   }
@@ -944,10 +1160,7 @@ export function InventoryManager({
       "Malzeme Geçmişi Temizleme",
       `${ids.length} kayıt silindi (${label})`
     );
-    notify(
-      true,
-      `${ids.length} adet malzeme kaydı temizlendi (${label}).`
-    );
+    notify(true, `${ids.length} adet malzeme kaydı temizlendi (${label}).`);
   }
 
   return (
@@ -959,8 +1172,8 @@ export function InventoryManager({
           </h2>
           <p className="text-xs text-[var(--text-secondary)] mt-0.5">
             Formalar ve diğer malzemeler tek ortak panelde; kapak görseli,
-            1&apos;den otomatik numara, rastgele numara, beden/numara/durum ve
-            geçmiş yönetimi birlikte çalışır.
+            1&apos;den otomatik numara, özel numara ekleme, beden/numara/durum
+            üzerinden kayıp stok düşümü ve geçmiş yönetimi birlikte çalışır.
           </p>
         </div>
 
@@ -1133,7 +1346,7 @@ export function InventoryManager({
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
-                Kayıp
+                Kayıp (Stoktan -1 Düşer)
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
@@ -1189,21 +1402,21 @@ export function InventoryManager({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-black">
                     {activeJerseySet.set_name} — Tekil Forma Beden / Numara /
-                    Durum ({currentUnits.length} adet)
+                    Durum ({currentJerseyUnits.length} adet)
                   </span>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min={1}
                       max={999}
-                      value={customAddNumber}
-                      onChange={(e) => setCustomAddNumber(e.target.value)}
+                      value={customJerseyNumber}
+                      onChange={(e) => setCustomJerseyNumber(e.target.value)}
                       placeholder="No (örn: 95)"
                       className="w-24 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
                     />
                     <select
-                      value={customAddSize}
-                      onChange={(e) => setCustomAddSize(e.target.value)}
+                      value={customJerseySize}
+                      onChange={(e) => setCustomJerseySize(e.target.value)}
                       className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
                     >
                       {SIZE_OPTIONS.map((sz) => (
@@ -1214,7 +1427,7 @@ export function InventoryManager({
                     </select>
                     <button
                       type="button"
-                      onClick={handleAddCustomNumberUnit}
+                      onClick={handleAddCustomJerseyUnit}
                       className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer"
                     >
                       + Numara Ekle
@@ -1223,7 +1436,7 @@ export function InventoryManager({
                 </div>
 
                 <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {currentUnits.map((unit) => (
+                  {currentJerseyUnits.map((unit) => (
                     <div
                       key={unit.id}
                       className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
@@ -1246,7 +1459,9 @@ export function InventoryManager({
                           onChange={(e) => {
                             const nextNum = parseInt(e.target.value, 10);
                             if (!Number.isNaN(nextNum) && nextNum > 0) {
-                              handleUpdateUnit(unit.id, { number: nextNum });
+                              void handleUpdateJerseyUnit(unit.id, {
+                                number: nextNum,
+                              });
                             }
                           }}
                           className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)]"
@@ -1263,7 +1478,9 @@ export function InventoryManager({
                         <select
                           value={unit.size}
                           onChange={(e) =>
-                            handleUpdateUnit(unit.id, { size: e.target.value })
+                            void handleUpdateJerseyUnit(unit.id, {
+                              size: e.target.value,
+                            })
                           }
                           className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                         >
@@ -1277,9 +1494,8 @@ export function InventoryManager({
                         <select
                           value={unit.status}
                           onChange={(e) =>
-                            handleUpdateUnit(unit.id, {
-                              status: e.target
-                                .value as JerseyUnitDetail["status"],
+                            void handleUpdateJerseyUnit(unit.id, {
+                              status: e.target.value as UnitDetail["status"],
                             })
                           }
                           className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
@@ -1433,9 +1649,37 @@ export function InventoryManager({
           </form>
 
           <div className="lg:col-span-7 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4">
-            <h3 className="text-base font-black">
-              Diğer Malzemeler &amp; Numara / Beden / Durum Paneli
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-base font-black">
+                Diğer Malzemeler &amp; Beden / Numara / Durum Paneli
+              </h3>
+              <select
+                value={activeOtherItem?.id || ""}
+                onChange={(e) => setSelectedStockId(e.target.value)}
+                className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold"
+              >
+                {stockItems.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.product_name} ({s.available_count}/{s.total_count})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
+                Teslim Edildi
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
+                Kayıp (Stoktan -1 Düşer)
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
+                Müsait
+              </span>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {stockItems.map((s) => (
@@ -1449,13 +1693,7 @@ export function InventoryManager({
                 >
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedStockId(s.id);
-                      setEditOtherSize(s.size_label || "M");
-                      setEditOtherNum(
-                        s.item_number ? String(s.item_number) : ""
-                      );
-                    }}
+                    onClick={() => setSelectedStockId(s.id)}
                     className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
                   >
                     <img
@@ -1488,32 +1726,25 @@ export function InventoryManager({
 
             {activeOtherItem && (
               <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-3">
-                <div className="text-xs font-black">
-                  {activeOtherItem.product_name} — Numara / Beden / Durum
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
-                      Malzeme Numarası
-                    </label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-black">
+                    {activeOtherItem.product_name} — Tekil Malzeme Beden /
+                    Numara / Durum ({currentStockUnits.length} adet)
+                  </span>
+                  <div className="flex items-center gap-1.5">
                     <input
                       type="number"
                       min={1}
                       max={999}
-                      value={editOtherNum}
-                      onChange={(e) => setEditOtherNum(e.target.value)}
-                      placeholder="Örn: 12"
-                      className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold"
+                      value={customStockNumber}
+                      onChange={(e) => setCustomStockNumber(e.target.value)}
+                      placeholder="No (örn: 12)"
+                      className="w-24 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
                     />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
-                      Beden
-                    </label>
                     <select
-                      value={editOtherSize}
-                      onChange={(e) => setEditOtherSize(e.target.value)}
-                      className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold"
+                      value={customStockSize}
+                      onChange={(e) => setCustomStockSize(e.target.value)}
+                      className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
                     >
                       {SIZE_OPTIONS.map((sz) => (
                         <option key={sz} value={sz}>
@@ -1521,45 +1752,98 @@ export function InventoryManager({
                         </option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-[var(--text-secondary)] mb-1">
-                      Durum
-                    </label>
-                    <select
-                      value={editOtherStatus}
-                      onChange={(e) =>
-                        setEditOtherStatus(
-                          e.target.value as
-                            | "Müsait"
-                            | "Teslim Edildi"
-                            | "Bakımda"
-                            | "Kayıp"
-                        )
-                      }
-                      className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold"
+                    <button
+                      type="button"
+                      onClick={handleAddCustomStockUnit}
+                      className="px-2.5 py-1 rounded-lg bg-[var(--brand-red)] text-white text-xs font-extrabold cursor-pointer"
                     >
-                      {ITEM_STATUSES.map((st) => (
-                        <option key={st} value={st}>
-                          {st}
-                        </option>
-                      ))}
-                    </select>
+                      + Numara Ekle
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleSaveOtherItemDetails}
-                  className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer"
-                >
-                  Numara / Beden / Durumu Kaydet
-                </button>
+
+                <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {currentStockUnits.map((unit) => (
+                    <div
+                      key={unit.id}
+                      className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
+                        unit.status
+                      )}`}
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span
+                          className={`px-2 py-0.5 rounded-md font-black text-[11px] ${getUnitBadgeStyle(
+                            unit.status
+                          )}`}
+                        >
+                          #{unit.number} • {unit.status}
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={999}
+                          value={unit.number}
+                          onChange={(e) => {
+                            const nextNum = parseInt(e.target.value, 10);
+                            if (!Number.isNaN(nextNum) && nextNum > 0) {
+                              void handleUpdateStockUnit(unit.id, {
+                                number: nextNum,
+                              });
+                            }
+                          }}
+                          className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)]"
+                        />
+                      </div>
+
+                      {unit.assigned_to && unit.status === "Teslim Edildi" && (
+                        <div className="text-[10px] font-bold text-amber-200 truncate">
+                          Sporcu: {unit.assigned_to}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-1">
+                        <select
+                          value={unit.size}
+                          onChange={(e) =>
+                            void handleUpdateStockUnit(unit.id, {
+                              size: e.target.value,
+                            })
+                          }
+                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                        >
+                          {SIZE_OPTIONS.map((sz) => (
+                            <option key={sz} value={sz}>
+                              {sz}
+                            </option>
+                          ))}
+                        </select>
+
+                        <select
+                          value={unit.status}
+                          onChange={(e) =>
+                            void handleUpdateStockUnit(unit.id, {
+                              status: e.target.value as UnitDetail["status"],
+                            })
+                          }
+                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                        >
+                          {ITEM_STATUSES.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
         </div>
       )}
 
+      {/* Sadece Emanet Etme ve İade İşlemleri */}
       <form
         onSubmit={handleAssignOrReturn}
         className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs"
@@ -1567,11 +1851,12 @@ export function InventoryManager({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
           <div>
             <h3 className="text-lg font-black text-[var(--text-primary)]">
-              Forma &amp; Ekipman Teslim / İade / Kayıp İşlemi
+              Forma &amp; Ekipman Emanet / İade İşlemi
             </h3>
             <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Formalarda numara zorunludur; diğer ekipmanlarda numara isteğe
-              bağlıdır. İade alındığında seçilen beden korunur.
+              Bu alan yalnızca emanet teslim ve iade işlemleri içindir. Kayıp
+              veya hasarlı ürünleri yukarıdaki Beden / Numara / Durum panelinden
+              Kayıp seçerek stoktan düşebilirsiniz.
             </p>
           </div>
 
@@ -1696,17 +1981,13 @@ export function InventoryManager({
               value={actionStatus}
               onChange={(e) =>
                 setActionStatus(
-                  e.target.value as
-                    | "teslim_edildi"
-                    | "iade_alindi"
-                    | "kayip"
+                  e.target.value as "teslim_edildi" | "iade_alindi"
                 )
               }
               className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
             >
               <option value="teslim_edildi">Emanet / Teslim Et</option>
               <option value="iade_alindi">İade Alındı</option>
-              <option value="kayip">Kayıp / Hasarlı</option>
             </select>
           </div>
 
@@ -1758,7 +2039,7 @@ export function InventoryManager({
           disabled={submitting}
           className="px-6 py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black cursor-pointer disabled:opacity-50"
         >
-          {submitting ? "Kaydediliyor..." : "Malzeme İşlemini Kaydet"}
+          {submitting ? "Kaydediliyor..." : "Emanet / İade İşlemini Kaydet"}
         </button>
       </form>
 
