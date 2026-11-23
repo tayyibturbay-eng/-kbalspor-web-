@@ -7,6 +7,21 @@ import { calcAgeGroupFromBirthDate } from "@/lib/age-groups";
 
 const supabase = createClient();
 
+function isApplicantUnder18(birthDateStr: string): boolean {
+  if (!birthDateStr) return false;
+  const parts = birthDateStr.split("-");
+  if (parts.length !== 3) return false;
+  const dob = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (Number.isNaN(dob.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const mDiff = today.getMonth() - dob.getMonth();
+  if (mDiff < 0 || (mDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age < 18;
+}
+
 export default function MembershipRequestPage() {
   const [fullName, setFullName] = useState("");
   const [birthDate, setBirthDate] = useState("");
@@ -15,6 +30,7 @@ export default function MembershipRequestPage() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [kvkkAccepted, setKvkkAccepted] = useState(false);
+  const under18 = isApplicantUnder18(birthDate);
   const [feedback, setFeedback] = useState<{
     ok: boolean;
     text: string;
@@ -38,6 +54,14 @@ export default function MembershipRequestPage() {
     }
 
     const computedGroup = calcAgeGroupFromBirthDate(birthDate) || "Minikler";
+
+    if (under18 && !guardianName.trim()) {
+      setFeedback({
+        ok: false,
+        text: "18 yaşından küçük sporcular için Veli Ad Soyad alanı zorunludur.",
+      });
+      return;
+    }
 
     if (!kvkkAccepted) {
       setFeedback({
@@ -141,13 +165,14 @@ export default function MembershipRequestPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Veli Ad Soyad
+                Veli Ad Soyad {under18 ? "*" : "(18 yaş altı zorunlu)"}
               </label>
               <input
                 type="text"
+                required={under18}
                 value={guardianName}
                 onChange={(e) => setGuardianName(e.target.value)}
-                placeholder="Veli adı soyadı"
+                placeholder={under18 ? "Veli adı soyadı (zorunlu)" : "Veli adı soyadı"}
                 className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-semibold text-[var(--text-primary)]"
               />
             </div>
@@ -189,6 +214,17 @@ export default function MembershipRequestPage() {
               }`}
             >
               {feedback.text}
+            </div>
+          )}
+
+          {under18 && (
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-1 text-xs">
+              <div className="font-black text-amber-700 dark:text-amber-300">
+                18 Yaş Altı Sporcu — Veli Bilgilendirmesi
+              </div>
+              <p className="text-[var(--text-secondary)] leading-relaxed">
+                Başvuru sahibi 18 yaşından küçük olduğu için veli/yasal temsilci adının girilmesi zorunludur. Altyapı kayıt onayı, antrenman/maç bilgilendirmeleri ve KVKK kapsamındaki tüm süreçler belirtilen veli üzerinden yürütülür.
+              </p>
             </div>
           )}
 
