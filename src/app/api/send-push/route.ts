@@ -90,10 +90,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, sentCount: 0 });
     }
 
-    const cleanSound = typeof sound === "string" && sound.trim() ? sound.trim() : "default";
+    const cleanSound =
+      typeof sound === "string" && sound.trim() ? sound.trim() : "default";
     const rawImg =
-      typeof imageUrl === "string" && imageUrl.trim() ? imageUrl.trim() : DEFAULT_LOGO_URL;
-    const cleanImage = rawImg.startsWith("/") ? `https://ikbalspor.com${rawImg}` : rawImg;
+      typeof imageUrl === "string" && imageUrl.trim()
+        ? imageUrl.trim()
+        : DEFAULT_LOGO_URL;
+    const normalizedImg = rawImg.startsWith("/")
+      ? `https://ikbalspor.com${rawImg}`
+      : rawImg;
+    const cleanImage =
+      normalizedImg.startsWith("https://") &&
+      !normalizedImg.startsWith("blob:") &&
+      !normalizedImg.startsWith("data:")
+        ? normalizedImg
+        : DEFAULT_LOGO_URL;
 
     const tokenChunks = chunkArray(uniqueTokens, 100);
     let totalSent = 0;
@@ -102,7 +113,7 @@ export async function POST(req: Request) {
     for (const chunk of tokenChunks) {
       const messages = chunk.map((token) => ({
         to: token,
-        sound: cleanSound,
+        sound: "default",
         channelId: "ikbalspor-alerts",
         priority: "high",
         title: title.trim(),
@@ -111,7 +122,7 @@ export async function POST(req: Request) {
         richContent: { image: cleanImage },
         data: {
           imageUrl: cleanImage,
-          sound: cleanSound,
+          sound: "default",
           channelId: "ikbalspor-alerts",
           title: title.trim(),
           body: body.trim(),

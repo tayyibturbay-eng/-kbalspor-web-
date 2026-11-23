@@ -378,7 +378,7 @@ export function PlayersTab({
     }
 
     const pointLogText =
-      delta !== 0
+      Boolean(editPointSign && rawAmount > 0)
         ? ` (${editPointSign}${rawAmount}p -> ${nextSkillPoints}p)`
         : "";
     await onLogActivity(
@@ -388,7 +388,7 @@ export function PlayersTab({
       }) güncellendi${pointLogText}.`
     );
     onFeedback(
-      delta !== 0
+      Boolean(editPointSign && rawAmount > 0)
         ? `${editingPlayer.full_name} bilgileri güncellendi (${editPointSign}${rawAmount}p • Yeni Puan: ${nextSkillPoints}).`
         : `${editingPlayer.full_name} bilgileri güncellendi.`
     );

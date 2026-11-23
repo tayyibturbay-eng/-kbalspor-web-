@@ -156,32 +156,26 @@ export function NotificationsTab({
         .toString(36)
         .slice(2, 8)}.${ext}`;
 
-      const { error } = await supabase.storage
-        .from("club-media")
-        .upload(path, file, { upsert: true });
-
-      if (!error) {
-        const { data } = supabase.storage.from("club-media").getPublicUrl(path);
-        if (data?.publicUrl) {
-          if (folder === "images") {
-            setNotifImageUrl(data.publicUrl);
-            onFeedback("Görsel yüklendi ve bağlantı oluşturuldu.");
-          } else {
-            setCustomAudioUrl(data.publicUrl);
-            onFeedback("Ses dosyası yüklendi ve bağlantı oluşturuldu.");
+      for (const bucket of ["club-media", "avatars"]) {
+        const { error } = await supabase.storage
+          .from(bucket)
+          .upload(path, file, { upsert: true, contentType: file.type || undefined });
+        if (!error) {
+          const { data } = supabase.storage.from(bucket).getPublicUrl(path);
+          if (data?.publicUrl) {
+            if (folder === "images") {
+              setNotifImageUrl(data.publicUrl);
+              onFeedback("Görsel yüklendi ve genel HTTPS bağlantısı oluşturuldu.");
+            } else {
+              setCustomAudioUrl(data.publicUrl);
+              onFeedback("Ses dosyası yüklendi ve genel HTTPS bağlantısı oluşturuldu.");
+            }
+            return;
           }
-          return;
         }
       }
 
-      const objectUrl = URL.createObjectURL(file);
-      if (folder === "images") {
-        setNotifImageUrl(objectUrl);
-        onFeedback("Görsel bağlantısı oluşturuldu (önizleme/yerel).");
-      } else {
-        setCustomAudioUrl(objectUrl);
-        onFeedback("Ses bağlantısı oluşturuldu (dinleme aktif).");
-      }
+      onFeedback("Medya yüklenemedi: Lütfen Supabase Storage 'avatars' bucket izinlerini kontrol edin veya doğrudan https:// görsel bağlantısı girin.");
     } finally {
       setUploadingMedia(false);
     }

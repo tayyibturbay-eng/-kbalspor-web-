@@ -46,6 +46,7 @@ interface SquadPlayerRow {
 interface MatchPredictionCardProps {
   playerId?: string | null;
   playerAgeGroup?: string | null;
+  currentSkillPoints?: number;
   onRewardClaimed?: (pointsAdded: number) => void;
 }
 
