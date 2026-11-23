@@ -49,13 +49,20 @@ export default function HomePage() {
         .from("club_messages")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(4),
+        .limit(12),
       supabase.from("players").select("id", { count: "exact", head: true }),
     ]);
 
     if (tasksRes.data) setUpcomingMatches(tasksRes.data as HomeTaskRow[]);
-    if (msgsRes.data)
-      setRecentAnnouncements(msgsRes.data as AnnouncementItem[]);
+    if (msgsRes.data) {
+      const publicOnly = (msgsRes.data as AnnouncementItem[])
+        .filter((m) => {
+          const txt = `${m.body || ""} ${m.message_text || ""}`.trim();
+          return !txt.startsWith("İletişim Mesajı");
+        })
+        .slice(0, 4);
+      setRecentAnnouncements(publicOnly);
+    }
     if (typeof playersCountRes.count === "number")
       setPlayerCount(playersCountRes.count);
   }, []);
@@ -83,52 +90,80 @@ export default function HomePage() {
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white py-10 px-4 shadow-sm">
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <span className="inline-block px-3 py-1 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
+      <section className="bg-gradient-to-br from-[#041e3b] via-[var(--brand-navy)] to-[var(--brand-red)] text-white py-10 sm:py-12 px-4 shadow-sm">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <div className="lg:col-span-8 space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/12 border border-white/20 text-[11px] font-extrabold uppercase tracking-wider">
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
               Çorum İkbal Spor Kulübü • 2026–2027 Sezonu
-            </span>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+            </div>
+            <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-black tracking-tight leading-[1.12]">
               Altyapıdan Amatöre Tek Yürek, Tek Platform
             </h1>
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+            <p className="text-sm sm:text-base text-slate-200 max-w-2xl leading-relaxed">
               Taktik kadro kurulumu, maç günü skor ve golcü tahminleri, QR
               yoklama takibi, aidat/malzeme ekranları ve kulüp duyuruları tek
-              yerde.
+              merkezde.
             </p>
+            <div className="flex flex-wrap gap-3 pt-1">
+              <Link
+                href="/kadro-kur"
+                className="px-5 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black shadow-md transition"
+              >
+                Taktik Tahtası &amp; Kadro Kur
+              </Link>
+              <Link
+                href="/kayit"
+                className="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 text-[var(--brand-navy)] text-xs sm:text-sm font-black shadow-md transition"
+              >
+                Kulübe Ön Kayıt Ol
+              </Link>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
-            <Link
-              href="/kadro-kur"
-              className="px-5 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black shadow-sm transition"
-            >
-              Taktik Tahtası &amp; Kadro Kur
-            </Link>
-            <Link
-              href="/sporcu"
-              className="px-5 py-3 rounded-2xl bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs sm:text-sm font-extrabold transition"
-            >
-              Sporcu Girişi
-            </Link>
-            <Link
-              href="/kayit"
-              className="px-5 py-3 rounded-2xl bg-white text-[var(--brand-navy)] hover:bg-slate-100 text-xs sm:text-sm font-black shadow-sm transition"
-            >
-              Ön Kayıt Ol
-            </Link>
+          <div className="lg:col-span-4">
+            <div className="rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 p-5 space-y-3 shadow-lg">
+              <div className="flex items-center gap-3">
+                <img
+                  src="/logo.png"
+                  alt="Çorum İkbal Spor Kulübü"
+                  className="w-12 h-12 rounded-2xl bg-white object-cover border border-white/30"
+                />
+                <div>
+                  <div className="text-sm font-black tracking-tight">
+                    Çorum İkbal Spor Kulübü
+                  </div>
+                  <div className="text-xs text-amber-200 font-bold">
+                    Resmi Dijital Kulüp Portalı
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
+                <div className="rounded-xl bg-black/20 px-3 py-2">
+                  <div className="text-[10px] text-slate-300 font-bold uppercase">
+                    Kategoriler
+                  </div>
+                  <div className="font-extrabold mt-0.5">Minikler – SAL</div>
+                </div>
+                <div className="rounded-xl bg-black/20 px-3 py-2">
+                  <div className="text-[10px] text-slate-300 font-bold uppercase">
+                    Ana Tesis
+                  </div>
+                  <div className="font-extrabold mt-0.5">Nazmi Avluca</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 space-y-8 tabular-nums">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
-            <span className="text-[11px] font-extrabold uppercase text-[var(--text-muted)]">
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
               Kayıtlı Sporcu Kadrosu
             </span>
-            <div className="text-2xl font-black text-[var(--brand-navy)] dark:text-sky-300 mt-1">
+            <div className="text-3xl font-black text-[var(--brand-navy)] dark:text-sky-300 mt-1.5">
               {playerCount} Sporcu
             </div>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -136,11 +171,11 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
-            <span className="text-[11px] font-extrabold uppercase text-[var(--text-muted)]">
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
               Aktif Maç &amp; Görev Kaydı
             </span>
-            <div className="text-2xl font-black text-[var(--brand-red)] mt-1">
+            <div className="text-3xl font-black text-[var(--brand-red)] mt-1.5">
               {upcomingMatches.length} Program
             </div>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -148,11 +183,11 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs">
-            <span className="text-[11px] font-extrabold uppercase text-[var(--text-muted)]">
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs flex flex-col justify-between">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
               Son Kulüp Duyuruları
             </span>
-            <div className="text-2xl font-black text-[var(--text-primary)] mt-1">
+            <div className="text-3xl font-black text-[var(--text-primary)] mt-1.5">
               {recentAnnouncements.length} Güncel Duyuru
             </div>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -173,15 +208,15 @@ export default function HomePage() {
                 Yaklaşan Maçlar &amp; Program
               </h2>
               <Link
-                href="/kadro-kur"
+                href="/gorevler"
                 className="text-xs font-extrabold text-[var(--brand-red)] hover:underline"
               >
-                Kadro Hazırla →
+                Tahmin Merkezi →
               </Link>
             </div>
 
             {upcomingMatches.length === 0 ? (
-              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center text-xs font-bold text-[var(--text-secondary)]">
+              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
                 Henüz planlanmış maç veya görev kaydı bulunmuyor.
               </div>
             ) : (
@@ -189,18 +224,18 @@ export default function HomePage() {
                 {upcomingMatches.map((m) => (
                   <div
                     key={m.id}
-                    className="py-3 flex flex-wrap items-center justify-between gap-2"
+                    className="py-3.5 flex flex-wrap items-center justify-between gap-3"
                   >
-                    <div>
+                    <div className="space-y-0.5">
                       <div className="text-sm font-extrabold text-[var(--text-primary)]">
                         {m.title}
                       </div>
-                      <div className="text-xs text-[var(--text-secondary)] mt-0.5">
+                      <div className="text-xs text-[var(--text-secondary)]">
                         {m.age_group || "Genel"} •{" "}
                         {m.location || "Saha bilgisi yok"}
                       </div>
                     </div>
-                    <span className="px-3 py-1 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold tabular-nums">
+                    <span className="px-3 py-1.5 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold tabular-nums">
                       {formatShortDateTR(m.event_date, m.match_time)}
                     </span>
                   </div>
@@ -223,8 +258,8 @@ export default function HomePage() {
             </div>
 
             {recentAnnouncements.length === 0 ? (
-              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center text-xs font-bold text-[var(--text-secondary)]">
-                Henüz duyuru paylaşılmadı.
+              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
+                Henüz genel kulüp duyurusu paylaşılmadı.
               </div>
             ) : (
               <div className="space-y-3">
@@ -239,37 +274,79 @@ export default function HomePage() {
             )}
           </section>
         </div>
+
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Link
+            href="/gorevler"
+            className="group bg-[var(--bg-surface)] hover:border-[var(--brand-navy)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
+          >
+            <div className="text-sm font-black text-[var(--brand-navy)] dark:text-sky-300 group-hover:underline">
+              Maç Skor &amp; Golcü Tahmini
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              Maç öncesi skor ve ilk golcü tahminini yap, kazandığın puanları
+              oyuncu kartına aktar.
+            </p>
+          </Link>
+
+          <Link
+            href="/kadro-kur"
+            className="group bg-[var(--bg-surface)] hover:border-[var(--brand-red)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
+          >
+            <div className="text-sm font-black text-[var(--brand-red)] group-hover:underline">
+              Taktik Tahtası &amp; Kadro Kur
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              4-3-3, 4-2-3-1 veya 3-5-2 dizilişleriyle ilk 11&apos;ini kur ve
+              yüksek çözünürlüklü PNG olarak paylaş.
+            </p>
+          </Link>
+
+          <Link
+            href="/kayit"
+            className="group bg-[var(--bg-surface)] hover:border-emerald-600 rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
+          >
+            <div className="text-sm font-black text-emerald-700 dark:text-emerald-400 group-hover:underline">
+              Altyapı &amp; Kulüp Ön Kayıt
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+              Doğum tarihine göre otomatik yaş kategorisi belirlenir; başvurun
+              doğrudan yönetim paneline iletilir.
+            </p>
+          </Link>
+        </section>
       </main>
 
-      <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] mt-auto">
-        <div className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
-          <div className="space-y-2">
-            <div className="text-sm font-black text-[var(--brand-navy)] dark:text-sky-300">
+      <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] py-6 px-4 text-xs text-[var(--text-secondary)]">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div className="font-black text-[var(--brand-navy)] dark:text-sky-300">
               Çorum İkbal Spor Kulübü
             </div>
-            <p className="text-[var(--text-secondary)] leading-relaxed">
-              Altyapıdan A takıma disiplinli spor eğitimi, ahlaklı gelişim ve
-              modern dijital kulüp yönetimi.
-            </p>
-          </div>
-          <div className="space-y-2">
-            <div className="font-black uppercase tracking-wider text-[11px] text-[var(--text-muted)]">
-              Hızlı Erişim
-            </div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5 font-bold text-[var(--text-secondary)]">
-              <Link href="/sporcu" className="hover:text-[var(--brand-red)]">Sporcu Paneli</Link>
-              <Link href="/kadro-kur" className="hover:text-[var(--brand-red)]">Kadro Kur</Link>
-              <Link href="/gorevler" className="hover:text-[var(--brand-red)]">Maç &amp; Görevler</Link>
-              <Link href="/bildirimler" className="hover:text-[var(--brand-red)]">Duyurular</Link>
-              <Link href="/kayit" className="hover:text-[var(--brand-red)]">Üyelik Başvurusu</Link>
-              <Link href="/iletisim" className="hover:text-[var(--brand-red)]">İletişim</Link>
+            <div className="text-[11px] mt-0.5">
+              Altyapıdan A takıma disiplinli spor eğitimi ve modern kulüp
+              yönetimi.
             </div>
           </div>
-          <div className="space-y-1.5 md:text-right text-[var(--text-muted)]">
-            <div className="font-bold text-[var(--text-primary)]">
-              2026–2027 Sezonu
-            </div>
-            <div>© 2026 Çorum İkbal Spor Kulübü. Tüm hakları saklıdır.</div>
+          <div className="flex flex-wrap gap-4 font-bold">
+            <Link href="/kadro-kur" className="hover:underline">
+              Kadro Kur
+            </Link>
+            <Link href="/gorevler" className="hover:underline">
+              Maç &amp; Görevler
+            </Link>
+            <Link href="/bildirimler" className="hover:underline">
+              Duyurular
+            </Link>
+            <Link href="/kayit" className="hover:underline">
+              Üyelik Başvurusu
+            </Link>
+            <Link href="/iletisim" className="hover:underline">
+              İletişim
+            </Link>
+          </div>
+          <div className="text-[11px] font-semibold">
+            © 2026 Çorum İkbal Spor Kulübü
           </div>
         </div>
       </footer>

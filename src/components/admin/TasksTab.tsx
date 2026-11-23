@@ -80,7 +80,7 @@ export function TasksTab({
   onLogActivity,
   onRefreshTasks,
 }: TasksTabProps) {
-  const [newTask, setNewTask] = useState({
+  const [homeTeam, setHomeTeam] = useState("Çorum İkbal Spor");`r`n  const [awayTeam, setAwayTeam] = useState("");`r`n  const [newTask, setNewTask] = useState({
     title: "",
     task_type: "mac",
     age_group: "Minikler",
@@ -195,7 +195,7 @@ export function TasksTab({
             .map((p) => p.id);
 
     const { error } = await supabase.from("tasks_assignments").insert({
-      title: newTask.title,
+      title: computedTitle,
       task_type: newTask.task_type,
       age_group: newTask.age_group,
       event_date: cleanDate,
@@ -213,7 +213,7 @@ export function TasksTab({
 
     const formattedDate = formatDisplayDate(cleanDate);
     const baseMsg = buildSympatheticMatchMessage({
-      title: newTask.title,
+      title: computedTitle,
       event_date: formattedDate,
       match_time: newTask.match_time,
       location: finalLocation,
@@ -222,7 +222,7 @@ export function TasksTab({
     });
     const msg = `${baseMsg}\nKonum Haritası: ${mapsLink}`;
 
-    const taskCombined = `MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${newTask.title} (${newTask.age_group})\n${msg}`;
+    const taskCombined = `MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${computedTitle} (${newTask.age_group})\n${msg}`;
     await supabase.from("club_messages").insert({
       body: taskCombined,
       message_text: taskCombined,
@@ -236,7 +236,7 @@ export function TasksTab({
 
     const pushRes = await sendPushViaApi(
       ["Tümü"],
-      `Yeni Maç / Etkinlik: ${newTask.title}`,
+      `Yeni Maç / Etkinlik: ${computedTitle}`,
       `${formattedDate} ${newTask.match_time} • ${newTask.age_group} • ${finalLocation}`
     );
 
@@ -383,13 +383,66 @@ export function TasksTab({
           Yeni Maç / Etkinlik Ekle
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <input
-            required
-            placeholder="Başlık (Örn: İkbal Spor - Çorumspor)"
-            value={newTask.title}
-            onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"
-          />
+          {newTask.task_type === "mac" ? (
+            <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <input
+                  required
+                  placeholder="Ev Sahibi Takım"
+                  value={homeTeam}
+                  onChange={(e) => setHomeTeam(e.target.value)}
+                  className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+                />
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--brand-navy)] dark:text-sky-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={homeTeam.trim() === "Çorum İkbal Spor"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setHomeTeam("Çorum İkbal Spor");
+                        if (awayTeam.trim() === "Çorum İkbal Spor") setAwayTeam("");
+                      } else if (homeTeam.trim() === "Çorum İkbal Spor") {
+                        setHomeTeam("");
+                      }
+                    }}
+                  />
+                  Çorum İkbal Spor
+                </label>
+              </div>
+              <div className="space-y-1">
+                <input
+                  required
+                  placeholder="Deplasman Takım"
+                  value={awayTeam}
+                  onChange={(e) => setAwayTeam(e.target.value)}
+                  className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+                />
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--brand-red)] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={awayTeam.trim() === "Çorum İkbal Spor"}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setAwayTeam("Çorum İkbal Spor");
+                        if (homeTeam.trim() === "Çorum İkbal Spor") setHomeTeam("");
+                      } else if (awayTeam.trim() === "Çorum İkbal Spor") {
+                        setAwayTeam("");
+                      }
+                    }}
+                  />
+                  Çorum İkbal Spor
+                </label>
+              </div>
+            </div>
+          ) : (
+            <input
+              required
+              placeholder="Etkinlik Başlığı"
+              value={newTask.title}
+              onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"
+            />
+          )}
           <select
             value={newTask.task_type}
             onChange={(e) =>

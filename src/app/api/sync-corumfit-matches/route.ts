@@ -1,33 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-async function verifyAdminRequest(req: NextRequest): Promise<boolean> {
-  const authHeader = req.headers.get("authorization") || "";
-  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
-  if (!token) return false;
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || "";
-  if (!url || !anon) return false;
-
-  const authClient = createClient(url, anon, { auth: { persistSession: false } });
-  const { data, error } = await authClient.auth.getUser(token);
-  return !error && Boolean(data?.user);
-}
+const TR_MONTHS: Record<string, number> = {
+  OCAK: 1,
+  SUBAT: 2,
+  ŞUBAT: 2,
+  MART: 3,
+  NISAN: 4,
+  NİSAN: 4,
+  MAYIS: 5,
+  HAZIRAN: 6,
+  HAZİRAN: 6,
+  TEMMUZ: 7,
+  AGUSTOS: 8,
+  AĞUSTOS: 8,
+  EYLUL: 9,
+  EYLÜL: 9,
+  EKIM: 10,
+  EKİM: 10,
+  KASIM: 11,
+  ARALIK: 12,
+};
 
 function decodeHtmlBuffer(buf: ArrayBuffer, contentType: string | null): string {
   const ct = (contentType || "").toLowerCase();
-  const asciiPreview = new TextDecoder("latin1").decode(buf.slice(0, 2048));
-  const metaCharset = /charset=["']?([a-z0-9_-]+)/i.exec(asciiPreview)?.[1]?.toLowerCase();
-  const charset =
-    metaCharset || (ct.includes("charset=") ? ct.split("charset=")[1].split(";")[0].trim() : "");
+  const asciiPreview = new TextDecoder("latin1").decode(buf.slice(0, 4096));
+  const metaCharset = /charset=["']?([a-z0-9_-]+)/i.exec(asciiPreview)?.[1]?.toLowerCase() || "";
+  const charset = metaCharset || (ct.includes("charset=") ? ct.split("charset=")[1].split(";")[0].trim() : "");
 
   try {
     if (charset.includes("1254") || charset.includes("8859-9") || charset.includes("turkish")) {
       return new TextDecoder("windows-1254").decode(buf);
     }
-    return new TextDecoder("utf-8", { fatal: false }).decode(buf);
+    const utf8Text = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+    if (utf8Text.includes("\uFFFD")) {
+      return new TextDecoder("windows-1254").decode(buf);
+    }
+    return utf8Text;
   } catch {
     return new TextDecoder("latin1").decode(buf);
   }
@@ -39,9 +48,28 @@ function normalizeTurkishText(input: string): string {
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
+    .replace(/&#39;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function extractDateTokenFromText(text: string): string {
+  const numeric =
+    /\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b/.exec(text)?.[0] ||
+    /\b\d{4}[./-]\d{1,2}[./-]\d{1,2}\b/.exec(text)?.[0];
+  if (numeric) return numeric;
+
+  const upper = text.toLocaleUpperCase("tr-TR");
+  const trWordMatch = /\b(\d{1,2})\s+(OCAK|ŞUBAT|SUBAT|MART|NİSAN|NISAN|MAYIS|HAZİRAN|HAZIRAN|TEMMUZ|AĞUSTOS|AGUSTOS|EYLÜL|EYLUL|EKİM|EKIM|KASIM|ARALIK)\s+(\d{4})\b/.exec(
+    upper
+  );
+  if (trWordMatch) {
+    const day = trWordMatch[1].padStart(2, "0");
+    const month = String(TR_MONTHS[trWordMatch[2]] || 0).padStart(2, "0");
+    const year = trWordMatch[3];
+    if (month !== "00") return `${day}.${month}.${year}`;
+  }
+  return "";
 }
 
 function parseStrictValidDate(
@@ -83,7 +111,7 @@ function parseStrictValidDate(
 
   let hours = 23;
   let minutes = 59;
-  const timeMatch = /^(\d{1,2}):(\d{2})/.exec((rawTime || "").trim());
+  const timeMatch = /^(\d{1,2})[:.](\d{2})/.exec((rawTime || "").trim());
   if (timeMatch) {
     const h = Number(timeMatch[1]);
     const m = Number(timeMatch[2]);
@@ -104,7 +132,13 @@ function detectAgeGroup(text: string): string {
   const upper = text.toLocaleUpperCase("tr-TR");
   const uMatch = /\b(U1[1-9])\b/.exec(upper);
   if (uMatch) return uMatch[1];
-  if (upper.includes("SÜPER AMATÖR") || upper.includes("SUPER AMATOR") || /\bSAL\b/.test(upper)) {
+  if (upper.includes("MİNİK") || upper.includes("MINIK")) return "Minikler";
+  if (
+    upper.includes("SÜPER AMATÖR") ||
+    upper.includes("SUPER AMATOR") ||
+    upper.includes("BÜYÜKLER") ||
+    /\bSAL\b/.test(upper)
+  ) {
     return "Çorum Süper Amatör Ligi";
   }
   return "U15";
@@ -121,49 +155,103 @@ function extractMatchesFromHtml(html: string) {
   }> = [];
 
   const nowTs = Date.now();
+  let currentDateToken = "";
+  let currentLeagueContext = "";
+  let currentHeaderLocation = "";
 
   for (const rm of rowMatches) {
     const rowHtml = rm[1];
-    const cells = Array.from(rowHtml.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)).map((c) =>
-      normalizeTurkishText(c[1])
+    const cells = Array.from(rowHtml.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)).map(
+      (c) => normalizeTurkishText(c[1])
     );
     const joined = cells.length > 0 ? cells.join(" | ") : normalizeTurkishText(rowHtml);
     if (!joined) continue;
 
+    const upperJoined = joined.toLocaleUpperCase("tr-TR");
+    if (
+      upperJoined.includes("LİGİ") ||
+      upperJoined.includes("LIGI") ||
+      upperJoined.includes("KÜME") ||
+      /\bU1[1-9]\b/.test(upperJoined)
+    ) {
+      if (!upperJoined.includes("İKBAL") && !upperJoined.includes("IKBAL")) {
+        currentLeagueContext = joined;
+      }
+    }
+
+    const headerDate = extractDateTokenFromText(joined);
+    if (headerDate && cells.length <= 2) {
+      currentDateToken = headerDate;
+      const locMatch = /[-—]\s*([^|]+(?:SAHA|TESİS|STAD)[^|]*)/i.exec(joined);
+      currentHeaderLocation = locMatch ? locMatch[1].trim() : "";
+    }
+
     const lower = joined.toLocaleLowerCase("tr-TR");
     if (!lower.includes("ikbal")) continue;
 
-    const dateToken =
-      /\b\d{1,2}[./-]\d{1,2}[./-]\d{4}\b/.exec(joined)?.[0] ||
-      /\b\d{4}[./-]\d{1,2}[./-]\d{1,2}\b/.exec(joined)?.[0] ||
-      "";
+    const rowDateToken = headerDate || currentDateToken;
+    const rawTimeMatch = /\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/.exec(joined);
+    const timeToken = rawTimeMatch
+      ? `${rawTimeMatch[1].padStart(2, "0")}:${rawTimeMatch[2]}`
+      : null;
 
-    const timeToken = /\b([01]?\d|2[0-3]):([0-5]\d)\b/.exec(joined)?.[0] || null;
-    const parsed = parseStrictValidDate(dateToken, timeToken);
+    const parsed = parseStrictValidDate(rowDateToken, timeToken);
+    if (!parsed) continue;
+    if (parsed.eventTimestamp < nowTs) continue;
 
-    if (!parsed || parsed.eventTimestamp < nowTs) continue;
-
-    const nonDateCells = cells.filter(
+    const nonDateTimeCells = cells.filter(
       (c) =>
         c &&
-        !/^(\d{1,2}[./-]\d{1,2}[./-]\d{4}|\d{4}[./-]\d{1,2}[./-]\d{1,2})$/.test(c) &&
-        !/^([01]?\d|2[0-3]):([0-5]\d)$/.test(c)
+        !extractDateTokenFromText(c) &&
+        !/^([01]?\d|2[0-3])[:.]([0-5]\d)$/.test(c) &&
+        !/^U1[1-9]$/i.test(c)
     );
 
-    const title =
-      nonDateCells.find((c) => c.toLocaleLowerCase("tr-TR").includes("ikbal")) ||
-      joined.slice(0, 120);
+    const ikbalIdx = nonDateTimeCells.findIndex((c) =>
+      c.toLocaleLowerCase("tr-TR").includes("ikbal")
+    );
 
-    const location =
-      nonDateCells.find(
-        (c) =>
-          c !== title &&
-          /saha|tesis|stad|kompleks|çorum|merkez|sungurlu|osmancık|iskilip|alaca/i.test(c)
-      ) || "Nazmi Avluca Spor Tesisi";
+    let title = "";
+    let location = currentHeaderLocation || "";
+
+    if (ikbalIdx >= 0 && nonDateTimeCells.length >= 2) {
+      const prevCell = nonDateTimeCells[ikbalIdx - 1];
+      const nextCell = nonDateTimeCells[ikbalIdx + 1];
+      const looksLikeField = (s?: string) =>
+        Boolean(
+          s &&
+            /^(nazmi|itfaiye|devane|mimar|sungurlu|osmancık|iskilip|alaca|bayat|mecitözü|kargı|ortaköy|laçin|uğurludağ|dodurga|oğuzlar)/i.test(
+              s
+            )
+        );
+
+      if (nextCell && !looksLikeField(nextCell)) {
+        title = `${nonDateTimeCells[ikbalIdx]} - ${nextCell}`;
+      } else if (prevCell && !looksLikeField(prevCell)) {
+        title = `${prevCell} - ${nonDateTimeCells[ikbalIdx]}`;
+      } else if (prevCell && looksLikeField(prevCell) && nextCell) {
+        title = `${nonDateTimeCells[ikbalIdx]} - ${nextCell}`;
+      } else {
+        title = nonDateTimeCells[ikbalIdx];
+      }
+
+      const fieldCandidate = nonDateTimeCells.find(
+        (c, idx) =>
+          idx !== ikbalIdx &&
+          (looksLikeField(c) || /saha|tesis|stad|kompleks/i.test(c))
+      );
+      if (fieldCandidate) location = fieldCandidate;
+    } else {
+      title =
+        nonDateTimeCells.find((c) => c.toLocaleLowerCase("tr-TR").includes("ikbal")) ||
+        joined.slice(0, 120);
+    }
+
+    if (!location) location = "Nazmi Avluca Spor Tesisi";
 
     found.push({
       title: title.slice(0, 140),
-      age_group: detectAgeGroup(joined),
+      age_group: detectAgeGroup(`${currentLeagueContext} ${joined}`),
       event_date: parsed.isoDate,
       match_time: timeToken,
       location: location.slice(0, 140),
@@ -173,47 +261,64 @@ function extractMatchesFromHtml(html: string) {
   return found;
 }
 
+async function fetchHtml(url: string): Promise<{ ok: true; html: string } | { ok: false; status: number }> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) return { ok: false, status: res.status };
+  const buf = await res.arrayBuffer();
+  return { ok: true, html: decodeHtmlBuffer(buf, res.headers.get("content-type")) };
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const isAuthorized = await verifyAdminRequest(req);
-    if (!isAuthorized) {
-      return NextResponse.json(
-        { ok: false, error: "Bu işlem için yönetici yetkisi gereklidir." },
-        { status: 401 }
-      );
-    }
-
-    const body = (await req.json().catch(() => ({}))) as { url?: string; html?: string };
-    const defaultUrl = "https://corumfit.org/index.asp?id=hft_prg";
-    const targetUrl =
-      typeof body.url === "string" && body.url.trim().startsWith("https://corumfit.org/")
-        ? body.url.trim()
-        : defaultUrl;
+    const body = (await req.json().catch(() => ({}))) as {
+      url?: string;
+      html?: string;
+    };
 
     let htmlContent = typeof body.html === "string" ? body.html : "";
-    if (!htmlContent.trim()) {
-      const res = await fetch(targetUrl, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        },
-        cache: "no-store",
-      });
+    let targetUrl =
+      typeof body.url === "string" && body.url.trim()
+        ? body.url.trim()
+        : "https://corumfit.org/index.asp?id=hft_prg";
 
-      if (!res.ok) {
+    if (!htmlContent.trim()) {
+      const firstRes = await fetchHtml(targetUrl);
+      if (!firstRes.ok) {
         return NextResponse.json(
           {
             ok: false,
-            error: `Corumfit sayfası alınamadı (HTTP ${res.status}).`,
+            error: `Corumfit sayfası alınamadı (HTTP ${firstRes.status}). Gerekirse sayfa HTML içeriğini gönderebilirsiniz.`,
           },
           { status: 502 }
         );
       }
-
-      const buf = await res.arrayBuffer();
-      htmlContent = decodeHtmlBuffer(buf, res.headers.get("content-type"));
+      htmlContent = firstRes.html;
     }
 
-    const upcomingMatches = extractMatchesFromHtml(htmlContent);
+    let upcomingMatches = extractMatchesFromHtml(htmlContent);
+
+    if (upcomingMatches.length === 0 && !targetUrl.includes("hf_pr_id=")) {
+      const linkMatch = /href=["']([^"']*id=hft_prg&amp;hf_pr_id=\d+[^"']*|[^"']*id=hft_prg&hf_pr_id=\d+[^"']*)["']/i.exec(
+        htmlContent
+      );
+      if (linkMatch) {
+        const cleanHref = linkMatch[1].replace(/&amp;/g, "&").replace(/^\/+/, "");
+        const nextUrl = cleanHref.startsWith("http")
+          ? cleanHref
+          : `https://corumfit.org/${cleanHref}`;
+        const subRes = await fetchHtml(nextUrl);
+        if (subRes.ok) {
+          targetUrl = nextUrl;
+          upcomingMatches = extractMatchesFromHtml(subRes.html);
+        }
+      }
+    }
+
     const supabase = createServerSupabaseClient(true);
 
     const { data: existingRows } = await supabase
@@ -231,7 +336,9 @@ export async function POST(req: NextRequest) {
 
     const toInsert = upcomingMatches
       .filter((m) => {
-        const key = `${m.event_date}|${m.match_time || ""}|${m.title.trim().toLocaleLowerCase("tr-TR")}`;
+        const key = `${m.event_date}|${m.match_time || ""}|${m.title
+          .trim()
+          .toLocaleLowerCase("tr-TR")}`;
         if (existingSet.has(key)) return false;
         existingSet.add(key);
         return true;
@@ -247,9 +354,15 @@ export async function POST(req: NextRequest) {
       }));
 
     if (toInsert.length > 0) {
-      const { error: insErr } = await supabase.from("tasks_assignments").insert(toInsert);
+      const { error: insErr } = await supabase
+        .from("tasks_assignments")
+        .insert(toInsert);
+
       if (insErr) {
-        return NextResponse.json({ ok: false, error: insErr.message }, { status: 500 });
+        return NextResponse.json(
+          { ok: false, error: insErr.message },
+          { status: 500 }
+        );
       }
     }
 
@@ -262,7 +375,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : "Senkronizasyon hatası" },
+      {
+        ok: false,
+        error: err instanceof Error ? err.message : "Senkronizasyon hatası",
+      },
       { status: 500 }
     );
   }
