@@ -55,7 +55,7 @@ export function PlayersTab({
   const [editingPlayer, setEditingPlayer] = useState<ExtendedPlayer | null>(
     null
   );
-  const [editPointSign, setEditPointSign] = useState<"+" | "-">("+");
+  const [editPointSign, setEditPointSign] = useState<"+" | "-" | null>(null);
   const [editPointAmount, setEditPointAmount] = useState<string>("5");
 
   const canManageCategories = role === "admin" || role === "coach";
@@ -110,7 +110,7 @@ export function PlayersTab({
       return;
     }
     setEditingPlayer({ ...p });
-    setEditPointSign("+");
+    setEditPointSign(null);
     setEditPointAmount("5");
   }
 
@@ -346,7 +346,7 @@ export function PlayersTab({
       1,
       Math.min(99, parseInt(editPointAmount, 10) || 0)
     );
-    const signedDelta = editPointSign === "+" ? rawAmount : -rawAmount;
+    const signedDelta = editPointSign === "+" ? rawAmount : editPointSign === "-" ? -rawAmount : 0;
     const basePoints = Number(editingPlayer.skill_points ?? 20);
     const nextSkillPoints = Math.max(0, basePoints + signedDelta);
 
@@ -785,7 +785,7 @@ export function PlayersTab({
                                       <div className="flex items-center gap-2">
                                         <button
                                           type="button"
-                                          onClick={() => setEditPointSign("+")}
+                                          onClick={() => setEditPointSign((prev) => (prev === "+" ? null : "+"))}
                                           aria-label="Puan Ekle (+)"
                                           className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-black transition cursor-pointer ${
                                             editPointSign === "+"
@@ -798,7 +798,7 @@ export function PlayersTab({
 
                                         <button
                                           type="button"
-                                          onClick={() => setEditPointSign("-")}
+                                          onClick={() => setEditPointSign((prev) => (prev === "-" ? null : "-"))}
                                           aria-label="Puan Düş (-)"
                                           className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-2xl font-black transition cursor-pointer ${
                                             editPointSign === "-"
@@ -814,6 +814,7 @@ export function PlayersTab({
                                         type="number"
                                         min={1}
                                         max={99}
+                                        disabled={editPointSign === null}
                                         value={editPointAmount}
                                         onChange={(e) => {
                                           const digits = e.target.value.replace(
