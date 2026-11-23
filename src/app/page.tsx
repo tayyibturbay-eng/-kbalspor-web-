@@ -37,6 +37,7 @@ export default function HomePage() {
     AnnouncementItem[]
   >([]);
   const [playerCount, setPlayerCount] = useState<number>(0);
+  const [showIosGuide, setShowIosGuide] = useState<boolean>(false);
 
   const loadHomeSummary = useCallback(async () => {
     const [tasksRes, msgsRes, playersCountRes] = await Promise.all([
@@ -201,6 +202,77 @@ export default function HomePage() {
           </div>
         </div>
 
+        <section className="rounded-3xl bg-gradient-to-r from-[#041e3b] via-[var(--brand-navy)] to-[#7f1d1d] text-white p-6 sm:p-8 shadow-md border border-white/15 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/20 border border-emerald-300/40 text-emerald-200 text-[11px] font-black uppercase tracking-wider">
+              Mobil Uygulama &amp; PWA • Android &amp; iOS
+            </span>
+            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+              Çorum İkbal Spor Mobil Uygulamamız Android Platformunda Yayında
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+              QR antrenman yoklaması, canlı duyurular, taktik kadro paylaşımı ve
+              sporcu kartı yönetimi artık cebinizde. Android APK dosyasını
+              indirebilir veya iPhone/iPad cihazınızda tek dokunuşla Ana Ekrana
+              ekleyebilirsiniz.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3 shrink-0">
+            <a
+              href="https://expo.dev/artifacts/eas/nR1N-4BNki0uWG3AVxUvidX2MW7MkyN7uHCMS_yitN8.apk"
+              target="_blank"
+              rel="noreferrer"
+              className="px-5 py-3.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg transition"
+            >
+              Android Uygulamayı İndir (APK) ↓
+            </a>
+            <button
+              type="button"
+              onClick={() => setShowIosGuide(true)}
+              className="px-5 py-3.5 rounded-2xl bg-white/15 hover:bg-white/25 border border-white/30 text-white text-xs sm:text-sm font-black shadow-lg cursor-pointer transition"
+            >
+              iOS (iPhone) Ana Ekrana Ekle
+            </button>
+          </div>
+        </section>
+
+        {showIosGuide && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-black">
+                  iPhone / iPad — Ana Ekrana Ekleme
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowIosGuide(false)}
+                  className="text-xs font-extrabold text-[var(--brand-red)] cursor-pointer"
+                >
+                  Kapat ✕
+                </button>
+              </div>
+              <ol className="space-y-2.5 text-xs sm:text-sm text-[var(--text-secondary)] list-decimal list-inside">
+                <li>
+                  Bu sayfayı iPhone/iPad cihazınızda <strong>Safari</strong> tarayıcısı ile açın.
+                </li>
+                <li>
+                  Ekranın altındaki <strong>Paylaş (↑)</strong> simgesine dokunun.
+                </li>
+                <li>
+                  Açılan menüden <strong>&quot;Ana Ekrana Ekle&quot;</strong> seçeneğine basın ve <strong>Ekle</strong>&apos;yi onaylayın.
+                </li>
+              </ol>
+              <button
+                type="button"
+                onClick={() => setShowIosGuide(false)}
+                className="w-full py-2.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-black cursor-pointer"
+              >
+                Anlaşıldı
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           <section className="lg:col-span-7 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between gap-2">
@@ -275,29 +347,7 @@ export default function HomePage() {
           </section>
         </div>
 
-        <section className="rounded-3xl bg-gradient-to-r from-[#041e3b] via-[var(--brand-navy)] to-[#7f1d1d] text-white p-6 sm:p-8 shadow-md border border-white/15 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/20 border border-emerald-300/40 text-emerald-200 text-[11px] font-black uppercase tracking-wider">
-              Android APK Yayında • Resmi Mobil Uygulama
-            </span>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-              Çorum İkbal Spor Mobil Uygulamamız Android Platformunda Yayında
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-              QR antrenman yoklaması, canlı duyurular, taktik kadro paylaşımı ve
-              sporcu kartı yönetimi artık cebinizde. Resmi APK dosyasını
-              doğrudan telefonunuza indirebilirsiniz.
-            </p>
-          </div>
-          <a
-            href="https://expo.dev/artifacts/eas/nR1N-4BNki0uWG3AVxUvidX2MW7MkyN7uHCMS_yitN8.apk"
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 px-6 py-3.5 rounded-2xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs sm:text-sm font-black shadow-lg transition"
-          >
-            Android Uygulamayı İndir (APK) ↓
-          </a>
-        </section>
+        
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
