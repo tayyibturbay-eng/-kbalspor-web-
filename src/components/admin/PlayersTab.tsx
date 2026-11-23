@@ -59,6 +59,8 @@ export function PlayersTab({
   const [editPointAmount, setEditPointAmount] = useState<string>("5");
 
   const canManageCategories = role === "admin" || role === "coach";
+  const tableColSpan =
+    role === "admin" ? 7 : canManageCategories ? 6 : 5;
 
   const duplicateKeys = useMemo(
     () => getDuplicatePlayerKeys(players),
@@ -103,6 +105,10 @@ export function PlayersTab({
   );
 
   function openPlayerEditor(p: ExtendedPlayer) {
+    if (editingPlayer?.id === p.id) {
+      setEditingPlayer(null);
+      return;
+    }
     setEditingPlayer({ ...p });
     setEditPointSign("+");
     setEditPointAmount("5");
@@ -383,350 +389,6 @@ export function PlayersTab({
         </div>
       )}
 
-      {canManageCategories && editingPlayer && (
-        <form
-          onSubmit={savePlayerEdit}
-          className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-md border-2 border-[var(--brand-red)] space-y-4 text-[var(--text-primary)]"
-        >
-          <div className="flex justify-between items-center">
-            <h2 className="text-lg font-black text-[var(--text-primary)]">
-              Oyuncu Bilgilerini &amp; Kategorilerini Düzenle
-            </h2>
-            <button
-              type="button"
-              onClick={() => setEditingPlayer(null)}
-              className="text-sm font-semibold text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline cursor-pointer"
-            >
-              Vazgeç
-            </button>
-          </div>
-
-          {role === "admin" && (
-            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="text-xs font-black text-[var(--text-primary)]">
-                  Oyuncu Puan Düzenle (Mevcut: {editingPlayer.skill_points ?? 20}p)
-                </div>
-                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-                  + veya - işaretini seçin ve 1–99 arası puan girin (Varsayılan: +5)
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditPointSign("+")}
-                    aria-label="Puan Ekle (+)"
-                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-black transition cursor-pointer ${
-                      editPointSign === "+"
-                        ? "border-emerald-500 bg-emerald-500/20 text-emerald-400 ring-2 ring-emerald-400 scale-105"
-                        : "border-emerald-600/60 bg-[var(--bg-surface)] text-emerald-500 opacity-75 hover:opacity-100"
-                    }`}
-                  >
-                    +
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setEditPointSign("-")}
-                    aria-label="Puan Düş (-)"
-                    className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-2xl font-black transition cursor-pointer ${
-                      editPointSign === "-"
-                        ? "border-red-500 bg-red-500/20 text-red-400 ring-2 ring-red-400 scale-105"
-                        : "border-red-600/60 bg-[var(--bg-surface)] text-red-500 opacity-75 hover:opacity-100"
-                    }`}
-                  >
-                    -
-                  </button>
-                </div>
-
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={editPointAmount}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/[^0-9]/g, "");
-                    if (!digits) {
-                      setEditPointAmount("");
-                      return;
-                    }
-                    const n = Math.min(99, parseInt(digits, 10));
-                    setEditPointAmount(String(n));
-                  }}
-                  aria-label="Puan Miktarı"
-                  className="w-20 border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-center text-sm font-black"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Ad Soyad
-              </label>
-              <input
-                required
-                disabled={role !== "admin"}
-                value={editingPlayer.full_name}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    full_name: e.target.value,
-                  })
-                }
-                className={`w-full ${fieldClass}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Doğum Tarihi (Kadro Yaş Kuralı)
-              </label>
-              <input
-                type="date"
-                disabled={role !== "admin"}
-                value={editingPlayer.birth_date || ""}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    birth_date: e.target.value,
-                  })
-                }
-                className={`w-full ${fieldClass}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Ana Kategori
-              </label>
-              <select
-                value={editingPlayer.age_group}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    age_group: e.target.value,
-                  })
-                }
-                className={`w-full ${fieldClass}`}
-              >
-                {AGE_GROUPS.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                İkinci Kategori (Bildirim İçin)
-              </label>
-              <select
-                value={editingPlayer.secondary_age_group || ""}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    secondary_age_group: e.target.value || null,
-                  })
-                }
-                className={`w-full ${fieldClass}`}
-              >
-                <option value="">Yok (Tek Kategori)</option>
-                {AGE_GROUPS.filter((g) => g !== editingPlayer.age_group).map(
-                  (g) => (
-                    <option key={g} value={g}>
-                      + {g}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Telefon
-              </label>
-              <input
-                disabled={role !== "admin"}
-                value={editingPlayer.parent_phone || ""}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    parent_phone: e.target.value,
-                  })
-                }
-                placeholder="Telefon"
-                className={`w-full ${fieldClass}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Mevki
-              </label>
-              <select
-                value={editingPlayer.position || "Orta Saha"}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    position: e.target.value,
-                  })
-                }
-                className={`w-full ${fieldClass}`}
-              >
-                {POSITIONS.map((pos) => (
-                  <option key={pos} value={pos}>
-                    {pos}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Forma No
-              </label>
-              <input
-                type="number"
-                disabled={role !== "admin"}
-                placeholder="Forma No"
-                value={editingPlayer.jersey_number ?? ""}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    jersey_number: e.target.value
-                      ? Number(e.target.value)
-                      : null,
-                  })
-                }
-                className={`w-full ${fieldClass}`}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Lisans No
-              </label>
-              <input
-                disabled={role !== "admin"}
-                value={editingPlayer.license_no || ""}
-                onChange={(e) =>
-                  setEditingPlayer({
-                    ...editingPlayer,
-                    license_no: e.target.value,
-                  })
-                }
-                placeholder="Lisans Numarası"
-                className={`w-full ${fieldClass}`}
-              />
-            </div>
-          </div>
-
-          {role === "admin" && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Oyuncu ID
-                </label>
-                <input
-                  value={editingPlayer.player_code || ""}
-                  onChange={(e) =>
-                    setEditingPlayer({
-                      ...editingPlayer,
-                      player_code: e.target.value,
-                    })
-                  }
-                  placeholder="Oyuncu ID"
-                  className={`w-full uppercase ${fieldClass}`}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Şifre
-                </label>
-                <input
-                  value={editingPlayer.player_pin || ""}
-                  onChange={(e) =>
-                    setEditingPlayer({
-                      ...editingPlayer,
-                      player_pin: e.target.value,
-                    })
-                  }
-                  placeholder="Şifre"
-                  className={`w-full ${fieldClass}`}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Temsilci Grubu (Varsayılan: Tüm Takım)
-                </label>
-                <select
-                  disabled={!editingPlayer.is_representative}
-                  value={editingPlayer.representative_group || "Tümü"}
-                  onChange={(e) =>
-                    setEditingPlayer({
-                      ...editingPlayer,
-                      representative_group: e.target.value,
-                    })
-                  }
-                  className={`w-full ${fieldClass} disabled:opacity-50`}
-                >
-                  <option value="Tümü">Tüm Takım</option>
-                  {AGE_GROUPS.map((g) => (
-                    <option key={g} value={g}>
-                      {g} Temsilcisi
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <div className="flex flex-wrap items-center gap-4">
-              {role === "admin" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setEditingPlayer({
-                        ...editingPlayer,
-                        bound_device_id: null,
-                      })
-                    }
-                    className="border border-amber-400 bg-[var(--status-warning-bg)]/50 text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-bold cursor-pointer"
-                  >
-                    {editingPlayer.bound_device_id
-                      ? "Cihaz Kilidini Sıfırla"
-                      : "Cihaz Bağlı Değil"}
-                  </button>
-                  <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(editingPlayer.is_representative)}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setEditingPlayer({
-                          ...editingPlayer,
-                          is_representative: checked,
-                          representative_group: checked
-                            ? editingPlayer.representative_group || "Tümü"
-                            : "Tümü",
-                        });
-                      }}
-                    />
-                    Temsilci Yetkisi Ver (Önyüklü: Tüm Takım)
-                  </label>
-                </>
-              )}
-            </div>
-            <button
-              type="submit"
-              className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
-            >
-              Değişiklikleri Kaydet
-            </button>
-          </div>
-        </form>
-      )}
-
       {role === "admin" && (
         <form
           onSubmit={addPlayer}
@@ -914,145 +576,523 @@ export function PlayersTab({
                       role === "admin"
                         ? getPlayerWarnings(p, duplicateKeys)
                         : [];
+                    const isEditingThisRow =
+                      canManageCategories && editingPlayer?.id === p.id;
+
                     return (
-                      <tr
-                        key={p.id}
-                        className={
-                          warnings.length > 0
-                            ? "bg-[var(--status-warning-bg)]/35"
-                            : "bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]/70"
-                        }
-                      >
-                        <td className="p-2.5 font-bold text-[var(--text-primary)]">
-                          {p.full_name}
-                          {p.is_representative && (
-                            <span className="ml-2 text-[11px] bg-[var(--status-info-bg)] text-[var(--status-info-text)] font-bold px-2 py-0.5 rounded-full">
-                              Temsilci ({p.representative_group || "Tüm Takım"})
-                            </span>
-                          )}
-                          {warnings.map((w) => (
-                            <span
-                              key={w}
-                              className="inline-block ml-1 text-[11px] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] font-bold px-2 py-0.5 rounded"
-                            >
-                              {w}
-                            </span>
-                          ))}
-                        </td>
-                        <td className="p-2.5 text-xs font-medium text-[var(--text-secondary)]">
-                          {p.birth_date || "Eksik"}
-                        </td>
-                        <td className="p-2.5 text-xs space-y-1">
-                          <div className="font-bold text-[var(--text-primary)]">
-                            Ana: {p.age_group}
-                          </div>
-                          <select
-                            value={p.secondary_age_group || ""}
-                            onChange={(e) =>
-                              updatePlayerSecondaryGroup(p, e.target.value)
-                            }
-                            aria-label={`${p.full_name} ikinci kategori`}
-                            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
-                          >
-                            <option value="">+ 2. Kategori Yok</option>
-                            {AGE_GROUPS.filter((g) => g !== p.age_group).map(
-                              (g) => (
-                                <option key={g} value={g}>
-                                  + {g}
-                                </option>
-                              )
+                      <>
+                        <tr
+                          key={p.id}
+                          className={
+                            warnings.length > 0
+                              ? "bg-[var(--status-warning-bg)]/35"
+                              : "bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]/70"
+                          }
+                        >
+                          <td className="p-2.5 font-bold text-[var(--text-primary)]">
+                            {p.full_name}
+                            {p.is_representative && (
+                              <span className="ml-2 text-[11px] bg-[var(--status-info-bg)] text-[var(--status-info-text)] font-bold px-2 py-0.5 rounded-full">
+                                Temsilci ({p.representative_group || "Tüm Takım"})
+                              </span>
                             )}
-                          </select>
-                          {p.is_representative && role === "admin" && (
-                            <div>
-                              <select
-                                value={p.representative_group || "Tümü"}
-                                onChange={(e) =>
-                                  updateRepresentativeGroup(p, e.target.value)
-                                }
-                                className="border border-[var(--border-strong)] bg-[var(--status-info-bg)]/40 rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                            {warnings.map((w) => (
+                              <span
+                                key={w}
+                                className="inline-block ml-1 text-[11px] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] font-bold px-2 py-0.5 rounded"
                               >
-                                <option value="Tümü">Temsil: Tüm Takım</option>
-                                {AGE_GROUPS.map((g) => (
+                                {w}
+                              </span>
+                            ))}
+                          </td>
+                          <td className="p-2.5 text-xs font-medium text-[var(--text-secondary)]">
+                            {p.birth_date || "Eksik"}
+                          </td>
+                          <td className="p-2.5 text-xs space-y-1">
+                            <div className="font-bold text-[var(--text-primary)]">
+                              Ana: {p.age_group}
+                            </div>
+                            <select
+                              value={p.secondary_age_group || ""}
+                              onChange={(e) =>
+                                updatePlayerSecondaryGroup(p, e.target.value)
+                              }
+                              aria-label={`${p.full_name} ikinci kategori`}
+                              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                            >
+                              <option value="">+ 2. Kategori Yok</option>
+                              {AGE_GROUPS.filter((g) => g !== p.age_group).map(
+                                (g) => (
                                   <option key={g} value={g}>
-                                    Temsil: {g}
+                                    + {g}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                            {p.is_representative && role === "admin" && (
+                              <div>
+                                <select
+                                  value={p.representative_group || "Tümü"}
+                                  onChange={(e) =>
+                                    updateRepresentativeGroup(p, e.target.value)
+                                  }
+                                  className="border border-[var(--border-strong)] bg-[var(--status-info-bg)]/40 rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                                >
+                                  <option value="Tümü">Temsil: Tüm Takım</option>
+                                  {AGE_GROUPS.map((g) => (
+                                    <option key={g} value={g}>
+                                      Temsil: {g}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-xs text-[var(--text-primary)]">
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={p.position || "Orta Saha"}
+                                onChange={(e) =>
+                                  updatePlayerPosition(p, e.target.value)
+                                }
+                                className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-primary)]"
+                              >
+                                {POSITIONS.map((pos) => (
+                                  <option key={pos} value={pos}>
+                                    {pos}
                                   </option>
                                 ))}
                               </select>
+                              {p.jersey_number ? (
+                                <span className="font-bold text-[var(--text-secondary)]">
+                                  #{p.jersey_number}
+                                </span>
+                              ) : null}
                             </div>
-                          )}
-                        </td>
-                        <td className="p-2.5 text-xs text-[var(--text-primary)]">
-                          <div className="flex items-center gap-1.5">
-                            <select
-                              value={p.position || "Orta Saha"}
-                              onChange={(e) =>
-                                updatePlayerPosition(p, e.target.value)
-                              }
-                              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-primary)]"
-                            >
-                              {POSITIONS.map((pos) => (
-                                <option key={pos} value={pos}>
-                                  {pos}
-                                </option>
-                              ))}
-                            </select>
-                            {p.jersey_number ? (
-                              <span className="font-bold text-[var(--text-secondary)]">
-                                #{p.jersey_number}
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="p-2.5 text-xs font-extrabold text-[var(--text-primary)]">
-                          {p.skill_points ?? 20}p
-                        </td>
-                        {role === "admin" && (
-                          <td className="p-2.5 font-mono text-xs font-semibold text-[var(--text-secondary)]">
-                            {p.player_code} / {p.player_pin || "1234"}
                           </td>
-                        )}
-                        {canManageCategories && (
-                          <td className="p-2.5 flex flex-wrap gap-1.5">
-                            {role === "admin" && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => adjustPlayerPoints(p, pointStep)}
-                                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
-                                >
-                                  +{pointStep} Puan
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    adjustPlayerPoints(p, -pointStep)
-                                  }
-                                  className="bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
-                                >
-                                  -{pointStep} Puan
-                                </button>
-                              </>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => openPlayerEditor(p)}
-                              className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
-                            >
-                              Düzenle
-                            </button>
-                            {role === "admin" && (
+                          <td className="p-2.5 text-xs font-extrabold text-[var(--text-primary)]">
+                            {p.skill_points ?? 20}p
+                          </td>
+                          {role === "admin" && (
+                            <td className="p-2.5 font-mono text-xs font-semibold text-[var(--text-secondary)]">
+                              {p.player_code} / {p.player_pin || "1234"}
+                            </td>
+                          )}
+                          {canManageCategories && (
+                            <td className="p-2.5 flex flex-wrap gap-1.5">
+                              {role === "admin" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      adjustPlayerPoints(p, pointStep)
+                                    }
+                                    className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                  >
+                                    +{pointStep} Puan
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      adjustPlayerPoints(p, -pointStep)
+                                    }
+                                    className="bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                  >
+                                    -{pointStep} Puan
+                                  </button>
+                                </>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => deletePlayer(p.id, p.full_name)}
-                                className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                onClick={() => openPlayerEditor(p)}
+                                className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
                               >
-                                Sil
+                                {isEditingThisRow ? "Kapat" : "Düzenle"}
                               </button>
-                            )}
-                          </td>
+                              {role === "admin" && (
+                                <button
+                                  type="button"
+                                  onClick={() => deletePlayer(p.id, p.full_name)}
+                                  className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                >
+                                  Sil
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+
+                        {isEditingThisRow && editingPlayer && (
+                          <tr
+                            key={`${p.id}-editor`}
+                            className="bg-[var(--bg-subtle)]"
+                          >
+                            <td colSpan={tableColSpan} className="p-4">
+                              <form
+                                onSubmit={savePlayerEdit}
+                                className="bg-[var(--bg-surface)] p-4 rounded-2xl shadow-md border-2 border-[var(--brand-red)] space-y-4 text-[var(--text-primary)]"
+                              >
+                                <div className="flex justify-between items-center">
+                                  <h3 className="text-base font-black text-[var(--text-primary)]">
+                                    {editingPlayer.full_name} — Bilgilerini &amp;
+                                    Kategorilerini Düzenle
+                                  </h3>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingPlayer(null)}
+                                    className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline cursor-pointer"
+                                  >
+                                    Vazgeç
+                                  </button>
+                                </div>
+
+                                {role === "admin" && (
+                                  <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-3.5 flex flex-wrap items-center justify-between gap-4">
+                                    <div>
+                                      <div className="text-xs font-black text-[var(--text-primary)]">
+                                        Oyuncu Puan Düzenle (Mevcut:{" "}
+                                        {editingPlayer.skill_points ?? 20}p)
+                                      </div>
+                                      <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
+                                        + veya - işaretini seçin ve 1–99 arası
+                                        puan girin (Varsayılan: +5)
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditPointSign("+")}
+                                          aria-label="Puan Ekle (+)"
+                                          className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-black transition cursor-pointer ${
+                                            editPointSign === "+"
+                                              ? "border-emerald-500 bg-emerald-500/20 text-emerald-400 ring-2 ring-emerald-400 scale-105"
+                                              : "border-emerald-600/60 bg-[var(--bg-surface)] text-emerald-500 opacity-75 hover:opacity-100"
+                                          }`}
+                                        >
+                                          +
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => setEditPointSign("-")}
+                                          aria-label="Puan Düş (-)"
+                                          className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-2xl font-black transition cursor-pointer ${
+                                            editPointSign === "-"
+                                              ? "border-red-500 bg-red-500/20 text-red-400 ring-2 ring-red-400 scale-105"
+                                              : "border-red-600/60 bg-[var(--bg-surface)] text-red-500 opacity-75 hover:opacity-100"
+                                          }`}
+                                        >
+                                          -
+                                        </button>
+                                      </div>
+
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        max={99}
+                                        value={editPointAmount}
+                                        onChange={(e) => {
+                                          const digits = e.target.value.replace(
+                                            /[^0-9]/g,
+                                            ""
+                                          );
+                                          if (!digits) {
+                                            setEditPointAmount("");
+                                            return;
+                                          }
+                                          const n = Math.min(
+                                            99,
+                                            parseInt(digits, 10)
+                                          );
+                                          setEditPointAmount(String(n));
+                                        }}
+                                        aria-label="Puan Miktarı"
+                                        className="w-20 border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-center text-sm font-black"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Ad Soyad
+                                    </label>
+                                    <input
+                                      required
+                                      disabled={role !== "admin"}
+                                      value={editingPlayer.full_name}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          full_name: e.target.value,
+                                        })
+                                      }
+                                      className={`w-full ${fieldClass}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Doğum Tarihi (Kadro Yaş Kuralı)
+                                    </label>
+                                    <input
+                                      type="date"
+                                      disabled={role !== "admin"}
+                                      value={editingPlayer.birth_date || ""}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          birth_date: e.target.value,
+                                        })
+                                      }
+                                      className={`w-full ${fieldClass}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Ana Kategori
+                                    </label>
+                                    <select
+                                      value={editingPlayer.age_group}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          age_group: e.target.value,
+                                        })
+                                      }
+                                      className={`w-full ${fieldClass}`}
+                                    >
+                                      {AGE_GROUPS.map((g) => (
+                                        <option key={g} value={g}>
+                                          {g}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      İkinci Kategori (Bildirim İçin)
+                                    </label>
+                                    <select
+                                      value={
+                                        editingPlayer.secondary_age_group || ""
+                                      }
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          secondary_age_group:
+                                            e.target.value || null,
+                                        })
+                                      }
+                                      className={`w-full ${fieldClass}`}
+                                    >
+                                      <option value="">Yok (Tek Kategori)</option>
+                                      {AGE_GROUPS.filter(
+                                        (g) => g !== editingPlayer.age_group
+                                      ).map((g) => (
+                                        <option key={g} value={g}>
+                                          + {g}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Telefon
+                                    </label>
+                                    <input
+                                      disabled={role !== "admin"}
+                                      value={editingPlayer.parent_phone || ""}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          parent_phone: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Telefon"
+                                      className={`w-full ${fieldClass}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Mevki
+                                    </label>
+                                    <select
+                                      value={editingPlayer.position || "Orta Saha"}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          position: e.target.value,
+                                        })
+                                      }
+                                      className={`w-full ${fieldClass}`}
+                                    >
+                                      {POSITIONS.map((pos) => (
+                                        <option key={pos} value={pos}>
+                                          {pos}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Forma No
+                                    </label>
+                                    <input
+                                      type="number"
+                                      disabled={role !== "admin"}
+                                      placeholder="Forma No"
+                                      value={editingPlayer.jersey_number ?? ""}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          jersey_number: e.target.value
+                                            ? Number(e.target.value)
+                                            : null,
+                                        })
+                                      }
+                                      className={`w-full ${fieldClass}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      Lisans No
+                                    </label>
+                                    <input
+                                      disabled={role !== "admin"}
+                                      value={editingPlayer.license_no || ""}
+                                      onChange={(e) =>
+                                        setEditingPlayer({
+                                          ...editingPlayer,
+                                          license_no: e.target.value,
+                                        })
+                                      }
+                                      placeholder="Lisans Numarası"
+                                      className={`w-full ${fieldClass}`}
+                                    />
+                                  </div>
+                                </div>
+
+                                {role === "admin" && (
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                        Oyuncu ID
+                                      </label>
+                                      <input
+                                        value={editingPlayer.player_code || ""}
+                                        onChange={(e) =>
+                                          setEditingPlayer({
+                                            ...editingPlayer,
+                                            player_code: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Oyuncu ID"
+                                        className={`w-full uppercase ${fieldClass}`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                        Şifre
+                                      </label>
+                                      <input
+                                        value={editingPlayer.player_pin || ""}
+                                        onChange={(e) =>
+                                          setEditingPlayer({
+                                            ...editingPlayer,
+                                            player_pin: e.target.value,
+                                          })
+                                        }
+                                        placeholder="Şifre"
+                                        className={`w-full ${fieldClass}`}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                        Temsilci Grubu (Varsayılan: Tüm Takım)
+                                      </label>
+                                      <select
+                                        disabled={!editingPlayer.is_representative}
+                                        value={
+                                          editingPlayer.representative_group ||
+                                          "Tümü"
+                                        }
+                                        onChange={(e) =>
+                                          setEditingPlayer({
+                                            ...editingPlayer,
+                                            representative_group:
+                                              e.target.value,
+                                          })
+                                        }
+                                        className={`w-full ${fieldClass} disabled:opacity-50`}
+                                      >
+                                        <option value="Tümü">Tüm Takım</option>
+                                        {AGE_GROUPS.map((g) => (
+                                          <option key={g} value={g}>
+                                            {g} Temsilcisi
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                  <div className="flex flex-wrap items-center gap-4">
+                                    {role === "admin" && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setEditingPlayer({
+                                              ...editingPlayer,
+                                              bound_device_id: null,
+                                            })
+                                          }
+                                          className="border border-amber-400 bg-[var(--status-warning-bg)]/50 text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-bold cursor-pointer"
+                                        >
+                                          {editingPlayer.bound_device_id
+                                            ? "Cihaz Kilidini Sıfırla"
+                                            : "Cihaz Bağlı Değil"}
+                                        </button>
+                                        <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={Boolean(
+                                              editingPlayer.is_representative
+                                            )}
+                                            onChange={(e) => {
+                                              const checked = e.target.checked;
+                                              setEditingPlayer({
+                                                ...editingPlayer,
+                                                is_representative: checked,
+                                                representative_group: checked
+                                                  ? editingPlayer.representative_group ||
+                                                    "Tümü"
+                                                  : "Tümü",
+                                              });
+                                            }}
+                                          />
+                                          Temsilci Yetkisi Ver (Önyüklü: Tüm
+                                          Takım)
+                                        </label>
+                                      </>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="submit"
+                                    className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
+                                  >
+                                    Değişiklikleri Kaydet
+                                  </button>
+                                </div>
+                              </form>
+                            </td>
+                          </tr>
                         )}
-                      </tr>
+                      </>
                     );
                   })}
                 </tbody>
