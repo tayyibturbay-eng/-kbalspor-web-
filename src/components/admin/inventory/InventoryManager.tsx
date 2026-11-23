@@ -65,9 +65,8 @@ const CONDITION_OPTIONS = [
   "Yıpranmış",
 ] as const;
 
-const ITEM_STATUSES: Array<"Müsait" | "Teslim Edildi" | "Bakımda" | "Kayıp"> = [
+const UNIT_SELECTABLE_STATUSES: Array<"Müsait" | "Bakımda" | "Kayıp"> = [
   "Müsait",
-  "Teslim Edildi",
   "Bakımda",
   "Kayıp",
 ];
@@ -1488,7 +1487,11 @@ export function InventoryManager({
                         </select>
 
                         <select
-                          value={unit.status}
+                          value={
+                            unit.status === "Teslim Edildi"
+                              ? "Müsait"
+                              : unit.status
+                          }
                           onChange={(e) =>
                             void handleUpdateJerseyUnit(unit.id, {
                               status: e.target.value as UnitDetail["status"],
@@ -1496,7 +1499,7 @@ export function InventoryManager({
                           }
                           className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                         >
-                          {ITEM_STATUSES.map((st) => (
+                          {UNIT_SELECTABLE_STATUSES.map((st) => (
                             <option key={st} value={st}>
                               {st}
                             </option>
@@ -1815,7 +1818,11 @@ export function InventoryManager({
                         </select>
 
                         <select
-                          value={unit.status}
+                          value={
+                            unit.status === "Teslim Edildi"
+                              ? "Müsait"
+                              : unit.status
+                          }
                           onChange={(e) =>
                             void handleUpdateStockUnit(unit.id, {
                               status: e.target.value as UnitDetail["status"],
@@ -1823,7 +1830,7 @@ export function InventoryManager({
                           }
                           className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
                         >
-                          {ITEM_STATUSES.map((st) => (
+                          {UNIT_SELECTABLE_STATUSES.map((st) => (
                             <option key={st} value={st}>
                               {st}
                             </option>
