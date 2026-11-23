@@ -80,7 +80,7 @@ export function MatchResultPanel() {
   }, []);
 
   useEffect(() => {
-    let active = true;
+    const isMounted = true;
 
     const runInitialLoad = async () => {
       const [taskRes, predRes] = await Promise.all([
@@ -96,7 +96,7 @@ export function MatchResultPanel() {
           .limit(100),
       ]);
 
-      if (!active) return;
+      if (!isMounted) return;
       const taskList = (taskRes.data as MatchTaskItem[] | null) || [];
       const predList = (predRes.data as PredictionRow[] | null) || [];
       setMatches(taskList);
@@ -113,7 +113,7 @@ export function MatchResultPanel() {
     return subscribeClubLiveUpdates(
       supabase,
       () => {
-        if (active) {
+        if (isMounted) {
           void loadMatchAndPredictionData();
         }
       },

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { ThemeSwitch } from "@/components/ikbal/ThemeSwitch";
 import {
   ActivityLog,
   Coach,
@@ -453,15 +454,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={handleToggleTheme}
-              title={theme === "dark" ? "Açık Tema" : "Koyu Tema"}
-              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-extrabold cursor-pointer transition"
-            >
-              {theme === "dark" ? "Açık Tema" : "Koyu Tema"}
-            </button>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <ThemeSwitch theme={theme} onToggle={handleToggleTheme} />
             <button
               type="button"
               onClick={handleLogout}
@@ -715,7 +709,7 @@ export default function AdminPage() {
           )}
 
           {tab === "islemler" && role === "admin" && (
-            <ActivityLogsTab logs={logs} />
+            <ActivityLogsTab logs={logs} onLogsChange={setLogs} />
           )}
         </div>
       </div>

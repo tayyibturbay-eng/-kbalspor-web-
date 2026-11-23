@@ -1,159 +1,180 @@
-// ActivityLogsTab.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { ActivityLog } from "@/types/club";
-import { formatDateTimeTR } from "@/lib/club-utils";
+
+const supabase = createClient();
 
 interface ActivityLogsTabProps {
   logs: ActivityLog[];
+  onLogsChange?: (nextLogs: ActivityLog[]) => void;
 }
 
-function getLogCategory(log: ActivityLog): string {
-  const action = (log.action || "").toLocaleLowerCase("tr-TR");
-  const details = (log.details || "").toLocaleLowerCase("tr-TR");
+export function ActivityLogsTab({ logs, onLogsChange }: ActivityLogsTabProps) {
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState<boolean>(false);
+  const [feedback, setFeedback] = useState<string>("");
 
-  if (action.includes("sil") || details.includes("silindi")) {
-    if (details.includes("oyuncu") || action.includes("oyuncu")) {
-      return "Oyuncu Silme";
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (logs.length > 0 && selectedIds.length === logs.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(logs.map((l) => l.id));
     }
-    return "Silme İşlemi";
-  }
-  if (action.includes("üyelik") || details.includes("üyelik")) {
-    return "Üyelik İşlemleri";
-  }
-  if (action.includes("qr") || action.includes("yoklama")) {
-    return "QR Yoklama";
-  }
-  if (action.includes("puan") || action.includes("yetenek")) {
-    return "Yetenek Puanı";
-  }
-  if (action.includes("bildirim")) {
-    return "Bildirim Gönderimi";
-  }
-  return "Diğer";
-}
+  };
 
-export function ActivityLogsTab({ logs }: ActivityLogsTabProps) {
-  const [logSearch, setLogSearch] = useState("");
-  const [logDateFilter, setLogDateFilter] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("Tümü");
+  async function handleDeleteSingle(id: string) {
+    setFeedback("");
+    setDeletingId(id);
+    const { error } = await supabase.from("activity_logs").delete().eq("id", id);
+    setDeletingId(null);
 
-  const categories = useMemo(() => {
-    const found = new Set<string>(["Tümü", "Oyuncu Silme"]);
-    logs.forEach((l) => found.add(getLogCategory(l)));
-    return Array.from(found);
-  }, [logs]);
+    if (error) {
+      setFeedback("İşlem kaydı silinemedi: " + error.message);
+      return;
+    }
 
-  const filteredLogs = logs.filter((l) => {
-    const dateOk =
-      !logDateFilter || (l.created_at || "").startsWith(logDateFilter);
-    const categoryOk =
-      selectedCategory === "Tümü" || getLogCategory(l) === selectedCategory;
-    const q = logSearch.toLocaleLowerCase("tr-TR");
-    const searchOk =
-      !q ||
-      (l.action || "").toLocaleLowerCase("tr-TR").includes(q) ||
-      (l.details || "").toLocaleLowerCase("tr-TR").includes(q) ||
-      (l.actor || "").toLocaleLowerCase("tr-TR").includes(q);
-    return dateOk && categoryOk && searchOk;
-  });
+    const updated = logs.filter((l) => l.id !== id);
+    onLogsChange?.(updated);
+    setSelectedIds((prev) => prev.filter((x) => x !== id));
+    setFeedback("İşlem kaydı silindi.");
+  }
+
+  async function handleDeleteBatch(ids: string[], modeLabel: string) {
+    if (ids.length === 0) return;
+    setFeedback("");
+    setBulkDeleting(true);
+    const { error } = await supabase.from("activity_logs").delete().in("id", ids);
+    setBulkDeleting(false);
+
+    if (error) {
+      setFeedback("Toplu silme başarısız: " + error.message);
+      return;
+    }
+
+    const updated = logs.filter((l) => !ids.includes(l.id));
+    onLogsChange?.(updated);
+    setSelectedIds((prev) => prev.filter((x) => !ids.includes(x)));
+    setFeedback(`${ids.length} adet işlem kaydı silindi (${modeLabel}).`);
+  }
 
   return (
-    <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
-      <div className="flex flex-wrap justify-between items-center gap-3">
-        <h2 className="text-lg font-black text-[var(--text-primary)]">
-          Son İşlemler (Gün &amp; Saat Kayıtları)
-        </h2>
+    <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs text-[var(--text-primary)] tabular-nums">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
+        <div>
+          <h2 className="text-lg font-black text-[var(--text-primary)]">
+            Son İşlemler &amp; Denetim Kayıtları ({logs.length})
+          </h2>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Kayıtları tek tek silebilir, seçilenleri toplu silebilir veya tüm listeyi temizleyebilirsiniz.
+          </p>
+        </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            aria-label="İşlem kategorisi seç"
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs font-bold"
+          {logs.length > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="px-3 py-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-xs font-bold text-[var(--text-primary)] cursor-pointer"
+            >
+              {selectedIds.length === logs.length ? "Seçimi Kaldır" : "Tümünü Seç"}
+            </button>
+          )}
+
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              disabled={bulkDeleting}
+              onClick={() => void handleDeleteBatch(selectedIds, "Seçili İşlemler")}
+              className="px-3.5 py-1.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer disabled:opacity-50"
+            >
+              Seçilenleri Sil ({selectedIds.length})
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={bulkDeleting || logs.length === 0}
+            onClick={() =>
+              void handleDeleteBatch(
+                logs.map((l) => l.id),
+                "Tüm İşlemler"
+              )
+            }
+            className="px-3.5 py-1.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer disabled:opacity-40"
           >
-            {categories.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat === "Tümü" ? "Kategori: Tümü" : cat}
-              </option>
-            ))}
-          </select>
-
-          <input
-            type="date"
-            value={logDateFilter}
-            onChange={(e) => setLogDateFilter(e.target.value)}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs font-medium tabular-nums"
-          />
-
-          <input
-            placeholder="İşlem, kişi veya detay ara..."
-            value={logSearch}
-            onChange={(e) => setLogSearch(e.target.value)}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-lg px-3 py-1.5 text-xs font-medium w-56"
-          />
+            {bulkDeleting ? "Siliniyor..." : "Tümünü Temizle"}
+          </button>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
-        <table className="w-full text-sm text-left text-[var(--text-primary)]">
-          <thead className="bg-[var(--bg-subtle)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold border-b border-[var(--border-subtle)]">
-            <tr>
-              <th className="p-2.5">Tarih &amp; Saat</th>
-              <th className="p-2.5">Yapan</th>
-              <th className="p-2.5">İşlem</th>
-              <th className="p-2.5">Detay</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--border-subtle)]">
-            {filteredLogs.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="p-5 text-center text-xs text-[var(--text-secondary)]"
-                >
-                  Filtre kriterlerine uygun işlem kaydı bulunamadı.
-                </td>
-              </tr>
-            ) : (
-              filteredLogs.map((l) => {
-                const cat = getLogCategory(l);
-                const badgeStyle =
-                  cat === "Oyuncu Silme" || cat === "Silme İşlemi"
-                    ? "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
-                    : cat === "Üyelik İşlemleri"
-                    ? "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
-                    : "bg-[var(--status-info-bg)] text-[var(--status-info-text)]";
+      {feedback && (
+        <div className="p-3 rounded-xl bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-xs font-bold">
+          {feedback}
+        </div>
+      )}
 
-                return (
-                  <tr
-                    key={l.id}
-                    className="hover:bg-[var(--bg-subtle)]/70 transition-colors"
-                  >
-                    <td className="p-2.5 text-xs font-mono font-semibold text-[var(--text-secondary)] whitespace-nowrap tabular-nums">
-                      {formatDateTimeTR(l.created_at)}
-                    </td>
-                    <td className="p-2.5 text-xs font-bold text-[var(--text-primary)]">
-                      {l.actor}
-                    </td>
-                    <td className="p-2.5">
-                      <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded ${badgeStyle}`}
-                      >
-                        {l.action}
+      {logs.length === 0 ? (
+        <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
+          Henüz işlem kaydı bulunmuyor.
+        </div>
+      ) : (
+        <div className="divide-y divide-[var(--border-subtle)]">
+          {logs.map((log) => {
+            const isSelected = selectedIds.includes(log.id);
+            return (
+              <div
+                key={log.id}
+                className="py-3 flex flex-wrap items-start justify-between gap-3 text-xs sm:text-sm"
+              >
+                <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(log.id)}
+                    className="mt-1 accent-[var(--brand-red)] cursor-pointer"
+                  />
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-black text-[var(--brand-navy)] dark:text-sky-300">
+                        {log.actor}
                       </span>
-                    </td>
-                    <td className="p-2.5 text-xs text-[var(--text-secondary)]">
-                      {l.details}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                      <span className="px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-extrabold text-[var(--text-primary)]">
+                        {log.action}
+                      </span>
+                      {log.created_at && (
+                        <span className="text-[11px] text-[var(--text-muted)]">
+                          {new Date(log.created_at).toLocaleString("tr-TR")}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)] mt-1 break-words">
+                      {log.details}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={deletingId === log.id}
+                  onClick={() => void handleDeleteSingle(log.id)}
+                  className="px-3 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer disabled:opacity-50 shrink-0"
+                >
+                  {deletingId === log.id ? "Siliniyor..." : "Sil"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

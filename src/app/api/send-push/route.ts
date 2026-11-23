@@ -18,10 +18,12 @@ type ExpoPushTicket = {
 
 export async function POST(req: Request) {
   try {
-    const { ageGroups, title, body } = (await req.json()) as {
+    const { ageGroups, title, body, imageUrl, sound } = (await req.json()) as {
       ageGroups?: string[];
       title?: string;
       body?: string;
+      imageUrl?: string;
+      sound?: string;
     };
 
     if (!title?.trim() || !body?.trim()) {
@@ -63,6 +65,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, sentCount: 0 });
     }
 
+    const cleanSound =
+      typeof sound === "string" && sound.trim() ? sound.trim() : "default";
+    const cleanImage =
+      typeof imageUrl === "string" && imageUrl.trim()
+        ? imageUrl.trim()
+        : undefined;
+
     const tokenChunks = chunkArray(uniqueTokens, 100);
     let totalSent = 0;
     const errors: string[] = [];
@@ -70,9 +79,17 @@ export async function POST(req: Request) {
     for (const chunk of tokenChunks) {
       const messages = chunk.map((token) => ({
         to: token,
-        sound: "default",
+        sound: "default" as const,
         title: title.trim(),
         body: body.trim(),
+        ...(cleanImage || cleanSound !== "default"
+          ? {
+              data: {
+                ...(cleanImage ? { imageUrl: cleanImage } : {}),
+                sound: cleanSound,
+              },
+            }
+          : {}),
       }));
 
       const expoRes = await fetch("https://exp.host/--/api/v2/push/send", {
@@ -107,7 +124,8 @@ export async function POST(req: Request) {
           if (ticket.status === "ok") {
             totalSent += 1;
           } else {
-            const detailErr = ticket.details?.error || ticket.message || "Bilinmeyen hata";
+            const detailErr =
+              ticket.details?.error || ticket.message || "Bilinmeyen hata";
             errors.push(`${chunk[idx]?.slice(0, 28)}...: ${detailErr}`);
           }
         });

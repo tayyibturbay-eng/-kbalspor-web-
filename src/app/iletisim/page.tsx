@@ -12,6 +12,23 @@ interface ClubSettingItem {
   value: string;
 }
 
+const FACILITIES = [
+  {
+    name: "Nazmi Avluca Spor Tesisi",
+    address: "Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum",
+    mapsUrl:
+      "https://www.google.com/maps/search/?api=1&query=Nazmi+Avluca+Spor+Tesisi+Corum",
+    accentRed: false,
+  },
+  {
+    name: "Mimar Sinan Amatör Futbol Sahası",
+    address: "Mimar Sinan Mah., Merkez / Çorum",
+    mapsUrl:
+      "https://www.google.com/maps/search/?api=1&query=Mimar+Sinan+Futbol+Sahasi+Corum",
+    accentRed: true,
+  },
+];
+
 export default function ContactPage() {
   const [clubPhone, setClubPhone] = useState<string>("");
   const [clubEmail, setClubEmail] = useState<string>("");
@@ -43,37 +60,20 @@ export default function ContactPage() {
   }, []);
 
   useEffect(() => {
-    let active = true;
-
-    (async () => {
-      const { data } = await supabase
-        .from("club_settings")
-        .select("key, value")
-        .in("key", ["club_phone", "club_email", "contact_phone", "contact_email"]);
-      if (!active) return;
-      const rows = (data as ClubSettingItem[] | null) || [];
-      for (const r of rows) {
-        if (r.key === "club_phone" || r.key === "contact_phone") {
-          if (r.value) setClubPhone(r.value);
-        }
-        if (r.key === "club_email" || r.key === "contact_email") {
-          if (r.value) setClubEmail(r.value);
-        }
-      }
-    })();
+    const timer = window.setTimeout(() => {
+      void loadClubContactSettings();
+    }, 0);
 
     const unsubscribe = subscribeClubLiveUpdates(
       supabase,
       () => {
-        if (active) {
-          void loadClubContactSettings();
-        }
+        void loadClubContactSettings();
       },
       "web-contact-live"
     );
 
     return () => {
-      active = false;
+      window.clearTimeout(timer);
       unsubscribe();
     };
   }, [loadClubContactSettings]);
@@ -91,12 +91,11 @@ export default function ContactPage() {
     }
 
     setSending(true);
-    const composedBody = `[${targetGroup}] ${senderName.trim()}${
+    const composedBody = `İletişim Mesajı [${targetGroup}] — ${senderName.trim()}${
       senderContact.trim() ? ` (${senderContact.trim()})` : ""
     }: ${messageText.trim()}`;
 
     const { error } = await supabase.from("club_messages").insert({
-      title: `İletişim Mesajı — ${targetGroup}`,
       body: composedBody,
       message_text: composedBody,
       age_group: "Tümü",
@@ -135,8 +134,8 @@ export default function ContactPage() {
             Kulüp İletişim &amp; Saha Bilgileri
           </h1>
           <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
-            Antrenman sahaları, maç organizasyonları ve veli/sporcu iletişim
-            kanalları.
+            Antrenman sahaları, harita konumları, maç organizasyonları ve
+            veli/sporcu iletişim kanalları.
           </p>
         </div>
       </section>
@@ -145,26 +144,36 @@ export default function ContactPage() {
         <div className="lg:col-span-5 space-y-4">
           <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
             <h2 className="text-base font-black text-[var(--text-primary)]">
-              Tesis &amp; İletişim Noktaları
+              Tesis &amp; Harita Bağlantıları
             </h2>
 
-            <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-1">
-              <div className="text-xs font-black text-[var(--brand-navy)] dark:text-sky-300">
-                Nazmi Avluca Spor Tesisi
+            {FACILITIES.map((fac) => (
+              <div
+                key={fac.name}
+                className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-2"
+              >
+                <div
+                  className={`text-xs font-black ${
+                    fac.accentRed
+                      ? "text-[var(--brand-red)]"
+                      : "text-[var(--brand-navy)] dark:text-sky-300"
+                  }`}
+                >
+                  {fac.name}
+                </div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  {fac.address}
+                </p>
+                <a
+                  href={fac.mapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--brand-navy)] hover:opacity-90 text-white text-[11px] font-extrabold transition"
+                >
+                  Haritada Aç →
+                </a>
               </div>
-              <p className="text-xs text-[var(--text-secondary)]">
-                Ulukavak Mah., Çiftlik Çayırı 2. Cad., Merkez / Çorum
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-1">
-              <div className="text-xs font-black text-[var(--brand-red)]">
-                Mimar Sinan Amatör Futbol Sahası
-              </div>
-              <p className="text-xs text-[var(--text-secondary)]">
-                Mimar Sinan Mah., Merkez / Çorum
-              </p>
-            </div>
+            ))}
 
             {(clubPhone || clubEmail) && (
               <div className="pt-2 border-t border-[var(--border-subtle)] space-y-1.5 text-xs">

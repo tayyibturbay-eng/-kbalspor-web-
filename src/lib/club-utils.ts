@@ -156,13 +156,20 @@ export function buildSympatheticMatchMessage(t: {
 export async function sendPushViaApi(
   ageGroups: string[],
   title: string,
-  body: string
+  body: string,
+  options?: { imageUrl?: string; sound?: string }
 ): Promise<{ sentCount: number; error?: string }> {
   try {
     const res = await fetch("/api/send-push", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ageGroups, title, body }),
+      body: JSON.stringify({
+        ageGroups,
+        title,
+        body,
+        imageUrl: options?.imageUrl,
+        sound: options?.sound,
+      }),
     });
     const data = await res.json();
     return { sentCount: Number(data.sentCount) || 0, error: data.error };
