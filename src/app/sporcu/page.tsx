@@ -384,7 +384,7 @@ export default function SporcuPage() {
           onLogout={handleLogout}
         />
 
-        {/* Sekme Çubuğu */}
+        {/* Tek Birleştirilmiş Sekme Çubuğu */}
         <div className="bg-[var(--bg-surface)] p-2 rounded-2xl border border-[var(--border-subtle)] shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {tabs.map((item) => {
             const isActive = activeTab === item.id;

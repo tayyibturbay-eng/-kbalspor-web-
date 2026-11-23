@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Player } from "@/types/club";
 
@@ -25,6 +25,18 @@ type CardTier = {
   canvasColors: [string, string, string];
   canvasAccent: string;
 };
+
+interface SavedCardPayload {
+  skill_points: number;
+  pace: number;
+  shooting: number;
+  passing: number;
+  dribbling: number;
+  defending: number;
+  physical: number;
+  card_title: string;
+  card_motto: string;
+}
 
 function getCardTier(ovr: number): CardTier {
   if (ovr >= 90) {
@@ -141,12 +153,39 @@ export function PlayerCardSection({
   );
   const [saving, setSaving] = useState<boolean>(false);
   const [sharing, setSharing] = useState<boolean>(false);
+  const [shareModalOpen, setShareModalOpen] = useState<boolean>(false);
+  const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
+  const [downloadFileName, setDownloadFileName] = useState<string>(
+    "ikbalspor-kart.png"
+  );
   const [statusMsg, setStatusMsg] = useState<{
     ok: boolean;
     text: string;
   } | null>(null);
 
   const cardRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(`ikbal_player_card_${player.id}`);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as Partial<SavedCardPayload>;
+      if (typeof saved.skill_points === "number")
+        setAvailablePoints(saved.skill_points);
+      if (typeof saved.pace === "number") setPace(saved.pace);
+      if (typeof saved.shooting === "number") setShooting(saved.shooting);
+      if (typeof saved.passing === "number") setPassing(saved.passing);
+      if (typeof saved.dribbling === "number") setDribbling(saved.dribbling);
+      if (typeof saved.defending === "number") setDefending(saved.defending);
+      if (typeof saved.physical === "number") setPhysical(saved.physical);
+      if (typeof saved.card_title === "string" && saved.card_title.trim())
+        setCardTitle(saved.card_title);
+      if (typeof saved.card_motto === "string" && saved.card_motto.trim())
+        setCardMotto(saved.card_motto);
+    } catch {
+      // yoksay
+    }
+  }, [player.id]);
 
   const ovr = useMemo(() => {
     const avg =
@@ -190,24 +229,52 @@ export function PlayerCardSection({
     const cleanTitle = cardTitle.trim() || "Gol Makinesi";
     const cleanMotto = cardMotto.trim() || "Sahada her şey takım için!";
 
+    const payload: SavedCardPayload = {
+      skill_points: availablePoints,
+      pace,
+      shooting,
+      passing,
+      dribbling,
+      defending,
+      physical,
+      card_title: cleanTitle,
+      card_motto: cleanMotto,
+    };
+
+    try {
+      localStorage.setItem(
+        `ikbal_player_card_${player.id}`,
+        JSON.stringify(payload)
+      );
+    } catch {
+      // yoksay
+    }
+
     const { error } = await supabase
       .from("players")
-      .update({
-        skill_points: availablePoints,
-        pace,
-        shooting,
-        passing,
-        dribbling,
-        defending,
-        physical,
-        card_title: cleanTitle,
-        card_motto: cleanMotto,
-      })
+      .update(payload)
       .eq("id", player.id);
 
     setSaving(false);
 
     if (error) {
+      const schemaMissing =
+        error.message.includes("schema cache") ||
+        error.message.includes("column") ||
+        error.message.includes("does not exist");
+
+      if (schemaMissing) {
+        const fallbackMsg =
+          "Kartınız cihazınızda kaydedildi (Supabase players tablosuna yetenek/kart sütunları eklendiğinde bulutla da eşitlenecek).";
+        setStatusMsg({ ok: true, text: fallbackMsg });
+        onFeedback?.(fallbackMsg);
+        onPlayerUpdated?.({
+          ...player,
+          ...(payload as Partial<Player>),
+        });
+        return;
+      }
+
       const msg = "Kart kaydedilemedi: " + error.message;
       setStatusMsg({ ok: false, text: msg });
       onFeedback?.(msg);
@@ -219,17 +286,7 @@ export function PlayerCardSection({
     onFeedback?.(okMsg);
     onPlayerUpdated?.({
       ...player,
-      ...({
-        skill_points: availablePoints,
-        pace,
-        shooting,
-        passing,
-        dribbling,
-        defending,
-        physical,
-        card_title: cleanTitle,
-        card_motto: cleanMotto,
-      } as Partial<Player>),
+      ...(payload as Partial<Player>),
     });
   }
 
@@ -242,7 +299,6 @@ export function PlayerCardSection({
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
 
-    // Arka plan kart gradyanı
     const grad = ctx.createLinearGradient(0, 0, width, height);
     grad.addColorStop(0, tier.canvasColors[0]);
     grad.addColorStop(0.55, tier.canvasColors[1]);
@@ -259,7 +315,6 @@ export function PlayerCardSection({
     ctx.strokeStyle = tier.canvasAccent;
     ctx.stroke();
 
-    // Diamond prizmatik çizgiler & parıltılar
     if (tier.key === "diamond") {
       ctx.save();
       drawRoundedRect(ctx, 44, 44, width - 88, height - 88, 42);
@@ -273,7 +328,6 @@ export function PlayerCardSection({
       ctx.fillStyle = sheenGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Diagonal elmas ışık demetleri
       ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
       ctx.lineWidth = 28;
       ctx.beginPath();
@@ -283,7 +337,6 @@ export function PlayerCardSection({
       ctx.lineTo(760, height);
       ctx.stroke();
 
-      // Elmas parıltı noktaları
       const sparkles = [
         [140, 170],
         [620, 210],
@@ -317,7 +370,6 @@ export function PlayerCardSection({
       ctx.restore();
     }
 
-    // Üst sol OVR & Mevki
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 84px sans-serif";
     ctx.fillText(String(ovr), 92, 145);
@@ -330,7 +382,6 @@ export function PlayerCardSection({
       188
     );
 
-    // Üst sağ Yaş Grubu & Kulüp
     ctx.textAlign = "right";
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 34px sans-serif";
@@ -341,7 +392,6 @@ export function PlayerCardSection({
     ctx.fillText("ÇORUM İKBALSPOR", width - 92, 158);
     ctx.textAlign = "left";
 
-    // Orta Avatar Dairesi
     const centerX = width / 2;
     const avatarY = 340;
     const avatarR = 92;
@@ -403,7 +453,6 @@ export function PlayerCardSection({
       ctx.textAlign = "left";
     }
 
-    // Rozet / Başlık
     const cleanTitle = (cardTitle || "Gol Makinesi").trim();
     ctx.textAlign = "center";
     drawRoundedRect(ctx, centerX - 180, 456, 360, 46, 23);
@@ -413,7 +462,6 @@ export function PlayerCardSection({
     ctx.font = "900 22px sans-serif";
     ctx.fillText(`★ ${cleanTitle}`, centerX, 487);
 
-    // İsim ve Motto
     ctx.fillStyle = "#ffffff";
     ctx.font = "900 46px sans-serif";
     ctx.fillText(player.full_name, centerX, 558);
@@ -423,7 +471,6 @@ export function PlayerCardSection({
     ctx.font = "italic 700 25px sans-serif";
     ctx.fillText(`"${cleanMotto}"`, centerX, 604);
 
-    // İstatistik Kutusu
     drawRoundedRect(ctx, 88, 650, width - 176, 230, 32);
     ctx.fillStyle = "rgba(15, 23, 42, 0.42)";
     ctx.fill();
@@ -447,7 +494,6 @@ export function PlayerCardSection({
       ctx.fillText(String(st.val), st.x + 32, st.y + 1);
     });
 
-    // Alt Kademe Etiketi
     ctx.fillStyle = "rgba(255,255,255,0.75)";
     ctx.font = "800 20px sans-serif";
     ctx.fillText(`${tier.label.toUpperCase()} • ikbalspor.com`, centerX, 945);
@@ -456,6 +502,15 @@ export function PlayerCardSection({
     return new Promise<Blob | null>((resolve) => {
       canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
     });
+  }
+
+  function triggerDownload(dataUrl: string, fileName: string) {
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   async function handleShareCard() {
@@ -480,68 +535,71 @@ export function PlayerCardSection({
       const fileName = `ikbalspor-kart-${safeSlug || "oyuncu"}-${ovr}ovr.png`;
       const file = new File([blob], fileName, { type: "image/png" });
 
-      // Mobil / WebView / destekleyen tarayıcılarda yerel paylaşım (WhatsApp, Instagram vb.)
+      const dataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ""));
+        reader.readAsDataURL(blob);
+      });
+
+      setPreviewDataUrl(dataUrl);
+      setDownloadFileName(fileName);
+
       const navWithShare = navigator as Navigator & {
         canShare?: (data?: ShareData) => boolean;
       };
 
+      let nativeShared = false;
       if (
         typeof navWithShare.share === "function" &&
         (!navWithShare.canShare || navWithShare.canShare({ files: [file] }))
       ) {
-        await navWithShare.share({
-          title: `${player.full_name} • ${ovr} OVR Futbolcu Kartı`,
-          text: `${player.full_name} (${ovr} OVR • ${tier.label}) — Çorum İkbalspor Futbolcu Kartı`,
-          files: [file],
-        });
+        try {
+          await navWithShare.share({
+            title: `${player.full_name} • ${ovr} OVR Futbolcu Kartı`,
+            text: `${player.full_name} (${ovr} OVR • ${tier.label}) — Çorum İkbalspor Futbolcu Kartı`,
+            files: [file],
+          });
+          nativeShared = true;
+          setStatusMsg({
+            ok: true,
+            text: "Kart görseli paylaşım ekranına gönderildi.",
+          });
+        } catch (shareErr) {
+          if (shareErr instanceof Error && shareErr.name === "AbortError") {
+            setStatusMsg({ ok: true, text: "Paylaşım iptal edildi." });
+            nativeShared = true;
+          }
+        }
+      }
+
+      if (!nativeShared) {
+        triggerDownload(dataUrl, fileName);
+        setShareModalOpen(true);
         setStatusMsg({
           ok: true,
-          text: "Kart görseli paylaşım penceresine gönderildi.",
-        });
-      } else {
-        // Masaüstü veya share desteklemeyen tarayıcılarda PNG indir
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-        setStatusMsg({
-          ok: true,
-          text: "Kart PNG olarak indirildi. WhatsApp veya Instagram'a bu görseli yükleyerek paylaşabilirsin.",
+          text: "Kart görseli indirildi ve paylaşım ekranı açıldı.",
         });
       }
 
-      // React Native / Expo WebView köprüsü varsa base64 görsel bilgisini ilet
       const winWithBridge = window as unknown as {
         ReactNativeWebView?: { postMessage?: (msg: string) => void };
       };
       if (winWithBridge.ReactNativeWebView?.postMessage) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          winWithBridge.ReactNativeWebView?.postMessage?.(
-            JSON.stringify({
-              type: "SHARE_PLAYER_CARD",
-              fileName,
-              playerName: player.full_name,
-              ovr,
-              tier: tier.key,
-              dataUrl: reader.result,
-            })
-          );
-        };
-        reader.readAsDataURL(blob);
+        winWithBridge.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: "SHARE_PLAYER_CARD",
+            fileName,
+            playerName: player.full_name,
+            ovr,
+            tier: tier.key,
+            dataUrl,
+          })
+        );
       }
-    } catch (err) {
-      const msg =
-        err instanceof Error && err.name === "AbortError"
-          ? "Paylaşım iptal edildi."
-          : "Kart paylaşılırken bir sorun oluştu.";
+    } catch {
       setStatusMsg({
-        ok: err instanceof Error && err.name === "AbortError",
-        text: msg,
+        ok: false,
+        text: "Kart paylaşılırken bir sorun oluştu.",
       });
     } finally {
       setSharing(false);
@@ -552,6 +610,10 @@ export function PlayerCardSection({
     .trim()
     .charAt(0)
     .toUpperCase();
+
+  const shareText = encodeURIComponent(
+    `${player.full_name} • ${ovr} OVR (${tier.label}) — Çorum İkbalspor Futbolcu Kartı https://ikbalspor.com/sporcu`
+  );
 
   return (
     <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-5 sm:p-6 shadow-xs space-y-5 text-[var(--text-primary)] tabular-nums">
@@ -610,7 +672,6 @@ export function PlayerCardSection({
             tier.key === "diamond" ? "ikbal-diamond-aura" : ""
           } p-6 transition-all duration-300 space-y-4`}
         >
-          {/* Seviyeye Özel Efekt Katmanları */}
           {tier.key === "diamond" && (
             <>
               <div
@@ -810,6 +871,63 @@ export function PlayerCardSection({
           {sharing ? "Görsel Hazırlanıyor..." : "Kartı Görsel Olarak Paylaş"}
         </button>
       </div>
+
+      {/* Paylaşım Ekranı Modalı */}
+      {shareModalOpen && previewDataUrl && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-[var(--text-primary)]">
+                Kartı Paylaş
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(false)}
+                className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] text-xs font-extrabold cursor-pointer"
+              >
+                Kapat
+              </button>
+            </div>
+
+            <img
+              src={previewDataUrl}
+              alt="Paylaşılacak futbolcu kartı"
+              className="w-full max-h-72 object-contain rounded-2xl border border-[var(--border-subtle)] bg-slate-950"
+            />
+
+            <p className="text-xs text-[var(--text-secondary)]">
+              Kart PNG görseli indirildi. WhatsApp veya Instagram&apos;a inen
+              görseli seçip doğrudan gönderebilirsin.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <a
+                href={`https://wa.me/?text=${shareText}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black text-center"
+              >
+                WhatsApp&apos;ta Aç
+              </a>
+              <a
+                href="https://www.instagram.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-pink-600 to-purple-700 text-white text-xs font-black text-center"
+              >
+                Instagram&apos;a Git
+              </a>
+              <button
+                type="button"
+                onClick={() => triggerDownload(previewDataUrl, downloadFileName)}
+                className="py-2.5 px-3 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-black cursor-pointer"
+              >
+                PNG İndir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
