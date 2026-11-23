@@ -1,612 +1,556 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
-import { MatchPredictionCard } from "@/components/ikbal/MatchPredictionCard";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
-import {
-  Due,
-  EquipmentLog,
-  JerseySetMini,
-  Player,
-  PrayerAttendance,
-  PrayerSession,
-  StockItemMini,
-  TR_MONTHS,
-  TaskAssignment,
-  Training,
-} from "@/types/club";
-import {
-  PlayerLogin,
-  getOrCreateWebDeviceId,
-} from "@/components/sporcu/PlayerLogin";
-import { PlayerHeader, SporcuTab } from "@/components/sporcu/PlayerHeader";
-import { PlayerQrTab } from "@/components/sporcu/PlayerQrTab";
-import { PlayerProgramTab } from "@/components/sporcu/PlayerProgramTab";
-import { PlayerEquipmentTab } from "@/components/sporcu/PlayerEquipmentTab";
-import {
-  DueDisplayItem,
-  PlayerDuesTab,
-} from "@/components/sporcu/PlayerDuesTab";
+import { Due, Player, TaskAssignment } from "@/types/club";
+import { PlayerHeader } from "@/components/sporcu/PlayerHeader";
+import { PlayerCardSection } from "@/components/sporcu/PlayerCardSection";
 import { PlayerProfileTab } from "@/components/sporcu/PlayerProfileTab";
-
-type LeaderboardPlayerEntry = {
-  id: string;
-  full_name: string;
-  age_group: string;
-  jersey_number?: number | null;
-  skill_points?: number | null;
-};
+import { PlayerEquipmentTab } from "@/components/sporcu/PlayerEquipmentTab";
 
 const supabase = createClient();
+const PLAYER_SESSION_KEY = "ikbal_logged_player_id";
 const SPORCU_TAB_KEY = "ikbal_sporcu_tab";
+
+type SporcuTab = "kartim" | "qr" | "program" | "malzeme" | "aidat" | "profil";
+
 const VALID_SPORCU_TABS: SporcuTab[] = [
+  "kartim",
   "qr",
   "program",
-  "malzemeler",
+  "malzeme",
   "aidat",
   "profil",
 ];
 
-function parseMonthIndex(label: string): number {
-  const parts = label.trim().split(/\s+/);
-  if (parts.length < 2) return 0;
-  const mIdx = TR_MONTHS.findIndex(
-    (m) => m.toLowerCase() === parts[0].toLowerCase()
-  );
-  const yr = parseInt(parts[1], 10);
-  if (mIdx === -1 || isNaN(yr)) return 0;
-  return yr * 12 + mIdx;
+interface EquipmentLogItem {
+  id: string;
+  player_id: string;
+  item_type?: string | null;
+  item_name: string;
+  jersey_number?: number | null;
+  size_label?: string | null;
+  condition_status?: string | null;
+  status: string;
+  notes?: string | null;
+  created_at: string;
 }
 
-function getPointsValue(entry: { skill_points?: number | null }): number {
-  return Number(entry.skill_points ?? 20);
+interface JerseySetItem {
+  id: string;
+  set_name: string;
+  kit_type: string;
+  size_label?: string | null;
+  total_count: number;
+  available_count: number;
+  photo_url: string | null;
 }
 
-function SporcuSessionSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse">
-      <div className="h-44 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 flex flex-col justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-[var(--bg-subtle)]" />
-          <div className="space-y-2 flex-1">
-            <div className="h-4 w-40 rounded bg-[var(--bg-subtle)]" />
-            <div className="h-3 w-56 rounded bg-[var(--bg-subtle)]" />
-          </div>
-        </div>
-        <div className="grid grid-cols-5 gap-2">
-          <div className="h-9 rounded-xl bg-[var(--bg-subtle)]" />
-          <div className="h-9 rounded-xl bg-[var(--bg-subtle)]" />
-          <div className="h-9 rounded-xl bg-[var(--bg-subtle)]" />
-          <div className="h-9 rounded-xl bg-[var(--bg-subtle)]" />
-          <div className="h-9 rounded-xl bg-[var(--bg-subtle)]" />
-        </div>
-      </div>
-      <div className="h-64 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 space-y-4">
-        <div className="h-5 w-48 rounded bg-[var(--bg-subtle)]" />
-        <div className="h-28 rounded-xl bg-[var(--bg-subtle)]" />
-      </div>
-    </div>
-  );
+interface StockItemRow {
+  id: string;
+  product_name: string;
+  category: string;
+  size_label?: string | null;
+  total_count: number;
+  available_count: number;
+  photo_url: string | null;
 }
 
-export default function SporcuPortalPage() {
+function getSavedSporcuTab(): SporcuTab {
+  if (typeof window === "undefined") return "profil";
+  try {
+    const saved = localStorage.getItem(SPORCU_TAB_KEY) as SporcuTab | null;
+    if (saved && VALID_SPORCU_TABS.includes(saved)) {
+      return saved;
+    }
+  } catch {
+    // yoksay
+  }
+  return "profil";
+}
+
+function mapHeaderTabToSporcuTab(next: string): SporcuTab {
+  if (next === "ekipman" || next === "malzeme") return "malzeme";
+  if (next === "qr") return "qr";
+  if (next === "program") return "program";
+  if (next === "aidat") return "aidat";
+  if (next === "kartim") return "kartim";
+  return "profil";
+}
+
+export default function SporcuPage() {
   const [player, setPlayer] = useState<Player | null>(null);
-  const [restoringSession, setRestoringSession] = useState<boolean>(true);
-  const [tab, setTab] = useState<SporcuTab>("qr");
-  const [currentIdx, setCurrentIdx] = useState<number>(2026 * 12 + 10);
-
+  const [loading, setLoading] = useState<boolean>(true);
+  const [activeTab, setActiveTabState] = useState<SporcuTab>("profil");
   const [dues, setDues] = useState<Due[]>([]);
-  const [defaultFee, setDefaultFee] = useState<number>(500);
-  const [trainings, setTrainings] = useState<Training[]>([]);
   const [tasks, setTasks] = useState<TaskAssignment[]>([]);
-  const [allSessions, setAllSessions] = useState<PrayerSession[]>([]);
-  const [attendances, setAttendances] = useState<PrayerAttendance[]>([]);
-  const [teamPlayers, setTeamPlayers] = useState<Player[]>([]);
-  const [allClubPlayers, setAllClubPlayers] = useState<LeaderboardPlayerEntry[]>([]);
-  const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
-  const [jerseySets, setJerseySets] = useState<JerseySetMini[]>([]);
-  const [stockItems, setStockItems] = useState<StockItemMini[]>([]);
+  const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLogItem[]>([]);
+  const [jerseySets, setJerseySets] = useState<JerseySetItem[]>([]);
+  const [stockItems, setStockItems] = useState<StockItemRow[]>([]);
+  const [feedback, setFeedback] = useState<string>("");
 
-  function handleTabChange(nextTab: SporcuTab) {
-    setTab(nextTab);
+  const [loginCode, setLoginCode] = useState<string>("");
+  const [loginPin, setLoginPin] = useState<string>("");
+  const [loginError, setLoginError] = useState<string>("");
+  const [loggingIn, setLoggingIn] = useState<boolean>(false);
+
+  const setActiveTab = (next: SporcuTab) => {
+    setActiveTabState(next);
     try {
-      localStorage.setItem(SPORCU_TAB_KEY, nextTab);
+      localStorage.setItem(SPORCU_TAB_KEY, next);
     } catch {
       // yoksay
     }
-  }
+  };
 
-  async function loadPlayerData(p: Player) {
-    const attendanceQuery = p.is_representative
-      ? supabase.from("prayer_attendance").select("*")
-      : supabase.from("prayer_attendance").select("*").eq("player_id", p.id);
-
-    const [
-      duesRes,
-      trRes,
-      taskRes,
-      sessRes,
-      attRes,
-      feeRes,
-      eqRes,
-      jSetRes,
-      stRes,
-      allClubRes,
-    ] = await Promise.all([
-      supabase.from("dues").select("*").eq("player_id", p.id),
+  const loadPlayerData = useCallback(async (playerId: string) => {
+    const [pRes, dRes, tRes, eqRes, jsRes, stRes] = await Promise.all([
+      supabase.from("players").select("*").eq("id", playerId).maybeSingle(),
       supabase
-        .from("trainings")
+        .from("dues")
         .select("*")
-        .order("start_time", { ascending: true }),
+        .eq("player_id", playerId)
+        .order("created_at", { ascending: false }),
       supabase
         .from("tasks_assignments")
         .select("*")
-        .order("event_date", { ascending: true }),
-      supabase
-        .from("prayer_sessions")
-        .select("*")
-        .order("session_date", { ascending: false }),
-      attendanceQuery,
-      supabase
-        .from("club_settings")
-        .select("*")
-        .eq("key", "monthly_fee")
-        .maybeSingle(),
+        .order("event_date", { ascending: true })
+        .limit(20),
       supabase
         .from("equipment_logs")
         .select("*")
-        .eq("player_id", p.id)
+        .eq("player_id", playerId)
         .order("created_at", { ascending: false }),
-      supabase.from("jersey_sets").select("id, set_name, kit_type, photo_url"),
-      supabase
-        .from("equipment_stock")
-        .select("id, product_name, category, photo_url"),
-      supabase
-        .from("players")
-        .select("id, full_name, age_group, skill_points, jersey_number"),
+      supabase.from("jersey_sets").select("*"),
+      supabase.from("equipment_stock").select("*"),
     ]);
 
-    if (duesRes.data) setDues(duesRes.data as Due[]);
-    if (feeRes.data?.value) setDefaultFee(Number(feeRes.data.value) || 500);
-    if (eqRes.data) setEquipmentLogs(eqRes.data as EquipmentLog[]);
-    if (jSetRes.data) setJerseySets(jSetRes.data as JerseySetMini[]);
-    if (stRes.data) setStockItems(stRes.data as StockItemMini[]);
-    if (allClubRes.data) {
-      setAllClubPlayers(allClubRes.data as LeaderboardPlayerEntry[]);
+    if (pRes.data) {
+      setPlayer(pRes.data as Player);
+    } else {
+      setPlayer(null);
     }
-
-    if (trRes.data) {
-      const filtered = (trRes.data as Training[]).filter(
-        (t) =>
-          (t.age_groups || []).includes(p.age_group) ||
-          (t.extra_player_ids || []).includes(p.id)
-      );
-      setTrainings(filtered);
-    }
-    if (taskRes.data) {
-      const filteredTasks = (taskRes.data as TaskAssignment[]).filter(
-        (t) =>
-          t.age_group === p.age_group ||
-          t.age_group === "Tümü" ||
-          (t.squad_player_ids || []).includes(p.id)
-      );
-      setTasks(filteredTasks);
-    }
-    if (sessRes.data) setAllSessions(sessRes.data as PrayerSession[]);
-    if (attRes.data) setAttendances(attRes.data as PrayerAttendance[]);
-
-    if (p.is_representative) {
-      const { data: allP } = await supabase
-        .from("players")
-        .select("*")
-        .eq("age_group", p.age_group)
-        .order("full_name", { ascending: true });
-      if (allP) setTeamPlayers(allP as Player[]);
-    }
-  }
+    setDues((dRes.data as Due[] | null) || []);
+    setTasks((tRes.data as TaskAssignment[] | null) || []);
+    setEquipmentLogs((eqRes.data as EquipmentLogItem[] | null) || []);
+    setJerseySets(
+      (
+        (jsRes.data as Array<{
+          id: string;
+          set_name: string;
+          kit_type: string;
+          size_label?: string | null;
+          total_count: number;
+          available_count: number;
+          photo_url?: string | null;
+        }> | null) || []
+      ).map((j) => ({ ...j, photo_url: j.photo_url ?? null }))
+    );
+    setStockItems(
+      (
+        (stRes.data as Array<{
+          id: string;
+          product_name: string;
+          category: string;
+          size_label?: string | null;
+          total_count: number;
+          available_count: number;
+          photo_url?: string | null;
+        }> | null) || []
+      ).map((s) => ({ ...s, photo_url: s.photo_url ?? null }))
+    );
+  }, []);
 
   useEffect(() => {
     let active = true;
 
-    const restorePortalSession = async () => {
+    const initSession = async () => {
       try {
-        try {
-          const savedTab = localStorage.getItem(SPORCU_TAB_KEY) as SporcuTab | null;
-          if (savedTab && VALID_SPORCU_TABS.includes(savedTab)) {
-            if (active) setTab(savedTab);
-          }
-        } catch {
-          // yoksay
-        }
+        const savedTab = getSavedSporcuTab();
+        if (active) setActiveTabState(savedTab);
 
         const savedId =
           typeof window !== "undefined"
-            ? localStorage.getItem("ikbal_logged_player_id")
+            ? localStorage.getItem(PLAYER_SESSION_KEY)
             : null;
-
-        if (!savedId) {
-          if (active) {
-            const now = new Date();
-            setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
-            setRestoringSession(false);
-          }
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("players")
-          .select("*")
-          .eq("id", savedId)
-          .maybeSingle();
-
-        if (!active) return;
-        if (error) return;
-
-        if (!data) {
-          localStorage.removeItem("ikbal_logged_player_id");
-          window.dispatchEvent(new Event("ikbal-auth-changed"));
-          return;
-        }
-
-        const p = data as Player;
-        const deviceId = getOrCreateWebDeviceId();
-        if (p.bound_device_id && p.bound_device_id !== deviceId) {
-          localStorage.removeItem("ikbal_logged_player_id");
-          window.dispatchEvent(new Event("ikbal-auth-changed"));
-          return;
-        }
-
-        setPlayer(p);
-        await loadPlayerData(p);
-        if (active) {
-          const now = new Date();
-          setCurrentIdx(now.getFullYear() * 12 + now.getMonth());
+        if (savedId && savedId.trim()) {
+          await loadPlayerData(savedId.trim());
         }
       } finally {
-        if (active) setRestoringSession(false);
+        if (active) setLoading(false);
       }
     };
 
-    void restorePortalSession();
+    void initSession();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [loadPlayerData]);
 
   useEffect(() => {
-    if (!player) return;
+    if (!player?.id) return;
     return subscribeClubLiveUpdates(
       supabase,
       () => {
-        void loadPlayerData(player);
+        void loadPlayerData(player.id);
       },
-      `sporcu-live-${player.id}`
+      `web-sporcu-${player.id}`
     );
-  }, [player]);
+  }, [player?.id, loadPlayerData]);
 
-  const dueItems: DueDisplayItem[] = useMemo(() => {
-    const kasim2026Idx = 2026 * 12 + 10;
-    const effectiveStartIdx = Math.min(kasim2026Idx, currentIdx);
+  async function handlePlayerLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoginError("");
+    const cleanCode = loginCode.trim().toUpperCase();
+    const cleanPin = loginPin.trim();
 
-    const monthSet = new Set<string>();
-    for (let idx = effectiveStartIdx; idx <= currentIdx; idx++) {
-      const yr = Math.floor(idx / 12);
-      const m = idx % 12;
-      monthSet.add(`${TR_MONTHS[m]} ${yr}`);
-    }
-    dues.forEach((d) => monthSet.add(d.month_label));
-
-    return Array.from(monthSet)
-      .sort((a, b) => parseMonthIndex(b) - parseMonthIndex(a))
-      .map((monthLabel) => {
-        const record = dues.find((d) => d.month_label === monthLabel);
-        const paid = Boolean(
-          record &&
-            (record.status === "odendi" ||
-              record.status === "Ödendi" ||
-              record.status === "paid")
-        );
-        const mIdx = parseMonthIndex(monthLabel);
-        const isPast = mIdx > 0 && mIdx < currentIdx;
-        const isCurrent = mIdx === currentIdx;
-
-        let state: DueDisplayItem["state"] = "unpaid";
-        if (paid) state = "paid";
-        else if (isPast) state = "overdue";
-        else if (isCurrent) state = "unpaid";
-        else state = "upcoming";
-
-        return {
-          monthLabel,
-          amount: record?.amount ?? defaultFee,
-          state,
-        };
-      });
-  }, [dues, defaultFee, currentIdx]);
-
-  const overdueCount = dueItems.filter((x) => x.state === "overdue").length;
-  const currentUnpaid = dueItems.some((x) => x.state === "unpaid");
-  const currentMonthItem =
-    dueItems.find((x) => x.state === "unpaid" || x.state === "paid") ||
-    dueItems[0];
-
-  const activeEquipmentCount = equipmentLogs.filter(
-    (e) => e.status === "teslim_edildi"
-  ).length;
-
-  const playerAttendedCount = player
-    ? allSessions.filter((s) =>
-        attendances.some(
-          (a) => a.session_id === s.id && a.player_id === player.id
-        )
-      ).length
-    : 0;
-
-  const attendanceRate =
-    allSessions.length > 0
-      ? Math.round((playerAttendedCount / allSessions.length) * 100)
-      : 0;
-
-  const overallLeaderboard = useMemo<LeaderboardPlayerEntry[]>(() => {
-    const currentPlayerPts = player
-      ? getPointsValue(player as Player & { skill_points?: number | null })
-      : 20;
-
-    const merged: LeaderboardPlayerEntry[] = [...allClubPlayers];
-    if (player && !merged.some((item) => item.id === player.id)) {
-      merged.push({
-        id: player.id,
-        full_name: player.full_name,
-        age_group: player.age_group,
-        jersey_number: player.jersey_number,
-        skill_points: currentPlayerPts,
-      });
+    if (!cleanCode || !cleanPin) {
+      setLoginError("Lütfen sporcu kodu ve PIN bilginizi girin.");
+      return;
     }
 
-    return merged
-      .map((item) => {
-        if (player && item.id === player.id) {
-          return {
-            ...item,
-            skill_points: currentPlayerPts,
-          };
-        }
-        return {
-          ...item,
-          skill_points: getPointsValue(item),
-        };
-      })
-      .sort((a, b) => {
-        const ptsA = getPointsValue(a);
-        const ptsB = getPointsValue(b);
-        if (ptsB !== ptsA) return ptsB - ptsA;
-        return a.full_name.localeCompare(b.full_name, "tr-TR");
-      });
-  }, [allClubPlayers, player]);
+    setLoggingIn(true);
+    const { data, error } = await supabase
+      .from("players")
+      .select("*")
+      .ilike("player_code", cleanCode)
+      .maybeSingle();
+    setLoggingIn(false);
 
-  const myOverallRank = useMemo(() => {
-    if (!player) return null;
-    const idx = overallLeaderboard.findIndex((p) => p.id === player.id);
-    if (idx === -1) return null;
-    return {
-      rank: idx + 1,
-      total: overallLeaderboard.length,
-      points: getPointsValue(player as Player & { skill_points?: number | null }),
+    if (error || !data) {
+      setLoginError("Sporcu kodu bulunamadı.");
+      return;
+    }
+
+    const row = data as Player & {
+      pin?: string | null;
+      password?: string | null;
     };
-  }, [overallLeaderboard, player]);
+    const storedPin = String(row.pin || row.password || "").trim();
+    if (storedPin && storedPin !== cleanPin) {
+      setLoginError("PIN kodu hatalı.");
+      return;
+    }
 
-  function handleLogout() {
-    localStorage.removeItem("ikbal_logged_player_id");
-    localStorage.removeItem(SPORCU_TAB_KEY);
-    window.dispatchEvent(new Event("ikbal-auth-changed"));
-    setPlayer(null);
+    try {
+      localStorage.setItem(PLAYER_SESSION_KEY, row.id);
+      window.dispatchEvent(new Event("ikbal-auth-changed"));
+    } catch {
+      // yoksay
+    }
+
+    setPlayer(row);
+    setActiveTab("kartim");
+    await loadPlayerData(row.id);
   }
 
+  function handleLogout() {
+    try {
+      localStorage.removeItem(PLAYER_SESSION_KEY);
+      window.dispatchEvent(new Event("ikbal-auth-changed"));
+    } catch {
+      // yoksay
+    }
+    setPlayer(null);
+    setDues([]);
+    setTasks([]);
+    setEquipmentLogs([]);
+    setFeedback("");
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)]">
+        <Navbar />
+        <div className="max-w-6xl mx-auto px-4 py-10 text-sm font-bold text-[var(--text-secondary)]">
+          Sporcu paneli yükleniyor...
+        </div>
+      </div>
+    );
+  }
+
+  if (!player) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col">
+        <Navbar />
+        <main className="flex-1 flex items-center justify-center px-4 py-10">
+          <form
+            onSubmit={handlePlayerLogin}
+            className="w-full max-w-md bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-sm space-y-4"
+          >
+            <div>
+              <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
+                Çorum İkbalspor • Sporcu Girişi
+              </span>
+              <h1 className="text-xl font-black text-[var(--text-primary)] mt-1">
+                Sporcu Paneli Girişi
+              </h1>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                Kartınızı, puanlarınızı, programınızı, aidatlarınızı ve malzeme
+                durumunuzu görüntülemek için giriş yapın.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Sporcu Kodu
+              </label>
+              <input
+                type="text"
+                value={loginCode}
+                onChange={(e) => setLoginCode(e.target.value)}
+                placeholder="Örn: D2 veya IKB-101"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                PIN Kodu
+              </label>
+              <input
+                type="password"
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value)}
+                placeholder="••••"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
+              />
+            </div>
+
+            {loginError && (
+              <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-bold">
+                {loginError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loggingIn}
+              className="w-full py-3 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-sm font-black cursor-pointer disabled:opacity-50"
+            >
+              {loggingIn ? "Giriş Yapılıyor..." : "Giriş Yap"}
+            </button>
+          </form>
+        </main>
+      </div>
+    );
+  }
+
+  const tabs: Array<{ id: SporcuTab; label: string }> = [
+    { id: "kartim", label: "Kartım" },
+    { id: "qr", label: "QR Yoklama" },
+    { id: "program", label: "Program & Maçlar" },
+    { id: "malzeme", label: "Malzemelerim" },
+    { id: "aidat", label: "Aidatlarım" },
+    { id: "profil", label: "Profil & PIN" },
+  ];
+
+  const playerTasks = tasks.filter(
+    (t) =>
+      !t.age_group ||
+      t.age_group === "Tümü" ||
+      t.age_group === player.age_group
+  );
+
+  const unpaidDues = dues.filter((d) => {
+    const row = d as Due & { is_paid?: boolean | null };
+    return row.status !== "Ödendi" && !row.is_paid;
+  });
+
+  const activeEquipmentCount = equipmentLogs.filter(
+    (eq) => eq.status !== "İade Edildi"
+  ).length;
+
+  const headerTab =
+    activeTab === "malzeme" || activeTab === "kartim" ? "profil" : activeTab;
+
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] pb-14 transition-colors">
       <Navbar />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-3 sm:px-4 py-6 sm:py-8">
-        {restoringSession && !player ? (
-          <SporcuSessionSkeleton />
-        ) : !player ? (
-          <div className="page-transition">
-            <PlayerLogin
-              onLoginSuccess={async (loggedPlayer) => {
-                setPlayer(loggedPlayer);
-                await loadPlayerData(loggedPlayer);
-              }}
-            />
-          </div>
-        ) : (
-          <div className="space-y-6 page-transition">
-            <PlayerHeader
-              player={player}
-              tab={tab}
-              onTabChange={handleTabChange}
-              onLogout={handleLogout}
-              totalSessionsCount={allSessions.length}
-              attendanceRate={attendanceRate}
-              activeEquipmentCount={activeEquipmentCount}
-              overdueCount={overdueCount}
-              currentUnpaid={currentUnpaid}
-            />
+      <div className="max-w-6xl mx-auto px-4 pt-5 space-y-5">
+        <PlayerHeader
+          player={player}
+          tab={headerTab as React.ComponentProps<typeof PlayerHeader>["tab"]}
+          onTabChange={(next) => setActiveTab(mapHeaderTabToSporcuTab(next))}
+          totalSessionsCount={0}
+          attendanceRate={0}
+          activeEquipmentCount={activeEquipmentCount}
+          overdueCount={unpaidDues.length}
+          currentUnpaid={unpaidDues.length > 0}
+          onLogout={handleLogout}
+        />
 
-            <div key={tab} className="page-transition">
-              {tab === "qr" && (
-                <PlayerQrTab
-                  player={player}
-                  allSessions={allSessions}
-                  attendances={attendances}
-                  setAttendances={setAttendances}
-                  teamPlayers={teamPlayers}
-                  playerAttendedCount={playerAttendedCount}
-                />
-              )}
+        {/* Sekme Çubuğu */}
+        <div className="bg-[var(--bg-surface)] p-2 rounded-2xl border border-[var(--border-subtle)] shadow-xs grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          {tabs.map((item) => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={`px-3 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition cursor-pointer ${
+                  isActive
+                    ? "bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-red)] text-white shadow-xs"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-subtle)]"
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
 
-              {tab === "program" && (
-                <div className="space-y-6">
-                  <PlayerProgramTab trainings={trainings} tasks={tasks} />
-                  {player.id && player.age_group && (
-                    <MatchPredictionCard
-                      playerId={player.id}
-                      ageGroup={player.age_group}
-                    />
-                  )}
-                </div>
-              )}
-
-              {tab === "malzemeler" && (
-                <PlayerEquipmentTab
-                  equipmentLogs={equipmentLogs}
-                  jerseySets={jerseySets}
-                  stockItems={stockItems}
-                />
-              )}
-
-              {tab === "aidat" && (
-                <PlayerDuesTab
-                  dueItems={dueItems}
-                  overdueCount={overdueCount}
-                />
-              )}
-
-              {tab === "profil" && (
-                <div className="space-y-6">
-                  <PlayerProfileTab
-                    player={player}
-                    setPlayer={setPlayer}
-                    overdueCount={overdueCount}
-                    currentMonthItem={currentMonthItem}
-                  />
-
-                  <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs space-y-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-subtle)] pb-4">
-                      <div>
-                        <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
-                          Üyelere Özel Genel Sıralama
-                        </span>
-                        <h2 className="text-lg font-black text-[var(--text-primary)]">
-                          Genel Puan Tablosu (Tüm Yaş Kategorileri)
-                        </h2>
-                      </div>
-                      {myOverallRank && (
-                        <div className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] text-white text-right tabular-nums">
-                          <div className="text-[10px] uppercase text-amber-200 font-bold">
-                            Senin Sıran
-                          </div>
-                          <div className="text-base font-black">
-                            #{myOverallRank.rank}{" "}
-                            <span className="text-xs font-semibold text-slate-300">
-                              / {myOverallRank.total} • {myOverallRank.points}p
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end tabular-nums">
-                      <div className="order-2 md:order-1 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-4 min-h-[145px] flex flex-col justify-between">
-                        <span className="text-xs font-black text-[var(--text-secondary)]">
-                          #2 Sıra
-                        </span>
-                        <div>
-                          <div className="font-extrabold text-sm text-[var(--text-primary)] truncate">
-                            {overallLeaderboard[1]?.full_name || "-"}
-                          </div>
-                          <div className="text-xs font-bold text-[var(--text-muted)]">
-                            {overallLeaderboard[1]?.age_group || ""}
-                          </div>
-                          <div className="text-sm font-black text-[var(--brand-red)] mt-1">
-                            {overallLeaderboard[1]
-                              ? getPointsValue(overallLeaderboard[1])
-                              : 20}{" "}
-                            Puan
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="order-1 md:order-2 rounded-2xl border-2 border-amber-400 bg-[var(--brand-navy)] text-white p-5 min-h-[185px] flex flex-col justify-between shadow-md">
-                        <span className="inline-block w-fit px-3 py-0.5 rounded-full bg-amber-400 text-slate-950 text-xs font-black">
-                          #1 Sıra • Lider
-                        </span>
-                        <div>
-                          <div className="font-black text-xl truncate">
-                            {overallLeaderboard[0]?.full_name || "-"}
-                          </div>
-                          <div className="text-xs font-bold text-amber-200">
-                            {overallLeaderboard[0]?.age_group || ""}
-                          </div>
-                          <div className="text-base font-black text-amber-300 mt-1">
-                            {overallLeaderboard[0]
-                              ? getPointsValue(overallLeaderboard[0])
-                              : 20}{" "}
-                            Puan
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="order-3 rounded-2xl border border-amber-400/40 bg-[var(--bg-subtle)] p-4 min-h-[130px] flex flex-col justify-between">
-                        <span className="text-xs font-black text-amber-500">
-                          #3 Sıra
-                        </span>
-                        <div>
-                          <div className="font-bold text-sm text-[var(--text-primary)] truncate">
-                            {overallLeaderboard[2]?.full_name || "-"}
-                          </div>
-                          <div className="text-xs font-bold text-[var(--text-muted)]">
-                            {overallLeaderboard[2]?.age_group || ""}
-                          </div>
-                          <div className="text-xs font-black text-[var(--brand-red)] mt-1">
-                            {overallLeaderboard[2]
-                              ? getPointsValue(overallLeaderboard[2])
-                              : 20}{" "}
-                            Puan
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="divide-y divide-[var(--border-subtle)] rounded-xl border border-[var(--border-subtle)] overflow-hidden tabular-nums">
-                      {overallLeaderboard.slice(0, 10).map((item, idx) => {
-                        const isMe = item.id === player.id;
-                        return (
-                          <div
-                            key={item.id}
-                            className={`px-3.5 py-2.5 flex items-center justify-between text-xs sm:text-sm ${
-                              isMe
-                                ? "bg-[var(--brand-navy-soft)] font-black"
-                                : "bg-[var(--bg-surface)]"
-                            }`}
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-7 font-black text-[var(--brand-navy)] dark:text-sky-300">
-                                #{idx + 1}
-                              </span>
-                              <span className="font-bold text-[var(--text-primary)] truncate">
-                                {item.full_name}
-                              </span>
-                              <span className="px-2 py-0.5 rounded bg-[var(--bg-subtle)] text-[var(--text-secondary)] text-[11px] font-bold shrink-0">
-                                {item.age_group}
-                              </span>
-                            </div>
-                            <span className="font-black text-[var(--brand-red)] shrink-0">
-                              {getPointsValue(item)} Puan
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                </div>
-              )}
-            </div>
+        {feedback && (
+          <div className="p-3.5 rounded-2xl bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-xs font-extrabold flex items-center justify-between">
+            <span>{feedback}</span>
+            <button
+              type="button"
+              onClick={() => setFeedback("")}
+              className="underline ml-3 cursor-pointer"
+            >
+              Kapat
+            </button>
           </div>
         )}
-      </main>
+
+        {activeTab === "kartim" && (
+          <PlayerCardSection
+            player={player}
+            onPlayerUpdated={(updated: Player) => setPlayer(updated)}
+            onFeedback={setFeedback}
+          />
+        )}
+
+        {activeTab === "qr" && (
+          <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-3">
+            <h2 className="text-base font-black text-[var(--text-primary)]">
+              QR Yoklama
+            </h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Antrenman ve tesis QR oturumları aktif olduğunda buradan veya
+              mobil uygulama üzerinden yoklama kaydınızı takip edebilirsiniz.
+            </p>
+            <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-4 text-xs font-bold text-[var(--text-primary)]">
+              Aktif Sporcu Kodu: {player.player_code || "-"} • Yaş Grubu:{" "}
+              {player.age_group}
+            </div>
+          </section>
+        )}
+
+        {activeTab === "program" && (
+          <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-3">
+            <h2 className="text-base font-black text-[var(--text-primary)]">
+              Program &amp; Maçlar ({playerTasks.length})
+            </h2>
+            {playerTasks.length === 0 ? (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Henüz planlanmış maç veya görev bulunmuyor.
+              </p>
+            ) : (
+              <div className="divide-y divide-[var(--border-subtle)]">
+                {playerTasks.map((t) => (
+                  <div
+                    key={t.id}
+                    className="py-3 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm"
+                  >
+                    <div>
+                      <div className="font-extrabold text-[var(--text-primary)]">
+                        {t.title}
+                      </div>
+                      <div className="text-xs text-[var(--text-secondary)]">
+                        {t.location || "Saha belirtilmedi"}
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold">
+                      {t.event_date || "-"}
+                      {t.match_time ? ` • ${t.match_time}` : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "malzeme" && (
+          <PlayerEquipmentTab
+            equipmentLogs={
+              equipmentLogs as unknown as React.ComponentProps<
+                typeof PlayerEquipmentTab
+              >["equipmentLogs"]
+            }
+            jerseySets={
+              jerseySets as unknown as React.ComponentProps<
+                typeof PlayerEquipmentTab
+              >["jerseySets"]
+            }
+            stockItems={
+              stockItems as unknown as React.ComponentProps<
+                typeof PlayerEquipmentTab
+              >["stockItems"]
+            }
+          />
+        )}
+
+        {activeTab === "aidat" && (
+          <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-3">
+            <h2 className="text-base font-black text-[var(--text-primary)]">
+              Aidatlarım ({dues.length})
+            </h2>
+            {dues.length === 0 ? (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Aidat kaydı bulunmuyor.
+              </p>
+            ) : (
+              <div className="divide-y divide-[var(--border-subtle)]">
+                {dues.map((d) => {
+                  const dueRow = d as Due & {
+                    month_label?: string | null;
+                    month?: string | null;
+                    is_paid?: boolean | null;
+                  };
+                  return (
+                    <div
+                      key={d.id}
+                      className="py-3 flex items-center justify-between gap-2 text-xs sm:text-sm"
+                    >
+                      <span className="font-extrabold text-[var(--text-primary)]">
+                        {dueRow.month_label || dueRow.month || "Aidat Kaydı"}
+                      </span>
+                      <span className="font-black text-[var(--brand-navy)] dark:text-sky-300">
+                        {dueRow.status ||
+                          (dueRow.is_paid ? "Ödendi" : "Bekliyor")}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === "profil" && (
+          <div className="space-y-6">
+            <PlayerProfileTab
+              {...({
+                player,
+                setPlayer,
+                overdueCount: unpaidDues.length,
+              } as unknown as React.ComponentProps<typeof PlayerProfileTab>)}
+            />
+            <PlayerCardSection
+              player={player}
+              onPlayerUpdated={(updated: Player) => setPlayer(updated)}
+              onFeedback={setFeedback}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
