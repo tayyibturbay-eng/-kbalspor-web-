@@ -164,7 +164,7 @@ export default function HomePage() {
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
               Kayıtlı Sporcu Kadrosu
             </span>
-            <div className="text-3xl font-black text-[var(--brand-navy)] dark:text-sky-300 mt-1.5">
+            <div className="text-3xl font-black text-[var(--brand-ink)] mt-1.5">
               {playerCount} Sporcu
             </div>
             <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -307,7 +307,7 @@ export default function HomePage() {
                         {m.location || "Saha bilgisi yok"}
                       </div>
                     </div>
-                    <span className="px-3 py-1.5 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold tabular-nums">
+                    <span className="px-3 py-1.5 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold tabular-nums">
                       {formatShortDateTR(m.event_date, m.match_time)}
                     </span>
                   </div>
@@ -347,14 +347,12 @@ export default function HomePage() {
           </section>
         </div>
 
-        
-
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link
             href="/gorevler"
             className="group bg-[var(--bg-surface)] hover:border-[var(--brand-navy)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
           >
-            <div className="text-sm font-black text-[var(--brand-navy)] dark:text-sky-300 group-hover:underline">
+            <div className="text-sm font-black text-[var(--brand-ink)] group-hover:underline">
               Maç Skor &amp; Golcü Tahmini
             </div>
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
@@ -394,7 +392,7 @@ export default function HomePage() {
       <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] py-6 px-4 text-xs text-[var(--text-secondary)]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <div className="font-black text-[var(--brand-navy)] dark:text-sky-300">
+            <div className="font-black text-[var(--brand-ink)]">
               Çorum İkbal Spor Kulübü
             </div>
             <div className="text-[11px] mt-0.5">

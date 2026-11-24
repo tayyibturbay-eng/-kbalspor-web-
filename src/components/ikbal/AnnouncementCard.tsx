@@ -153,28 +153,19 @@ export function AnnouncementCard({
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <span
-              style={{ color: "#b91c1c", fontWeight: 900 }}
-              className="text-[11px] uppercase tracking-wide truncate"
-            >
+            <span className="text-[11px] uppercase tracking-wide truncate font-black text-[var(--brand-red)]">
               {groupLabel}
             </span>
           </div>
 
           {cleanedTitle && (
-            <div
-              style={{ color: "#020617", fontWeight: 900 }}
-              className="text-sm leading-snug truncate"
-            >
+            <div className="text-sm leading-snug truncate font-black text-[var(--text-primary)]">
               {cleanedTitle}
             </div>
           )}
 
           {cleanedBody && (
-            <p
-              style={{ color: "#475569", fontWeight: 500 }}
-              className="text-xs line-clamp-2 leading-relaxed"
-            >
+            <p className="text-xs line-clamp-2 leading-relaxed font-medium text-[var(--text-secondary)]">
               {cleanedBody}
             </p>
           )}
@@ -201,45 +192,30 @@ export function AnnouncementCard({
 
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span
-            style={{ color: "#b91c1c", fontWeight: 900 }}
-            className="px-2.5 py-0.5 rounded-full bg-red-600/12"
-          >
+          <span className="px-2.5 py-0.5 rounded-full bg-red-600/12 font-black text-[var(--brand-red)]">
             {groupLabel}
           </span>
           {dateLabel && (
-            <span
-              style={{ color: "#64748b", fontWeight: 600 }}
-              className="tabular-nums"
-            >
+            <span className="tabular-nums font-semibold text-[var(--text-muted)]">
               {dateLabel}
             </span>
           )}
         </div>
 
         {cleanedTitle && (
-          <h2
-            style={{ color: "#020617", fontWeight: 900 }}
-            className="text-base sm:text-lg leading-snug"
-          >
+          <h2 className="text-base sm:text-lg leading-snug font-black text-[var(--text-primary)]">
             {cleanedTitle}
           </h2>
         )}
 
         {cleanedBody && (
-          <p
-            style={{ color: "#475569", fontWeight: 500 }}
-            className="text-sm whitespace-pre-line leading-relaxed"
-          >
+          <p className="text-sm whitespace-pre-line leading-relaxed font-medium text-[var(--text-secondary)]">
             {cleanedBody}
           </p>
         )}
 
         {announcement.sender_name && (
-          <div
-            style={{ color: "#64748b", fontWeight: 700 }}
-            className="pt-1 text-[11px]"
-          >
+          <div className="pt-1 text-[11px] font-bold text-[var(--text-muted)]">
             Gönderen: {announcement.sender_name}
           </div>
         )}

@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { createClient } from "@/lib/supabase/client";
 import { calcAgeGroupFromBirthDate } from "@/lib/age-groups";
+import { MEMBERSHIP_STATUS } from "@/lib/membership-status";
 
 const supabase = createClient();
 
@@ -76,10 +77,13 @@ export default function MembershipRequestPage() {
       full_name: fullName.trim(),
       birth_date: birthDate,
       age_group: computedGroup,
+      // Panel ve API "parent_phone" kolonunu okur; guardian_name/phone
+      // eski kayıtlarla uyum için ayrıca yazılır.
+      parent_phone: guardianPhone.trim(),
       guardian_name: guardianName.trim() || null,
       guardian_phone: guardianPhone.trim(),
       notes: notes.trim() || null,
-      status: "Beklemede",
+      status: MEMBERSHIP_STATUS.PENDING,
       created_at: new Date().toISOString(),
     });
     setSubmitting(false);
@@ -108,7 +112,7 @@ export default function MembershipRequestPage() {
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white py-7 px-4 shadow-sm">
+      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[var(--brand-navy-hover)] to-[var(--brand-red)] text-white py-7 px-4 shadow-sm">
         <div className="max-w-4xl mx-auto">
           <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
             Çorum İkbal Spor Kulübü • Kayıt &amp; Altyapı
@@ -155,7 +159,7 @@ export default function MembershipRequestPage() {
                 className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
               />
               {autoAgeGroup ? (
-                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-[11px] font-extrabold">
+                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-[11px] font-extrabold">
                   Otomatik Kategori: {autoAgeGroup}
                 </div>
               ) : null}
@@ -207,6 +211,8 @@ export default function MembershipRequestPage() {
 
           {feedback && (
             <div
+              role="status"
+              aria-live="polite"
               className={`p-3.5 rounded-2xl text-xs font-extrabold ${
                 feedback.ok
                   ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
@@ -230,7 +236,7 @@ export default function MembershipRequestPage() {
 
           <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-2.5">
             <details className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              <summary className="cursor-pointer font-extrabold text-[var(--brand-navy)] dark:text-sky-300">
+              <summary className="cursor-pointer font-extrabold text-[var(--brand-ink)]">
                 6698 Sayılı KVKK Kapsamında Aydınlatma Metni (Okumak için tıklayın)
               </summary>
               <p className="mt-2">

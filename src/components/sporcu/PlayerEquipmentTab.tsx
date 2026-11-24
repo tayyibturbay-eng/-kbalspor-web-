@@ -62,7 +62,7 @@ export function PlayerEquipmentTab({
             </p>
           </div>
           <div className="flex flex-wrap gap-2 tabular-nums">
-            <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold">
+            <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold">
               Üzerimde: {activeEquipmentCount}
             </span>
             {missingEquipmentCount > 0 && (

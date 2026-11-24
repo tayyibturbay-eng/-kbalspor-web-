@@ -297,7 +297,7 @@ export function NotificationsTab({
                 isterseniz görsel/ses yükleyip link oluşturabilirsiniz.
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-[11px] font-extrabold">
+            <span className="px-2.5 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-[11px] font-extrabold">
               Hedef: {notifTargetGroups.join(", ")}
             </span>
           </div>

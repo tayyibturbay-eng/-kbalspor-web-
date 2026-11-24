@@ -873,7 +873,7 @@ export function StockAndGiveSection({
                       className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-2.5 space-y-1.5 text-xs"
                     >
                       <div className="flex items-center justify-between gap-1">
-                        <span className="font-black text-[var(--brand-navy)] dark:text-sky-300">
+                        <span className="font-black text-[var(--brand-ink)]">
                           #{unit.number}
                         </span>
                         <input

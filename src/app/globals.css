@@ -1,24 +1,32 @@
 @import "tailwindcss";
 
 :root {
+  /* — Marka — */
   --brand-navy: #0b2545;
   --brand-navy-hover: #13315c;
   --brand-navy-soft: #ebf1f8;
-
   --brand-red: #b91c1c;
   --brand-red-hover: #991b1b;
   --brand-red-soft: #fef2f2;
+  --brand-gold: #d97706;
+  --brand-gold-soft: #fffbeb;
+  /* Metin içinde kullanılan marka laciverti (koyu temada okunur maviye döner) */
+  --brand-ink: #0b2545;
 
+  /* — Yüzeyler — */
   --bg-canvas: #f4f6f9;
   --bg-surface: #ffffff;
   --bg-subtle: #f8fafc;
+  --bg-raised: #ffffff;
   --border-subtle: #e2e8f0;
   --border-strong: #cbd5e1;
 
+  /* — Metin — */
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
 
+  /* — Durumlar — */
   --status-success-bg: #dcfce7;
   --status-success-text: #15803d;
   --status-warning-bg: #fef3c7;
@@ -28,21 +36,32 @@
   --status-info-bg: #e0f2fe;
   --status-info-text: #0369a1;
 
+  /* — Biçim dili (soft kurumsal) — */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-elevated: 0 10px 25px -5px rgba(11, 37, 69, 0.12);
+  --radius-xl: 22px;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04),
+    0 4px 16px -6px rgba(11, 37, 69, 0.08);
+  --shadow-soft: 0 2px 6px rgba(15, 23, 42, 0.05),
+    0 10px 30px -12px rgba(11, 37, 69, 0.14);
+  --shadow-elevated: 0 12px 32px -8px rgba(11, 37, 69, 0.22);
+  --ring-brand: 0 0 0 3px rgba(11, 37, 69, 0.18);
+  --ring-brand-red: 0 0 0 3px rgba(185, 28, 28, 0.18);
+  --ease-soft: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 :root[data-theme="dark"],
 .dark {
   --brand-navy-soft: rgba(59, 130, 246, 0.14);
   --brand-red-soft: rgba(239, 68, 68, 0.16);
+  --brand-gold-soft: rgba(245, 158, 11, 0.14);
+  --brand-ink: #7dd3fc;
 
   --bg-canvas: #090d16;
   --bg-surface: #111827;
   --bg-subtle: #1e293b;
+  --bg-raised: #16202f;
   --border-subtle: #273449;
   --border-strong: #334155;
 
@@ -50,8 +69,22 @@
   --text-secondary: #cbd5e1;
   --text-muted: #94a3b8;
 
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 12px 28px -6px rgba(0, 0, 0, 0.55);
+  --status-success-bg: rgba(34, 197, 94, 0.16);
+  --status-success-text: #4ade80;
+  --status-warning-bg: rgba(245, 158, 11, 0.16);
+  --status-warning-text: #fbbf24;
+  --status-danger-bg: rgba(239, 68, 68, 0.16);
+  --status-danger-text: #f87171;
+  --status-info-bg: rgba(14, 165, 233, 0.16);
+  --status-info-text: #38bdf8;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35),
+    0 4px 18px -8px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.4),
+    0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  --shadow-elevated: 0 14px 36px -10px rgba(0, 0, 0, 0.6);
+  --ring-brand: 0 0 0 3px rgba(96, 165, 250, 0.35);
+  --ring-brand-red: 0 0 0 3px rgba(248, 113, 113, 0.35);
 }
 
 @theme inline {
@@ -61,10 +94,14 @@
   --color-brand-red: var(--brand-red);
   --color-brand-red-hover: var(--brand-red-hover);
   --color-brand-red-soft: var(--brand-red-soft);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-soft: var(--brand-gold-soft);
+  --color-brand-ink: var(--brand-ink);
 
   --color-bg-canvas: var(--bg-canvas);
   --color-bg-surface: var(--bg-surface);
   --color-bg-subtle: var(--bg-subtle);
+  --color-bg-raised: var(--bg-raised);
   --color-border-subtle: var(--border-subtle);
   --color-border-strong: var(--border-strong);
 
@@ -76,24 +113,7 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
-@keyframes pageFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.page-transition {
-  animation: pageFadeIn 180ms ease-out both;
-}
-
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-}
+/* ————— Temel davranış ————— */
 
 html,
 body {
@@ -105,7 +125,9 @@ body {
   background-color: var(--bg-canvas);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  transition: background-color 180ms ease, color 180ms ease;
+  transition: background-color 200ms var(--ease-soft),
+    color 200ms var(--ease-soft);
+  -webkit-font-smoothing: antialiased;
 }
 
 main,
@@ -121,4 +143,223 @@ textarea {
   color: var(--text-primary);
   background-color: var(--bg-surface);
   border-color: var(--border-subtle);
+}
+
+/* Formlar nerede yazılırsa yazılsın tek tip, yumuşak odak halkası */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--brand-navy);
+  box-shadow: var(--ring-brand);
+}
+
+button:focus-visible,
+a:focus-visible,
+[role="switch"]:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-brand);
+  border-radius: inherit;
+}
+
+::selection {
+  background: rgba(11, 37, 69, 0.16);
+}
+
+/* Yumuşak, kurumsal kaydırma çubuğu */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+  background-clip: content-box;
+}
+
+/* ————— Hareket ————— */
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-transition {
+  animation: pageFadeIn 220ms var(--ease-soft) both;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ————— Bileşen katmanı (soft kurumsal primitifler) ————— */
+/* Mevcut sayfalar bozulmasın diye yalnızca ek sınıflar tanımlanır. */
+
+@layer components {
+  .k-artik {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 200ms var(--ease-soft),
+      border-color 200ms var(--ease-soft), transform 200ms var(--ease-soft);
+  }
+  .k-artik--yumusuk {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .k-buton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 14px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    padding: 0.625rem 1.125rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 180ms var(--ease-soft),
+      border-color 180ms var(--ease-soft), color 180ms var(--ease-soft),
+      box-shadow 180ms var(--ease-soft), transform 120ms var(--ease-soft);
+  }
+  .k-buton:active {
+    transform: translateY(1px) scale(0.99);
+  }
+  .k-buton:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-brand);
+  }
+  .k-buton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+  }
+  .k-buton--lacivert {
+    background-color: var(--brand-navy);
+    color: #fff;
+    box-shadow: 0 4px 14px -6px rgba(11, 37, 69, 0.45);
+  }
+  .k-buton--lacivert:hover:not(:disabled) {
+    background-color: var(--brand-navy-hover);
+  }
+  .k-buton--kirmizi {
+    background-color: var(--brand-red);
+    color: #fff;
+    box-shadow: 0 4px 14px -6px rgba(185, 28, 28, 0.45);
+  }
+  .k-buton--kirmizi:hover:not(:disabled) {
+    background-color: var(--brand-red-hover);
+  }
+  .k-buton--kirmizi:focus-visible {
+    box-shadow: var(--ring-brand-red);
+  }
+  .k-buton--yumusuk {
+    background-color: var(--brand-navy-soft);
+    color: var(--brand-navy);
+  }
+  :root[data-theme="dark"] .k-buton--yumusuk {
+    color: #7fb1f7;
+  }
+  .k-buton--yumusuk:hover:not(:disabled) {
+    border-color: var(--brand-navy);
+  }
+  .k-buton--hayalet {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border-color: var(--border-strong);
+  }
+  .k-buton--hayalet:hover:not(:disabled) {
+    background-color: var(--bg-subtle);
+    color: var(--text-primary);
+  }
+
+  .k-alan {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--border-subtle);
+    background-color: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    transition: border-color 160ms var(--ease-soft),
+      box-shadow 160ms var(--ease-soft);
+  }
+  .k-alan::placeholder {
+    color: var(--text-muted);
+  }
+  .k-alan:focus {
+    outline: none;
+    border-color: var(--brand-navy);
+    box-shadow: var(--ring-brand);
+  }
+  .k-alan:hover:not(:focus) {
+    border-color: var(--border-strong);
+  }
+
+  .k-etiket {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+  .k-etiket--basari {
+    background: var(--status-success-bg);
+    color: var(--status-success-text);
+  }
+  .k-etiket--uyari {
+    background: var(--status-warning-bg);
+    color: var(--status-warning-text);
+  }
+  .k-etiket--tehlike {
+    background: var(--status-danger-bg);
+    color: var(--status-danger-text);
+  }
+  .k-etiket--bilgi {
+    background: var(--status-info-bg);
+    color: var(--status-info-text);
+  }
+  .k-etiket--lacivert {
+    background: var(--brand-navy-soft);
+    color: var(--brand-navy);
+  }
+  :root[data-theme="dark"] .k-etiket--lacivert {
+    color: #7fb1f7;
+  }
+
+  .k-odak:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-brand);
+  }
 }

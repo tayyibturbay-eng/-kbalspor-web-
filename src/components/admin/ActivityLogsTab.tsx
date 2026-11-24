@@ -144,7 +144,7 @@ export function ActivityLogsTab({ logs, onLogsChange }: ActivityLogsTabProps) {
                   />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-black text-[var(--brand-navy)] dark:text-sky-300">
+                      <span className="font-black text-[var(--brand-ink)]">
                         {log.actor}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-[11px] font-extrabold text-[var(--text-primary)]">

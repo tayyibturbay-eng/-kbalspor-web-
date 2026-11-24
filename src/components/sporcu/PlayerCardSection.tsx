@@ -148,6 +148,12 @@ export function PlayerCardSection({
   const [availablePoints, setAvailablePoints] = useState<number>(
     Number(playerExt.skill_points ?? 0)
   );
+  // Sunucudan gelen puan değiştiğinde durumu eşitle (render sırasında ayarlama deseni).
+  const [oncekiPuan, setOncekiPuan] = useState(playerExt.skill_points);
+  if (oncekiPuan !== playerExt.skill_points) {
+    setOncekiPuan(playerExt.skill_points);
+    setAvailablePoints(Number(playerExt.skill_points ?? 0));
+  }
   const [pace, setPace] = useState<number>(Number(playerExt.pace ?? 20));
   const [shooting, setShooting] = useState<number>(
     Number(playerExt.shooting ?? 20)
@@ -183,10 +189,6 @@ export function PlayerCardSection({
   } | null>(null);
 
   const cardRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setAvailablePoints(Number(playerExt.skill_points ?? 0));
-  }, [playerExt.skill_points]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

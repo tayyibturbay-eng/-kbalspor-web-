@@ -73,7 +73,7 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
   return (
     <div className="max-w-md mx-auto bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] shadow-xs p-6 sm:p-8">
       <div className="text-center mb-6">
-        <span className="inline-block px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold uppercase tracking-wider mb-2">
+        <span className="inline-block px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold uppercase tracking-wider mb-2">
           Sporcu Portalı
         </span>
         <h1 className="text-2xl font-black text-[var(--text-primary)]">

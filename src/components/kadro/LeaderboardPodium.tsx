@@ -149,7 +149,7 @@ export function LeaderboardPodium({
                 }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-8 font-black text-[var(--brand-navy)] dark:text-sky-300 shrink-0">
+                  <span className="w-8 font-black text-[var(--brand-ink)] shrink-0">
                     #{item.rank}
                   </span>
                   <span className="font-bold text-[var(--text-primary)] truncate">

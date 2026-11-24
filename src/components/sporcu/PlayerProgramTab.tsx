@@ -44,7 +44,7 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
                 {t.end_time ? ` - ${t.end_time}` : ""}
               </div>
               {t.coach_name && (
-                <div className="text-xs font-bold text-[var(--brand-navy)] dark:text-sky-300">
+                <div className="text-xs font-bold text-[var(--brand-ink)]">
                   Antrenör: {t.coach_name}
                 </div>
               )}
@@ -55,7 +55,7 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
                     href={buildMapsUrl(t.location)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
+                    className="text-[var(--brand-ink)] font-bold underline"
                   >
                     Haritada Aç
                   </a>
@@ -99,7 +99,7 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
                     href={buildMapsUrl(task.location)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
+                    className="text-[var(--brand-ink)] font-bold underline"
                   >
                     Haritada Aç
                   </a>

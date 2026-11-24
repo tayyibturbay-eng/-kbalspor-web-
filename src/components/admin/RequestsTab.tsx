@@ -9,6 +9,7 @@ import {
   defaultPinFromPhone,
   formatDateTimeTR,
 } from "@/lib/club-utils";
+import { MEMBERSHIP_STATUS, isPendingStatus } from "@/lib/membership-status";
 
 const supabase = createClient();
 
@@ -35,8 +36,12 @@ export function RequestsTab({
   const [requestPositions, setRequestPositions] = useState<
     Record<string, string>
   >({});
+  const [busyRequestId, setBusyRequestId] = useState<string | null>(null);
 
   async function approveRequest(req: MembershipRequest) {
+    if (busyRequestId) return;
+    setBusyRequestId(req.id);
+    try {
     const code = generatePlayerCode();
     const pin = defaultPinFromPhone(req.parent_phone);
     const group = req.birth_date
@@ -68,10 +73,18 @@ export function RequestsTab({
       return;
     }
 
-    await supabase
+    const { error: statusErr } = await supabase
       .from("membership_requests")
-      .update({ status: "onaylandi", position: chosenPosition })
+      .update({ status: MEMBERSHIP_STATUS.APPROVED, position: chosenPosition })
       .eq("id", req.id);
+
+    if (statusErr) {
+      onFeedback(
+        `Sporcu kaydı oluştu (ID: ${code}) ancak talep durumu güncellenemedi: ${statusErr.message}`
+      );
+      await onRefresh();
+      return;
+    }
 
     await onLogActivity(
       "Üyelik Onayı",
@@ -81,16 +94,34 @@ export function RequestsTab({
       `${req.full_name} (${chosenPosition}) onaylandı. ID: ${code} | Şifre: ${pin}`
     );
     await onRefresh();
+    } finally {
+      setBusyRequestId(null);
+    }
   }
 
   async function deleteRequest(req: MembershipRequest) {
-    await supabase.from("membership_requests").delete().eq("id", req.id);
-    await onLogActivity(
-      "Üyelik Talebi Silme",
-      `${req.full_name} talebi silindi.`
-    );
-    onFeedback("Üyelik talebi silindi.");
-    await onRefresh();
+    if (busyRequestId) return;
+    setBusyRequestId(req.id);
+    try {
+      const { error } = await supabase
+        .from("membership_requests")
+        .delete()
+        .eq("id", req.id);
+
+      if (error) {
+        onFeedback("Silme hatası: " + error.message);
+        return;
+      }
+
+      await onLogActivity(
+        "Üyelik Talebi Silme",
+        `${req.full_name} talebi silindi.`
+      );
+      onFeedback("Üyelik talebi silindi.");
+      await onRefresh();
+    } finally {
+      setBusyRequestId(null);
+    }
   }
 
   return (
@@ -107,8 +138,7 @@ export function RequestsTab({
           {requests.map((r) => {
             const selectedPos =
               requestPositions[r.id] || r.position || "Orta Saha";
-            const isPending =
-              r.status === "bekliyor" || r.status === "beklemede";
+            const isPending = isPendingStatus(r.status);
             return (
               <div
                 key={r.id}
@@ -131,7 +161,8 @@ export function RequestsTab({
                     </span>
                   </div>
                   <div className="text-xs font-medium text-[var(--text-secondary)] tabular-nums">
-                    Doğum: {r.birth_date || "-"} | Telefon: {r.parent_phone}
+                    Doğum: {r.birth_date || "-"} | Telefon:{" "}
+                    {r.parent_phone || "Belirtilmemiş"}
                     {!isPending && ` | Mevki: ${r.position || "-"}`}
                   </div>
                   {r.notes && (
@@ -162,16 +193,20 @@ export function RequestsTab({
                       <button
                         type="button"
                         onClick={() => approveRequest(r)}
-                        className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold px-4 py-2 rounded-lg cursor-pointer"
+                        disabled={busyRequestId !== null}
+                        className="bg-[var(--status-success-text)] hover:opacity-90 text-white text-xs font-extrabold px-4 py-2 rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Onayla &amp; ID Aç
+                        {busyRequestId === r.id
+                          ? "İşleniyor…"
+                          : "Onayla & ID Aç"}
                       </button>
                     </>
                   )}
                   <button
                     type="button"
                     onClick={() => deleteRequest(r)}
-                    className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold px-4 py-2 rounded-lg cursor-pointer"
+                    disabled={busyRequestId !== null}
+                    className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold px-4 py-2 rounded-lg cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Sil
                   </button>

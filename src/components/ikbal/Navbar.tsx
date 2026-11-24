@@ -121,7 +121,7 @@ export function Navbar() {
           <ThemeSwitch theme={theme} onToggle={handleToggleTheme} />
           <Link
             href="/admin"
-            className="px-3.5 py-2 rounded-xl bg-white/12 hover:bg-white/20 border border-white/25 text-white text-xs font-extrabold whitespace-nowrap transition"
+            className="px-3.5 py-2 rounded-xl bg-white/12 hover:bg-white/25 border border-white/25 text-white text-xs font-extrabold whitespace-nowrap transition"
           >
             Yönetim
           </Link>
@@ -139,7 +139,8 @@ export function Navbar() {
             type="button"
             onClick={() => setMobileOpen((prev) => !prev)}
             aria-label="Menüyü Aç/Kapat"
-            className="px-3 py-2 rounded-xl bg-white/12 border border-white/20 text-xs font-black cursor-pointer"
+            aria-expanded={mobileOpen}
+            className="px-3 py-2 rounded-xl bg-white/12 border border-white/20 text-xs font-black cursor-pointer transition hover:bg-white/20"
           >
             {mobileOpen ? "Kapat" : "Menü"}
           </button>
@@ -147,7 +148,7 @@ export function Navbar() {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden bg-[#042344] border-t border-white/10 px-4 py-3 space-y-1.5">
+        <div className="md:hidden bg-[var(--brand-navy)] border-t border-white/10 px-4 py-3 space-y-1.5">
           {NAV_LINKS.map((item) => {
             const active =
               item.href === "/"
@@ -158,7 +159,7 @@ export function Navbar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
-                className={`block px-3.5 py-2.5 rounded-xl text-xs font-extrabold ${
+                className={`block px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition ${
                   active
                     ? "bg-white text-[var(--brand-navy)]"
                     : "text-slate-100 hover:bg-white/10"

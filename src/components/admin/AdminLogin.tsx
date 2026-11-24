@@ -184,7 +184,7 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
         <div className="pt-2 border-t border-[var(--border-subtle)] text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[var(--brand-navy)] dark:text-sky-300 hover:text-[var(--brand-red)] transition"
+            className="inline-flex items-center gap-1.5 text-xs font-extrabold text-[var(--brand-ink)] hover:text-[var(--brand-red)] transition"
           >
             <span>←</span>
             <span>Ana Sayfaya Dön</span>

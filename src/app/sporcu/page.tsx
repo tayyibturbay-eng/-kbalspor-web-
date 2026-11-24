@@ -155,10 +155,17 @@ export default function SporcuPage() {
     } catch {
       // yoksay
     }
+    // Oturumu kapanan kullanıcının verisi sonraki girişe taşınmasın.
     setPlayer(null);
     setDues([]);
     setTasks([]);
+    setTrainings([]);
+    setSessions([]);
+    setAttendances([]);
+    setTeamPlayers([]);
     setEquipmentLogs([]);
+    setJerseySets([]);
+    setStockItems([]);
     setFeedback("");
   }
 
@@ -238,7 +245,7 @@ export default function SporcuPage() {
 
       <div className="max-w-6xl mx-auto px-4 pt-5 space-y-5">
         {/* Sporcu Üst Kartı */}
-        <div className="rounded-3xl bg-gradient-to-r from-[var(--brand-navy)] via-[#06396b] to-[var(--brand-red)] text-white p-5 sm:p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div className="rounded-3xl bg-gradient-to-r from-[var(--brand-navy)] via-[var(--brand-navy-hover)] to-[var(--brand-red)] text-white p-5 sm:p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             {player.photo_url ? (
               <img

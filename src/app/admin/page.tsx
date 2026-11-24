@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { isPendingStatus } from "@/lib/membership-status";
 import { ThemeSwitch } from "@/components/ikbal/ThemeSwitch";
 import {
   ActivityLog,
@@ -320,12 +321,16 @@ export default function AdminPage() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut();
-    localStorage.removeItem("ikbal_coach");
     try {
+      await supabase.auth.signOut();
+    } catch {
+      // çevrimdışı çıkışta oturum temizliği yine de yapılmalı
+    }
+    try {
+      localStorage.removeItem("ikbal_coach");
       localStorage.removeItem(ADMIN_TAB_KEY);
     } catch {
-      // yoksay
+      // depolama kısıtlıysa yoksay
     }
     setRole("none");
     setAdminName("");
@@ -356,8 +361,8 @@ export default function AdminPage() {
     );
   }
 
-  const pendingRequestsCount = requests.filter(
-    (r) => r.status === "bekliyor" || r.status === "beklemede"
+  const pendingRequestsCount = requests.filter((r) =>
+    isPendingStatus(r.status)
   ).length;
 
   const activeQrSessionsCount = sessions.filter((s) => s.is_active).length;

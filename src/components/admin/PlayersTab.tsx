@@ -586,7 +586,7 @@ export function PlayersTab({
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-[var(--text-primary)]">
-                <thead className="bg-[var(--bg-subtle)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold border-b border-[var(--border-subtle)]">
+                <thead className="bg-[var(--bg-subtle)] text-[var(--brand-ink)] text-xs font-extrabold border-b border-[var(--border-subtle)]">
                   <tr>
                     <th className="p-2.5">Ad Soyad</th>
                     <th className="p-2.5">Doğum Tarihi</th>

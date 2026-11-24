@@ -195,12 +195,28 @@ export function MatchPredictionCard({
     [selectedMatch, nowMs]
   );
 
-  const effectivePlayerId = useMemo(() => {
-    if (playerId) return playerId;
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("ikbal_logged_player_id") || "guest";
-    }
-    return "guest";
+  // SSR/client ilk render'ı aynı ("guest") kalmalı, yoksa hydration
+  // uyarısı oluşur. Prop değişimi render sırasında, localStorage okuması
+  // zamanlayıcı içinde yapılır (kod tabanındaki yerleşik desen).
+  const [effectivePlayerId, setEffectivePlayerId] = useState("guest");
+  const [oncekiPropId, setOncekiPropId] = useState<string | null>(
+    playerId ?? null
+  );
+  if ((playerId ?? null) !== oncekiPropId) {
+    setOncekiPropId(playerId ?? null);
+    if (playerId) setEffectivePlayerId(playerId);
+  }
+  useEffect(() => {
+    if (playerId) return;
+    const timer = window.setTimeout(() => {
+      try {
+        const stored = localStorage.getItem("ikbal_logged_player_id");
+        setEffectivePlayerId(stored && stored.trim() ? stored : "guest");
+      } catch {
+        setEffectivePlayerId("guest");
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [playerId]);
 
   const groupScorerOptions = useMemo(() => {
@@ -262,8 +278,7 @@ export function MatchPredictionCard({
     return found ? found.multiplier : 1;
   }, [firstScorer, groupScorerOptions]);
 
-  async function handleSavePrediction(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSavePrediction() {
     setFeedback(null);
 
     if (!selectedMatch) {
@@ -322,10 +337,14 @@ export function MatchPredictionCard({
     setClaimingId(pred.id);
     setFeedback(null);
 
-    const { error: updPredErr } = await supabase
+    // Koşullu güncelleme: yalnızca "henüz alınmamış" kayıt işaretlenir.
+    // 0 satır dönerse ödül başka bir sekme/cihazdan çoktan aktarılmıştır.
+    const { data: claimRows, error: updPredErr } = await supabase
       .from("match_predictions")
       .update({ reward_claimed: true })
-      .eq("id", pred.id);
+      .eq("id", pred.id)
+      .eq("reward_claimed", false)
+      .select("id");
 
     if (updPredErr) {
       setClaimingId(null);
@@ -333,6 +352,13 @@ export function MatchPredictionCard({
         ok: false,
         text: "Ödül güncellenemedi: " + updPredErr.message,
       });
+      return;
+    }
+
+    if (!claimRows || claimRows.length === 0) {
+      setClaimingId(null);
+      setFeedback({ ok: false, text: "Bu ödül zaten aktarılmış." });
+      await loadData();
       return;
     }
 
@@ -361,10 +387,24 @@ export function MatchPredictionCard({
       const currentPts = Number(
         (pRow as { skill_points?: number | null } | null)?.skill_points ?? 0
       );
-      await supabase
+      const { error: ptsErr } = await supabase
         .from("players")
         .update({ skill_points: currentPts + rewardPts })
         .eq("id", pred.player_id);
+
+      if (ptsErr) {
+        // Puanlar işlenemedi: talep işaretini geri al ki kullanıcı tekrar denesin.
+        await supabase
+          .from("match_predictions")
+          .update({ reward_claimed: false })
+          .eq("id", pred.id);
+        setClaimingId(null);
+        setFeedback({
+          ok: false,
+          text: "Puanlar karta işlenemedi: " + ptsErr.message,
+        });
+        return;
+      }
     }
 
     setClaimingId(null);
@@ -391,12 +431,18 @@ export function MatchPredictionCard({
             ekrandan sonra ödül puanınızı kartınıza aktarabilirsiniz.
           </p>
         </div>
-        <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300 text-xs font-extrabold">
+        <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold">
           Aktif Maç: {activeMatches.length} • Geçmiş: {pastMatches.length}
         </span>
       </div>
 
-      <form onSubmit={handleSavePrediction} className="space-y-4">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleSavePrediction();
+        }}
+        className="space-y-4"
+      >
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
@@ -505,7 +551,7 @@ export function MatchPredictionCard({
                           ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
                           : pl.multiplier === 2
                           ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                          : "bg-[var(--brand-navy-soft)] text-[var(--brand-navy)] dark:text-sky-300"
+                          : "bg-[var(--brand-navy-soft)] text-[var(--brand-ink)]"
                       }`}
                     >
                       {pl.multiplier}x
@@ -547,22 +593,12 @@ export function MatchPredictionCard({
             type="button"
             disabled={saving || !selectedMatch}
             onClick={() => {
-              if (lockedByTime) {
-                setFeedback({
-                  ok: false,
-                  text: "🔒 Tahmin kilitli! Maç başlama saati geldiği için tahmin kaydedilemez.",
-                });
-                return;
-              }
-              const fakeEvent = {
-                preventDefault: () => {},
-              } as React.FormEvent;
-              void handleSavePrediction(fakeEvent);
+              void handleSavePrediction();
             }}
-            className={`w-full py-3 rounded-2xl text-white text-sm font-black transition cursor-pointer disabled:opacity-50 ${
+            className={`w-full py-3 rounded-2xl text-sm font-black transition cursor-pointer disabled:opacity-50 ${
               lockedByTime
-                ? "bg-slate-500 hover:bg-slate-600"
-                : "bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
+                ? "bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-strong)]"
+                : "text-white bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
             }`}
           >
             {saving

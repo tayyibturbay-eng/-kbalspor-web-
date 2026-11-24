@@ -1,6 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+const TEMA_ANAHTARI = "ikbalspor_theme";
+
+// Hydration'dan ÖNCE uygulanır; koyu temada sayfa açılırken beyaz parlama olmaz.
+const temaBetigi = `try{var t=localStorage.getItem("${TEMA_ANAHTARI}");if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");document.documentElement.classList.add("dark");}}catch(e){}`;
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +57,15 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f4f6f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#090d16" },
+  ],
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -58,6 +73,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr" suppressHydrationWarning>
+      <head>
+        <Script id="ikbal-tema" strategy="beforeInteractive">
+          {temaBetigi}
+        </Script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

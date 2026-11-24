@@ -177,7 +177,7 @@ export function AttendanceReport({
                 }`}
               >
                 <div className="min-w-0">
-                  <span className="font-black text-[var(--brand-navy)] dark:text-sky-300 mr-1.5">
+                  <span className="font-black text-[var(--brand-ink)] mr-1.5">
                     #{idx + 1}
                   </span>
                   <strong className="text-[var(--text-primary)]">

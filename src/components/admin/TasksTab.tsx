@@ -411,7 +411,7 @@ export function TasksTab({
         />
 
         <details className="text-xs text-[var(--text-secondary)]">
-          <summary className="cursor-pointer font-semibold text-[var(--brand-navy)] dark:text-sky-300">
+          <summary className="cursor-pointer font-semibold text-[var(--brand-ink)]">
             Site sunucudan doğrudan çekilemezse sayfa HTML kaynağını buraya
             yapıştır
           </summary>
@@ -443,7 +443,7 @@ export function TasksTab({
                   onChange={(e) => setHomeTeam(e.target.value)}
                   className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
                 />
-                <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--brand-navy)] dark:text-sky-300 cursor-pointer select-none">
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--brand-ink)] cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={homeTeam.trim() === "Çorum İkbal Spor"}
@@ -585,7 +585,7 @@ export function TasksTab({
             )}
             target="_blank"
             rel="noreferrer"
-            className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
+            className="text-[var(--brand-ink)] font-bold underline"
           >
             Google Maps&apos;te Önizle
           </a>
@@ -649,7 +649,7 @@ export function TasksTab({
                       href={buildMapsUrl(t.location)}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
+                      className="text-[var(--brand-ink)] font-bold underline"
                     >
                       Haritada Aç
                     </a>

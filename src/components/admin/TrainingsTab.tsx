@@ -434,7 +434,7 @@ export function TrainingsTab({
             href={buildMapsUrl(trainingForm.location)}
             target="_blank"
             rel="noreferrer"
-            className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
+            className="text-[var(--brand-ink)] font-bold underline"
           >
             Google Maps&apos;te Aç
           </a>
@@ -645,7 +645,7 @@ export function TrainingsTab({
                     href={buildMapsUrl(tr.location)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[var(--brand-navy)] dark:text-sky-300 font-bold underline"
+                    className="text-[var(--brand-ink)] font-bold underline"
                   >
                     Harita
                   </a>
