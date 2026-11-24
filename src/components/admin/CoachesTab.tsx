@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, Coach } from "@/types/club";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -20,6 +21,7 @@ export function CoachesTab({
   onLogActivity,
   onRefreshCoaches,
 }: CoachesTabProps) {
+  const { onay } = useOnay();
   const [newCoach, setNewCoach] = useState({
     full_name: "",
     coach_code: "",
@@ -106,7 +108,10 @@ export function CoachesTab({
 
   async function deleteCoach(coach: Coach) {
     if (
-      !confirm(`${coach.full_name} adlı kişiyi silmek istediğinize emin misiniz?`)
+      !(await onay(
+        `${coach.full_name} adlı kişiyi silmek istediğinize emin misiniz?`,
+        { baslik: "Kaydı Sil", olumluMetin: "Evet, Sil", tehlikeli: true }
+      ))
     )
       return;
     await supabase.from("coaches").delete().eq("id", coach.id);

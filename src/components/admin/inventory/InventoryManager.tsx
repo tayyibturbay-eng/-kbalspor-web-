@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 import { AGE_GROUPS, Player } from "@/types/club";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -129,6 +130,7 @@ export function InventoryManager({
   onFeedback,
   onLogActivity,
 }: InventoryManagerProps) {
+  const { onay } = useOnay();
   const [jerseySets, setJerseySets] = useState<JerseySetRow[]>([]);
   const [stockItems, setStockItems] = useState<StockItemRow[]>([]);
   const [logs, setLogs] = useState<EquipmentLogRow[]>([]);
@@ -599,10 +601,13 @@ export function InventoryManager({
   }
 
   async function handleDeleteJerseySet(item: JerseySetRow) {
-    const confirmed = window.confirm(
-      `"${item.set_name}" forma takımını silmek istediğinizden emin misiniz?`
-    );
-    if (!confirmed) return;
+    if (
+      !(await onay(
+        `"${item.set_name}" forma takımını silmek istediğinizden emin misiniz?`,
+        { baslik: "Forma Takımını Sil", olumluMetin: "Evet, Sil" }
+      ))
+    )
+      return;
 
     setDeletingSetId(item.id);
     const { error } = await supabase
@@ -634,10 +639,13 @@ export function InventoryManager({
   }
 
   async function handleDeleteStockItem(item: StockItemRow) {
-    const confirmed = window.confirm(
-      `"${item.product_name}" malzeme takımını silmek istediğinizden emin misiniz?`
-    );
-    if (!confirmed) return;
+    if (
+      !(await onay(
+        `"${item.product_name}" malzeme takımını silmek istediğinizden emin misiniz?`,
+        { baslik: "Malzemeyi Sil", olumluMetin: "Evet, Sil" }
+      ))
+    )
+      return;
 
     setDeletingStockId(item.id);
     const { error } = await supabase

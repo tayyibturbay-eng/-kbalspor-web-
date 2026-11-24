@@ -87,6 +87,15 @@ export default function HomePage() {
     };
   }, [loadHomeSummary]);
 
+  useEffect(() => {
+    if (!showIosGuide) return;
+    const tusTuza = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowIosGuide(false);
+    };
+    window.addEventListener("keydown", tusTuza);
+    return () => window.removeEventListener("keydown", tusTuza);
+  }, [showIosGuide]);
+
   return (
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
@@ -237,10 +246,19 @@ export default function HomePage() {
         </section>
 
         {showIosGuide && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => setShowIosGuide(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="ios-rehber-baslik"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl"
+            >
               <div className="flex items-center justify-between">
-                <h3 className="text-base font-black">
+                <h3 id="ios-rehber-baslik" className="text-base font-black">
                   iPhone / iPad — Ana Ekrana Ekleme
                 </h3>
                 <button

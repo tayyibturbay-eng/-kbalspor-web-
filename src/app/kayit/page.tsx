@@ -134,10 +134,14 @@ export default function MembershipRequestPage() {
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              <label
+                htmlFor="kayit-adsoyad"
+                className="block text-xs font-bold text-[var(--text-secondary)] mb-1"
+              >
                 Sporcu Ad Soyad *
               </label>
               <input
+                id="kayit-adsoyad"
                 type="text"
                 required
                 value={fullName}
@@ -148,10 +152,14 @@ export default function MembershipRequestPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              <label
+                htmlFor="kayit-dogum"
+                className="block text-xs font-bold text-[var(--text-secondary)] mb-1"
+              >
                 Doğum Tarihi *
               </label>
               <input
+                id="kayit-dogum"
                 type="date"
                 required
                 value={birthDate}
@@ -168,10 +176,14 @@ export default function MembershipRequestPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              <label
+                htmlFor="kayit-veli"
+                className="block text-xs font-bold text-[var(--text-secondary)] mb-1"
+              >
                 Veli Ad Soyad {under18 ? "*" : "(18 yaş altı zorunlu)"}
               </label>
               <input
+                id="kayit-veli"
                 type="text"
                 required={under18}
                 value={guardianName}
@@ -182,10 +194,14 @@ export default function MembershipRequestPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              <label
+                htmlFor="kayit-telefon"
+                className="block text-xs font-bold text-[var(--text-secondary)] mb-1"
+              >
                 İletişim Telefonu *
               </label>
               <input
+                id="kayit-telefon"
                 type="tel"
                 required
                 value={guardianPhone}
@@ -197,10 +213,14 @@ export default function MembershipRequestPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+            <label
+              htmlFor="kayit-notlar"
+              className="block text-xs font-bold text-[var(--text-secondary)] mb-1"
+            >
               Ek Notlar
             </label>
             <textarea
+              id="kayit-notlar"
               rows={3}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

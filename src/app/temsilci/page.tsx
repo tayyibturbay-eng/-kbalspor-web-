@@ -26,6 +26,7 @@ export default function RepresentativePage() {
   const [attendedIds, setAttendedIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [girisYapiliyor, setGirisYapiliyor] = useState(false);
 
   useEffect(() => {
     const savedId =
@@ -85,7 +86,9 @@ export default function RepresentativePage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
+    if (girisYapiliyor) return;
     setErr("");
+    setGirisYapiliyor(true);
     try {
       const res = await fetch("/api/auth/pin-login", {
         method: "POST",
@@ -111,34 +114,36 @@ export default function RepresentativePage() {
       await loadAttendance();
     } catch {
       setErr("Sunucuya bağlanılamadı.");
+    } finally {
+      setGirisYapiliyor(false);
     }
   }
 
   async function togglePlayerAttendance(playerId: string) {
-    if (!session) return;
+    if (!session || togglingId) return;
     setTogglingId(playerId);
+    setErr("");
     const isPresent = attendedIds.has(playerId);
 
-    if (isPresent) {
-      const { error } = await supabase
-        .from("prayer_attendance")
-        .delete()
-        .eq("session_id", session.id)
-        .eq("player_id", playerId);
-      if (!error) {
-        setAttendedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(playerId);
-          return next;
-        });
-      }
+    const { error } = isPresent
+      ? await supabase
+          .from("prayer_attendance")
+          .delete()
+          .eq("session_id", session.id)
+          .eq("player_id", playerId)
+      : await supabase
+          .from("prayer_attendance")
+          .insert({ session_id: session.id, player_id: playerId });
+
+    if (error) {
+      setErr("Yoklama güncellenemedi: " + error.message);
     } else {
-      const { error } = await supabase
-        .from("prayer_attendance")
-        .insert({ session_id: session.id, player_id: playerId });
-      if (!error) {
-        setAttendedIds((prev) => new Set(prev).add(playerId));
-      }
+      setAttendedIds((prev) => {
+        const next = new Set(prev);
+        if (isPresent) next.delete(playerId);
+        else next.add(playerId);
+        return next;
+      });
     }
     setTogglingId(null);
   }
@@ -169,6 +174,7 @@ export default function RepresentativePage() {
               <input
                 type="text"
                 required
+                aria-label="Oyuncu ID"
                 value={repCode}
                 onChange={(e) => setRepCode(e.target.value)}
                 placeholder="Oyuncu ID (Örn: IKB-1234)"
@@ -177,21 +183,26 @@ export default function RepresentativePage() {
               <input
                 type="password"
                 required
+                aria-label="Şifre"
                 value={repPin}
                 onChange={(e) => setRepPin(e.target.value)}
                 placeholder="Şifre (Varsayılan: Tel son 4 hane)"
                 className="w-full min-h-[48px] px-4 rounded-xl border-2 border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-bold"
               />
               {err && (
-                <p className="text-[var(--brand-red)] text-sm font-bold">
+                <p
+                  role="alert"
+                  className="text-[var(--brand-red)] text-sm font-bold"
+                >
                   {err}
                 </p>
               )}
               <button
                 type="submit"
-                className="w-full min-h-[48px] rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold cursor-pointer transition"
+                disabled={girisYapiliyor}
+                className="w-full min-h-[48px] rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Giriş Yap
+                {girisYapiliyor ? "Giriş yapılıyor…" : "Giriş Yap"}
               </button>
             </form>
           </div>
@@ -232,6 +243,14 @@ export default function RepresentativePage() {
                 </div>
 
                 <div className="md:col-span-8 space-y-4">
+                  {err && (
+                    <p
+                      role="alert"
+                      className="p-3 rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold"
+                    >
+                      {err}
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h2 className="text-lg font-black text-[var(--text-primary)]">
                       Canlı Katılım Listesi ({attendedIds.size} /{" "}

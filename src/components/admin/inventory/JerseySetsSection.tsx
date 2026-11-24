@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EquipmentLog, JerseyPiece, JerseySet, SIZE_OPTIONS } from "@/types/club";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -60,6 +61,7 @@ export function JerseySetsSection({
   players = [],
   onStatus,
 }: JerseySetsSectionProps) {
+  const { onay } = useOnay();
   const [editingSet, setEditingSet] = useState<JerseySet | null>(null);
   const [editingPieces, setEditingPieces] = useState<JerseyPiece[]>([]);
   const [savingSetEdit, setSavingSetEdit] = useState(false);
@@ -232,7 +234,12 @@ export function JerseySetsSection({
   }
 
   async function handleDeleteJerseySet(id: string, name: string) {
-    if (!confirm(`"${name}" forma takımını silmek istediğinize emin misiniz?`))
+    if (
+      !(await onay(`"${name}" forma takımını silmek istediğinize emin misiniz?`, {
+        baslik: "Forma Takımını Sil",
+        olumluMetin: "Evet, Sil",
+      }))
+    )
       return;
     await supabase.from("jersey_sets").delete().eq("id", id);
     setJerseySets((prev) => prev.filter((j) => j.id !== id));

@@ -29,6 +29,7 @@ import { NotificationsTab } from "@/components/admin/NotificationsTab";
 import { QrAttendanceTab } from "@/components/admin/QrAttendanceTab";
 import { CoachesTab } from "@/components/admin/CoachesTab";
 import { ActivityLogsTab } from "@/components/admin/ActivityLogsTab";
+import { OnaySaglayici } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 const ADMIN_TAB_KEY = "ikbal_admin_tab";
@@ -420,6 +421,7 @@ export default function AdminPage() {
         ];
 
   return (
+    <OnaySaglayici>
     <div className="min-h-screen bg-[var(--bg-canvas)] pb-16 text-[var(--text-primary)] transition-colors">
       <header className="sticky top-0 z-30 bg-[var(--brand-navy)] text-white px-4 py-3.5 shadow border-b-4 border-[var(--brand-red)]">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
@@ -719,5 +721,6 @@ export default function AdminPage() {
         </div>
       </div>
     </div>
+    </OnaySaglayici>
   );
 }

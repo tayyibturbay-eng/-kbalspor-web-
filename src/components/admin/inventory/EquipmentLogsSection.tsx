@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import { EquipmentLog } from "@/types/club";
 import { cleanWaPhone } from "@/lib/club-utils";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -26,6 +27,7 @@ export function EquipmentLogsSection({
   logs,
   setLogs,
 }: EquipmentLogsSectionProps) {
+  const { bildirim } = useOnay();
   async function updateLogStatus(
     logItem: EquipmentLog,
     status: EquipmentLog["status"]
@@ -67,7 +69,7 @@ export function EquipmentLogsSection({
       sender_name: "Yönetim (Malzeme Takip)",
       created_at: new Date().toISOString(),
     });
-    alert(`${player.full_name} için kulüp mesajı/bildirimi yayınlandı.`);
+    bildirim(`${player.full_name} için kulüp mesajı/bildirimi yayınlandı.`);
   }
 
   if (mode === "missing") {

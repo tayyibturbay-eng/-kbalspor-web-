@@ -11,6 +11,7 @@ import {
 } from "@/types/club";
 import { AttendanceReport } from "@/components/admin/AttendanceReport";
 import { QRCodeSVG } from "qrcode.react";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -33,6 +34,7 @@ export function QrAttendanceTab({
   onLogActivity,
   onRefreshQr,
 }: QrAttendanceTabProps) {
+  const { onay } = useOnay();
   const [newSessionTitle, setNewSessionTitle] = useState("Kulüp Yoklaması");
   const [newSessionDate, setNewSessionDate] = useState(() =>
     new Date().toISOString().slice(0, 10)
@@ -137,10 +139,13 @@ export function QrAttendanceTab({
       }
     }
 
-    const onay = confirm(
-      "Yeni bir QR yoklama oturumu oluşturmak istediğinize emin misiniz? Mevcut aktif QR kodu kapatılacaktır."
-    );
-    if (!onay) return;
+    if (
+      !(await onay(
+        "Yeni bir QR yoklama oturumu oluşturmak istediğinize emin misiniz? Mevcut aktif QR kodu kapatılacaktır.",
+        { baslik: "Yeni Yoklama Oturumu", olumluMetin: "Evet, Oluştur", tehlikeli: false }
+      ))
+    )
+      return;
 
     const token = `IKB-QR-${Date.now().toString(36).toUpperCase()}`;
     const chosenDate = newSessionDate || new Date().toISOString().slice(0, 10);
@@ -182,10 +187,13 @@ export function QrAttendanceTab({
 
   async function closeActiveSession() {
     if (!activeSession) return;
-    const confirmed = confirm(
-      "Etkinliği sonlandırmak istediğinize emin misiniz?"
-    );
-    if (!confirmed) return;
+    if (
+      !(await onay("Etkinliği sonlandırmak istediğinize emin misiniz?", {
+        baslik: "Yoklamayı Sonlandır",
+        olumluMetin: "Evet, Sonlandır",
+      }))
+    )
+      return;
 
     setClosingSession(true);
     const { error } = await supabase

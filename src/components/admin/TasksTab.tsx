@@ -12,6 +12,7 @@ import {
   UserRole,
 } from "@/types/club";
 import { buildSympatheticMatchMessage, sendPushViaApi } from "@/lib/club-utils";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -80,6 +81,7 @@ export function TasksTab({
   onLogActivity,
   onRefreshTasks,
 }: TasksTabProps) {
+  const { onay } = useOnay();
   const [homeTeam, setHomeTeam] = useState("Çorum İkbal Spor");
   const [awayTeam, setAwayTeam] = useState("");
   const [newTask, setNewTask] = useState({
@@ -317,7 +319,12 @@ export function TasksTab({
   }
 
   async function deleteTask(task: TaskAssignment) {
-    if (!confirm(`"${task.title}" kaydını silmek istediğinize emin misiniz?`))
+    if (
+      !(await onay(`"${task.title}" kaydını silmek istediğinize emin misiniz?`, {
+        baslik: "Kaydı Sil",
+        olumluMetin: "Evet, Sil",
+      }))
+    )
       return;
     setDeletingId(task.id);
     const { error } = await supabase

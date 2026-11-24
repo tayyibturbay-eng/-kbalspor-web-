@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, POSITIONS, Player, UserRole } from "@/types/club";
+import { useOnay } from "@/components/ui/OnayDialog";
 import {
   calcAgeGroupFromBirthDate,
   defaultPinFromPhone,
@@ -38,6 +39,7 @@ export function PlayersTab({
   onLogActivity,
   onRefreshPlayers,
 }: PlayersTabProps) {
+  const { onay } = useOnay();
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("Tümü");
   const [pointStep, setPointStep] = useState<number>(5);
@@ -397,7 +399,12 @@ export function PlayersTab({
   }
 
   async function deletePlayer(id: string, name: string) {
-    if (!confirm(`${name} adlı oyuncuyu silmek istediğinize emin misiniz?`))
+    if (
+      !(await onay(`${name} adlı oyuncuyu silmek istediğinize emin misiniz?`, {
+        baslik: "Oyuncuyu Sil",
+        olumluMetin: "Evet, Sil",
+      }))
+    )
       return;
     await supabase.from("players").delete().eq("id", id);
     await onLogActivity("Oyuncu Silme", `${name} kadrodan silindi.`);

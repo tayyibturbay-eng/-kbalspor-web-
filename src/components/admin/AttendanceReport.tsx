@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useOnay } from "@/components/ui/OnayDialog";
 import { createClient } from "@/lib/supabase/client";
 
 type SessionRow = {
@@ -30,6 +31,7 @@ export function AttendanceReport({
   isAdmin?: boolean;
   onSessionDeleted?: () => void;
 }) {
+  const { onay, bildirim } = useOnay();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRow[]>([]);
   const [players, setPlayers] = useState<PlayerRow[]>([]);
@@ -83,10 +85,13 @@ export function AttendanceReport({
 
   async function handleDeleteSession(sess: SessionRow) {
     if (!isAdmin) return;
-    const confirmed = confirm(
-      `"${sess.title}" (${sess.session_date}) etkinliğini ve bu etkinliğe ait tüm yoklama kayıtlarını kalıcı olarak silmek istediğinize emin misiniz?`
-    );
-    if (!confirmed) return;
+    if (
+      !(await onay(
+        `"${sess.title}" (${sess.session_date}) etkinliğini ve bu etkinliğe ait tüm yoklama kayıtlarını kalıcı olarak silmek istediğinize emin misiniz?`,
+        { baslik: "Etkinliği Sil", olumluMetin: "Evet, Sil" }
+      ))
+    )
+      return;
 
     const supabase = createClient();
     await supabase
@@ -99,10 +104,11 @@ export function AttendanceReport({
       .eq("id", sess.id);
 
     if (error) {
-      alert("Etkinlik silinemedi: " + error.message);
+      bildirim("Etkinlik silinemedi: " + error.message);
       return;
     }
 
+    bildirim("Etkinlik ve yoklama kayıtları silindi.");
     await loadReport();
     onSessionDeleted?.();
   }

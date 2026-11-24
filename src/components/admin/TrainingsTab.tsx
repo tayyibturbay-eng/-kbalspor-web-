@@ -13,6 +13,7 @@ import {
   UserRole,
 } from "@/types/club";
 import { sendPushViaApi } from "@/lib/club-utils";
+import { useOnay } from "@/components/ui/OnayDialog";
 
 const supabase = createClient();
 
@@ -61,6 +62,7 @@ export function TrainingsTab({
   onLogActivity,
   onRefreshTrainings,
 }: TrainingsTabProps) {
+  const { onay } = useOnay();
   const defaultCoachId = role === "coach" && activeCoach ? activeCoach.id : "";
 
   const [trainingForm, setTrainingForm] = useState({
@@ -319,7 +321,12 @@ export function TrainingsTab({
   }
 
   async function deleteTraining(tr: Training) {
-    if (!confirm(`"${tr.title}" antrenmanını silmek istediğinize emin misiniz?`))
+    if (
+      !(await onay(
+        `"${tr.title}" antrenmanını silmek istediğinize emin misiniz?`,
+        { baslik: "Antrenmanı Sil", olumluMetin: "Evet, Sil" }
+      ))
+    )
       return;
     await supabase.from("trainings").delete().eq("id", tr.id);
     await onLogActivity("Antrenman Silme", `${tr.title} silindi.`);
