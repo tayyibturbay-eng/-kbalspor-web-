@@ -3,7 +3,9 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ThemeSwitch } from "@/components/ikbal/ThemeSwitch";
+import { EASE, SPRING } from "@/lib/motion";
 
 const THEME_STORAGE_KEY = "ikbalspor_theme";
 
@@ -21,6 +23,7 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [playerLoggedIn, setPlayerLoggedIn] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const azaltilmis = useReducedMotion();
 
   useEffect(() => {
     const applySavedTheme = () => {
@@ -105,13 +108,20 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-3 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition ${
+                className={`relative px-3 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-colors ${
                   active
-                    ? "bg-white text-[var(--brand-navy)] shadow-xs"
+                    ? "text-[var(--brand-navy)]"
                     : "text-slate-100 hover:bg-white/10"
                 }`}
               >
-                {item.label}
+                {active && !azaltilmis && (
+                  <motion.span
+                    layoutId="nav-aktif-pil"
+                    transition={SPRING.yumusak}
+                    className="absolute inset-0 rounded-xl bg-white shadow-xs"
+                  />
+                )}
+                <span className="relative z-10">{item.label}</span>
               </Link>
             );
           })}
@@ -147,8 +157,15 @@ export function Navbar() {
         </div>
       </div>
 
+      <AnimatePresence initial={false}>
       {mobileOpen && (
-        <div className="md:hidden bg-[var(--brand-navy)] border-t border-white/10 px-4 py-3 space-y-1.5">
+        <motion.div
+          initial={azaltilmis ? false : { opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={azaltilmis ? undefined : { opacity: 0, y: -10 }}
+          transition={{ duration: 0.26, ease: EASE.yumusak }}
+          className="md:hidden overflow-hidden bg-[var(--brand-navy)] border-t border-white/10 px-4 py-3 space-y-1.5"
+        >
           {NAV_LINKS.map((item) => {
             const active =
               item.href === "/"
@@ -186,8 +203,9 @@ export function Navbar() {
               {playerLoggedIn ? "Sporcu Paneli" : "Sporcu Girişi"}
             </Link>
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </header>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { sekmeGecis } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import { isPendingStatus } from "@/lib/membership-status";
 import { ThemeSwitch } from "@/components/ikbal/ThemeSwitch";
@@ -104,6 +106,9 @@ export default function AdminPage() {
 
   const [tab, setTabState] = useState<AdminTab>("oyuncular");
   const [feedback, setFeedback] = useState("");
+  const azaltilmis = useReducedMotion();
+  // Sekme geçiş yönü: ileri/geri hissini korur (iOS swipe mantığı)
+  const yonRef = useRef(1);
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [requests, setRequests] = useState<MembershipRequest[]>([]);
@@ -153,6 +158,12 @@ export default function AdminPage() {
   }
 
   function setTab(nextTab: AdminTab) {
+    if (nextTab !== tab) {
+      yonRef.current =
+        VALID_ADMIN_TABS.indexOf(nextTab) >= VALID_ADMIN_TABS.indexOf(tab)
+          ? 1
+          : -1;
+    }
     setTabState(nextTab);
     try {
       localStorage.setItem(ADMIN_TAB_KEY, nextTab);
@@ -610,7 +621,14 @@ export default function AdminPage() {
           })}
         </div>
 
-        <div key={tab} className="page-transition">
+        <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={tab}
+          variants={sekmeGecis(yonRef.current)}
+          initial={azaltilmis ? false : "initial"}
+          animate="animate"
+          exit={azaltilmis ? undefined : "exit"}
+        >
           {tab === "oyuncular" && (
             <PlayersTab
               role={role}
@@ -718,7 +736,8 @@ export default function AdminPage() {
           {tab === "islemler" && role === "admin" && (
             <ActivityLogsTab logs={logs} onLogsChange={setLogs} />
           )}
-        </div>
+        </motion.div>
+        </AnimatePresence>
       </div>
     </div>
     </OnaySaglayici>

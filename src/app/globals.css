@@ -111,6 +111,25 @@
 
   --font-sans: var(--font-geist-sans), "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+  /* Editorial display font — Fraunces (turkish latin-ext dahil) */
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+
+  /* — Editorial tipografi ölçeği (mobil clubTheme.ts TYPO ile birebir aynı dil) — */
+  --text-koz: 0.6875rem;
+  --text-koz--line-height: 1.1;
+  --text-koz--letter-spacing: 0.22em;
+  --text-metrik: clamp(2rem, 1.35rem + 2.6vw, 2.75rem);
+  --text-metrik--line-height: 1;
+  --text-metrik--letter-spacing: -0.02em;
+  --text-posta: clamp(2.75rem, 1.7rem + 4.2vw, 4.75rem);
+  --text-posta--line-height: 1;
+  --text-posta--letter-spacing: -0.03em;
+  --text-baslik: clamp(1.5rem, 1.15rem + 1.4vw, 2.25rem);
+  --text-baslik--line-height: 1.12;
+  --text-baslik--letter-spacing: -0.022em;
+  --text-giris: clamp(1rem, 0.95rem + 0.3vw, 1.1875rem);
+  --text-giris--line-height: 1.7;
+  --text-giris--letter-spacing: 0.004em;
 }
 
 /* ————— Temel davranış ————— */
@@ -361,5 +380,138 @@ a:focus-visible,
   .k-odak:focus-visible {
     outline: none;
     box-shadow: var(--ring-brand);
+  }
+
+  /* ————— Editorial tipografi primitifleri ————— */
+
+  .k-posta {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-weight: 500;
+  }
+  .k-posta--wonk {
+    font-variation-settings: "SOFT" 0, "WONK" 1;
+  }
+  .k-koz {
+    text-transform: uppercase;
+    font-weight: 800;
+    color: var(--text-muted);
+  }
+  .k-govde {
+    line-height: 1.7;
+    letter-spacing: 0.004em;
+    color: var(--text-secondary);
+  }
+
+  /* ————— Yüzey katmanları: cam ve derinlik ————— */
+
+  .k-cam {
+    background: color-mix(in srgb, var(--bg-surface) 72%, transparent);
+    backdrop-filter: blur(16px) saturate(1.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.5);
+    border: 1px solid color-mix(in srgb, var(--border-subtle) 72%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, #ffffff 24%, transparent),
+      var(--shadow-card);
+  }
+  :root[data-theme="dark"] .k-cam {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      var(--shadow-card);
+  }
+  /* Marka yüzeyi üstünde cam (hero bölümleri) */
+  .k-cam--marka {
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      var(--shadow-elevated);
+    backdrop-filter: blur(14px) saturate(1.35);
+    -webkit-backdrop-filter: blur(14px) saturate(1.35);
+  }
+
+  /* Sahne zemini: lacivert degrade + imza kırmızı/amber ışık halkaları */
+  .k-sahne {
+    position: relative;
+    isolation: isolate;
+    background:
+      linear-gradient(118deg, #041e3b 0%, var(--brand-navy) 52%, #7f1d1d 128%);
+  }
+  .k-sahne::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(58% 88% at 86% 8%, rgba(185, 28, 28, 0.38), transparent 62%),
+      radial-gradient(46% 74% at 8% 96%, rgba(217, 119, 6, 0.16), transparent 58%);
+  }
+
+  /* ————— Kart kaldırma davranışı ————— */
+
+  .k-kart {
+    transition:
+      transform 260ms var(--ease-soft),
+      box-shadow 260ms var(--ease-soft),
+      border-color 260ms var(--ease-soft);
+    will-change: transform;
+  }
+  .k-kart:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-soft);
+    border-color: var(--border-strong);
+  }
+
+  /* Çizgi çizme efekti (link hover) */
+  .k-altcizgi {
+    position: relative;
+  }
+  .k-altcizgi::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -3px;
+    height: 2px;
+    width: 100%;
+    background: currentColor;
+    border-radius: 2px;
+    transform: scaleX(0);
+    transform-origin: right center;
+    transition: transform 320ms var(--ease-soft);
+  }
+  .k-altcizgi:hover::after,
+  .k-altcizgi:focus-visible::after {
+    transform: scaleX(1);
+    transform-origin: left center;
+  }
+
+  /* ————— Skeleton (iskelet) yükleyici ————— */
+
+  .k-iskelet {
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+  }
+  .k-iskelet::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--border-subtle) 55%, transparent),
+      transparent
+    );
+    animation: iskeletParilti 1.5s var(--ease-soft) infinite;
+  }
+}
+
+@keyframes iskeletParilti {
+  to {
+    transform: translateX(100%);
   }
 }

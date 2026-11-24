@@ -2,13 +2,23 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Navbar } from "@/components/ikbal/Navbar";
 import {
   AnnouncementCard,
   AnnouncementItem,
 } from "@/components/ikbal/AnnouncementCard";
+import {
+  BolumBasligi,
+  Iskelet,
+  Metrik,
+  Sira,
+  SiraOgesi,
+  Vitrin,
+} from "@/components/ikbal/Motion";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
+import { EASE, KART_HOVER, SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 
@@ -38,8 +48,10 @@ export default function HomePage() {
   >([]);
   const [playerCount, setPlayerCount] = useState<number>(0);
   const [showIosGuide, setShowIosGuide] = useState<boolean>(false);
+  const [ozetYukleniyor, setOzetYukleniyor] = useState<boolean>(true);
+  const azaltilmis = useReducedMotion();
 
-  const loadHomeSummary = useCallback(async () => {
+  const loadHomeSummaryData = useCallback(async () => {
     const [tasksRes, msgsRes, playersCountRes] = await Promise.all([
       supabase
         .from("tasks_assignments")
@@ -67,6 +79,14 @@ export default function HomePage() {
     if (typeof playersCountRes.count === "number")
       setPlayerCount(playersCountRes.count);
   }, []);
+
+  const loadHomeSummary = useCallback(async () => {
+    try {
+      await loadHomeSummaryData();
+    } finally {
+      setOzetYukleniyor(false);
+    }
+  }, [loadHomeSummaryData]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -100,39 +120,56 @@ export default function HomePage() {
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
 
-      <section className="bg-gradient-to-br from-[#041e3b] via-[var(--brand-navy)] to-[var(--brand-red)] text-white py-10 sm:py-12 px-4 shadow-sm">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          <div className="lg:col-span-8 space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/12 border border-white/20 text-[11px] font-extrabold uppercase tracking-wider">
+      <section className="k-sahne text-white py-14 sm:py-20 px-4 overflow-hidden">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
+          <motion.div
+            className="lg:col-span-8 space-y-5"
+            initial={azaltilmis ? false : { opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: EASE.posta, delay: 0.05 }}
+          >
+            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full k-cam--marka text-[11px] font-extrabold uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               Çorum İkbal Spor Kulübü • 2026–2027 Sezonu
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-black tracking-tight leading-[1.12]">
-              Altyapıdan Amatöre Tek Yürek, Tek Platform
+            <h1 className="k-posta k-posta--wonk text-posta text-white max-w-4xl">
+              Altyapıdan Amatöre{" "}
+              <span className="italic text-amber-200">Tek Yürek,</span>
+              <br className="hidden sm:block" /> Tek Platform
             </h1>
-            <p className="text-sm sm:text-base text-slate-200 max-w-2xl leading-relaxed">
+            <p className="text-giris text-slate-200 max-w-2xl">
               Taktik kadro kurulumu, maç günü skor ve golcü tahminleri, QR
               yoklama takibi, aidat/malzeme ekranları ve kulüp duyuruları tek
               merkezde.
             </p>
-            <div className="flex flex-wrap gap-3 pt-1">
+            <motion.div
+              className="flex flex-wrap gap-3 pt-2"
+              initial={azaltilmis ? false : { opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, ease: EASE.posta, delay: 0.25 }}
+            >
               <Link
                 href="/kadro-kur"
-                className="px-5 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black shadow-md transition"
+                className="px-6 py-3.5 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black shadow-md transition-colors"
               >
                 Taktik Tahtası &amp; Kadro Kur
               </Link>
               <Link
                 href="/kayit"
-                className="px-5 py-3 rounded-2xl bg-white hover:bg-slate-100 text-[var(--brand-navy)] text-xs sm:text-sm font-black shadow-md transition"
+                className="px-6 py-3.5 rounded-2xl bg-white hover:bg-slate-100 text-[var(--brand-navy)] text-xs sm:text-sm font-black shadow-md transition-colors"
               >
                 Kulübe Ön Kayıt Ol
               </Link>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
 
-          <div className="lg:col-span-4">
-            <div className="rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 p-5 space-y-3 shadow-lg">
+          <motion.div
+            className="lg:col-span-4"
+            initial={azaltilmis ? false : { opacity: 0, y: 32 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.85, ease: EASE.posta, delay: 0.2 }}
+          >
+            <div className="rounded-3xl k-cam--marka p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <img
                   src="/logo.png"
@@ -149,74 +186,102 @@ export default function HomePage() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2.5 pt-1 text-xs">
-                <div className="rounded-xl bg-black/20 px-3 py-2">
-                  <div className="text-[10px] text-slate-300 font-bold uppercase">
+                <div className="rounded-xl bg-black/20 px-3 py-2.5">
+                  <div className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
                     Kategoriler
                   </div>
-                  <div className="font-extrabold mt-0.5">Minikler – SAL</div>
+                  <div className="font-extrabold mt-1">Minikler – SAL</div>
                 </div>
-                <div className="rounded-xl bg-black/20 px-3 py-2">
-                  <div className="text-[10px] text-slate-300 font-bold uppercase">
+                <div className="rounded-xl bg-black/20 px-3 py-2.5">
+                  <div className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
                     Ana Tesis
                   </div>
-                  <div className="font-extrabold mt-0.5">Nazmi Avluca</div>
+                  <div className="font-extrabold mt-1">Nazmi Avluca</div>
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 space-y-8 tabular-nums">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs flex flex-col justify-between">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
-              Kayıtlı Sporcu Kadrosu
-            </span>
-            <div className="text-3xl font-black text-[var(--brand-ink)] mt-1.5">
-              {playerCount} Sporcu
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-12 sm:py-16 space-y-14 tabular-nums">
+        <Sira className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <SiraOgesi>
+            <div className="k-artik k-kart p-6 h-40 flex flex-col justify-between">
+              <span className="k-koz text-koz">
+                Kayıtlı Sporcu Kadrosu
+              </span>
+              {ozetYukleniyor ? (
+                <Iskelet className="h-10 w-32 mt-3" radius={10} />
+              ) : (
+                <Metrik className="text-metrik font-black text-[var(--brand-ink)]">
+                  {playerCount}{" "}
+                  <span className="text-base font-extrabold align-baseline text-[var(--text-secondary)]">
+                    Sporcu
+                  </span>
+                </Metrik>
+              )}
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                Minikler, U11–U19 ve Süper Amatör yaş grupları
+              </p>
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              Minikler, U11–U19 ve Süper Amatör yaş grupları
-            </p>
-          </div>
+          </SiraOgesi>
 
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs flex flex-col justify-between">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
-              Aktif Maç &amp; Görev Kaydı
-            </span>
-            <div className="text-3xl font-black text-[var(--brand-red)] mt-1.5">
-              {upcomingMatches.length} Program
+          <SiraOgesi>
+            <div className="k-artik k-kart p-6 h-40 flex flex-col justify-between">
+              <span className="k-koz text-koz">
+                Aktif Maç &amp; Görev Kaydı
+              </span>
+              {ozetYukleniyor ? (
+                <Iskelet className="h-10 w-28 mt-3" radius={10} />
+              ) : (
+                <Metrik className="text-metrik font-black text-[var(--brand-red)]">
+                  {upcomingMatches.length}{" "}
+                  <span className="text-base font-extrabold align-baseline text-[var(--text-secondary)]">
+                    Program
+                  </span>
+                </Metrik>
+              )}
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                Saha, saat ve servis bilgileri canlı güncellenir
+              </p>
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              Saha, saat ve servis bilgileri canlı güncellenir
-            </p>
-          </div>
+          </SiraOgesi>
 
-          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs flex flex-col justify-between">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--text-muted)]">
-              Son Kulüp Duyuruları
-            </span>
-            <div className="text-3xl font-black text-[var(--text-primary)] mt-1.5">
-              {recentAnnouncements.length} Güncel Duyuru
+          <SiraOgesi>
+            <div className="k-artik k-kart p-6 h-40 flex flex-col justify-between">
+              <span className="k-koz text-koz">
+                Son Kulüp Duyuruları
+              </span>
+              {ozetYukleniyor ? (
+                <Iskelet className="h-10 w-28 mt-3" radius={10} />
+              ) : (
+                <Metrik className="text-metrik font-black text-[var(--text-primary)]">
+                  {recentAnnouncements.length}{" "}
+                  <span className="text-base font-extrabold align-baseline text-[var(--text-secondary)]">
+                    Güncel Duyuru
+                  </span>
+                </Metrik>
+              )}
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                <Link
+                  href="/bildirimler"
+                  className="k-altcizgi text-[var(--brand-red)] font-extrabold"
+                >
+                  Tüm duyuruları gör →
+                </Link>
+              </p>
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              <Link
-                href="/bildirimler"
-                className="text-[var(--brand-red)] font-extrabold hover:underline"
-              >
-                Tüm duyuruları gör →
-              </Link>
-            </p>
-          </div>
-        </div>
+          </SiraOgesi>
+        </Sira>
 
-        <section className="rounded-3xl bg-gradient-to-r from-[#041e3b] via-[var(--brand-navy)] to-[#7f1d1d] text-white p-6 sm:p-8 shadow-md border border-white/15 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-          <div className="space-y-2 max-w-2xl">
+        <Vitrin>
+        <section className="k-sahne rounded-3xl text-white p-7 sm:p-10 shadow-md border border-white/15 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+          <div className="space-y-3 max-w-2xl">
             <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-400/20 border border-emerald-300/40 text-emerald-200 text-[11px] font-black uppercase tracking-wider">
               Mobil Uygulama &amp; PWA • Android &amp; iOS
             </span>
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+            <h2 className="k-posta text-2xl sm:text-[28px] text-white">
               Çorum İkbal Spor Mobil Uygulamamız Android Platformunda Yayında
             </h2>
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
@@ -244,17 +309,26 @@ export default function HomePage() {
             </button>
           </div>
         </section>
+        </Vitrin>
 
+        <AnimatePresence>
         {showIosGuide && (
-          <div
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: EASE.veda }}
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
             onClick={() => setShowIosGuide(false)}
           >
-            <div
+            <motion.div
               role="dialog"
               aria-modal="true"
               aria-labelledby="ios-rehber-baslik"
               onClick={(e) => e.stopPropagation()}
+              initial={azaltilmis ? false : { opacity: 0, y: 48, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={azaltilmis ? { duration: 0 } : SPRING.yumusak}
               className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl"
             >
               <div className="flex items-center justify-between">
@@ -287,124 +361,148 @@ export default function HomePage() {
               >
                 Anlaşıldı
               </button>
-            </div>
-          </div>
+            </motion.div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <section className="lg:col-span-7 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-black text-[var(--text-primary)]">
-                Yaklaşan Maçlar &amp; Program
-              </h2>
-              <Link
-                href="/gorevler"
-                className="text-xs font-extrabold text-[var(--brand-red)] hover:underline"
-              >
-                Tahmin Merkezi →
-              </Link>
-            </div>
-
-            {upcomingMatches.length === 0 ? (
-              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
-                Henüz planlanmış maç veya görev kaydı bulunmuyor.
-              </div>
-            ) : (
-              <div className="divide-y divide-[var(--border-subtle)]">
-                {upcomingMatches.map((m) => (
-                  <div
-                    key={m.id}
-                    className="py-3.5 flex flex-wrap items-center justify-between gap-3"
+          <Vitrin className="lg:col-span-7">
+            <section className="k-artik p-6 sm:p-7 h-full">
+              <BolumBasligi
+                koz="Fikstür"
+                baslik={<>Yaklaşan Maçlar &amp; Program</>}
+                saga={
+                  <Link
+                    href="/gorevler"
+                    className="k-altcizgi text-xs font-extrabold text-[var(--brand-red)]"
                   >
-                    <div className="space-y-0.5">
-                      <div className="text-sm font-extrabold text-[var(--text-primary)]">
-                        {m.title}
-                      </div>
-                      <div className="text-xs text-[var(--text-secondary)]">
-                        {m.age_group || "Genel"} •{" "}
-                        {m.location || "Saha bilgisi yok"}
-                      </div>
-                    </div>
-                    <span className="px-3 py-1.5 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold tabular-nums">
-                      {formatShortDateTR(m.event_date, m.match_time)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+                    Tahmin Merkezi →
+                  </Link>
+                }
+              />
 
-          <section className="lg:col-span-5 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-lg font-black text-[var(--text-primary)]">
-                Son Duyurular
-              </h2>
-              <Link
-                href="/bildirimler"
-                className="text-xs font-extrabold text-[var(--brand-red)] hover:underline"
-              >
-                Tümü →
-              </Link>
-            </div>
+              {ozetYukleniyor ? (
+                <div className="pt-4 space-y-3">
+                  {[1, 2, 3, 4].map((n) => (
+                    <Iskelet key={n} className="h-12 w-full" radius={14} />
+                  ))}
+                </div>
+              ) : upcomingMatches.length === 0 ? (
+                <div className="mt-4 rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
+                  Henüz planlanmış maç veya görev kaydı bulunmuyor.
+                </div>
+              ) : (
+                <Sira className="pt-3 divide-y divide-[var(--border-subtle)]">
+                  {upcomingMatches.map((m) => (
+                    <SiraOgesi key={m.id}>
+                      <div className="py-4 flex flex-wrap items-center justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-extrabold text-[var(--text-primary)]">
+                            {m.title}
+                          </div>
+                          <div className="text-xs text-[var(--text-secondary)]">
+                            {m.age_group || "Genel"} •{" "}
+                            {m.location || "Saha bilgisi yok"}
+                          </div>
+                        </div>
+                        <span className="px-3 py-1.5 rounded-xl bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold tabular-nums">
+                          {formatShortDateTR(m.event_date, m.match_time)}
+                        </span>
+                      </div>
+                    </SiraOgesi>
+                  ))}
+                </Sira>
+              )}
+            </section>
+          </Vitrin>
 
-            {recentAnnouncements.length === 0 ? (
-              <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
-                Henüz genel kulüp duyurusu paylaşılmadı.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentAnnouncements.map((ann) => (
-                  <AnnouncementCard
-                    key={ann.id}
-                    announcement={ann}
-                    compact
-                  />
-                ))}
-              </div>
-            )}
-          </section>
+          <Vitrin className="lg:col-span-5" delay={0.08}>
+            <section className="k-artik p-6 sm:p-7 h-full">
+              <BolumBasligi
+                koz="Kulüp Gündemi"
+                baslik={<>Son Duyurular</>}
+                saga={
+                  <Link
+                    href="/bildirimler"
+                    className="k-altcizgi text-xs font-extrabold text-[var(--brand-red)]"
+                  >
+                    Tümü →
+                  </Link>
+                }
+              />
+
+              {ozetYukleniyor ? (
+                <div className="pt-4 space-y-3">
+                  {[1, 2, 3].map((n) => (
+                    <Iskelet key={n} className="h-16 w-full" radius={14} />
+                  ))}
+                </div>
+              ) : recentAnnouncements.length === 0 ? (
+                <div className="mt-4 rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-8 text-center text-xs font-bold text-[var(--text-secondary)]">
+                  Henüz genel kulüp duyurusu paylaşılmadı.
+                </div>
+              ) : (
+                <Sira className="pt-3 space-y-3">
+                  {recentAnnouncements.map((ann) => (
+                    <SiraOgesi key={ann.id}>
+                      <AnnouncementCard announcement={ann} compact />
+                    </SiraOgesi>
+                  ))}
+                </Sira>
+              )}
+            </section>
+          </Vitrin>
         </div>
 
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            href="/gorevler"
-            className="group bg-[var(--bg-surface)] hover:border-[var(--brand-navy)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
-          >
-            <div className="text-sm font-black text-[var(--brand-ink)] group-hover:underline">
-              Maç Skor &amp; Golcü Tahmini
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              Maç öncesi skor ve ilk golcü tahminini yap, kazandığın puanları
-              oyuncu kartına aktar.
-            </p>
-          </Link>
-
-          <Link
-            href="/kadro-kur"
-            className="group bg-[var(--bg-surface)] hover:border-[var(--brand-red)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
-          >
-            <div className="text-sm font-black text-[var(--brand-red)] group-hover:underline">
-              Taktik Tahtası &amp; Kadro Kur
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              4-3-3, 4-2-3-1 veya 3-5-2 dizilişleriyle ilk 11&apos;ini kur ve
-              yüksek çözünürlüklü PNG olarak paylaş.
-            </p>
-          </Link>
-
-          <Link
-            href="/kayit"
-            className="group bg-[var(--bg-surface)] hover:border-emerald-600 rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs transition space-y-1.5"
-          >
-            <div className="text-sm font-black text-emerald-700 dark:text-emerald-400 group-hover:underline">
-              Altyapı &amp; Kulüp Ön Kayıt
-            </div>
-            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-              Doğum tarihine göre otomatik yaş kategorisi belirlenir; başvurun
-              doğrudan yönetim paneline iletilir.
-            </p>
-          </Link>
-        </section>
+        <Sira className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            {
+              href: "/gorevler",
+              koz: "Tahmin",
+              renk: "var(--brand-ink)",
+              baslik: "Maç Skor & Golcü Tahmini",
+              metin:
+                "Maç öncesi skor ve ilk golcü tahminini yap, kazandığın puanları oyuncu kartına aktar.",
+            },
+            {
+              href: "/kadro-kur",
+              koz: "Taktik",
+              renk: "var(--brand-red)",
+              baslik: "Taktik Tahtası & Kadro Kur",
+              metin:
+                "4-3-3, 4-2-3-1 veya 3-5-2 dizilişleriyle ilk 11'ini kur ve yüksek çözünürlüklü PNG olarak paylaş.",
+            },
+            {
+              href: "/kayit",
+              koz: "Aile Ol",
+              renk: "#047857",
+              baslik: "Altyapı & Kulüp Ön Kayıt",
+              metin:
+                "Doğum tarihine göre otomatik yaş kategorisi belirlenir; başvurun doğrudan yönetim paneline iletilir.",
+            },
+          ].map((kart) => (
+            <SiraOgesi key={kart.href}>
+              <motion.div whileHover={azaltilmis ? undefined : KART_HOVER} transition={SPRING.keskin} className="h-full">
+                <Link
+                  href={kart.href}
+                  className="group k-artik k-kart block p-6 h-full space-y-2"
+                >
+                  <div className="k-koz text-koz">{kart.koz}</div>
+                  <div
+                    className="k-posta text-lg leading-snug"
+                    style={{ color: kart.renk }}
+                  >
+                    {kart.baslik}
+                  </div>
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    {kart.metin}
+                  </p>
+                </Link>
+              </motion.div>
+            </SiraOgesi>
+          ))}
+        </Sira>
       </main>
 
       <footer className="border-t border-[var(--border-subtle)] bg-[var(--bg-surface)] py-6 px-4 text-xs text-[var(--text-secondary)]">
