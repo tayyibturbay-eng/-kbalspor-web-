@@ -1,13 +1,9 @@
 "use client";
 
-// Ortak hareket bileşenleri — tüm sayfalar bu primitifleri kullanır.
-// prefers-reduced-motion açıksa transform/y olamaz; yalnızca anında görünür.
-
 import React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { EASE, SIRA, VITRIN, VITRIN_PORT } from "@/lib/motion";
 
-/** Scroll ile sahneye yumuşak giriş (tek öğe) */
 export function Vitrin({
   children,
   className,
@@ -34,7 +30,6 @@ export function Vitrin({
   );
 }
 
-/** Kapsayıcı: çocukları sırayla (staggered) sahneye getirir */
 export function Sira({
   children,
   className,
@@ -57,7 +52,6 @@ export function Sira({
   );
 }
 
-/** Sira içindeki öğe */
 export function SiraOgesi({
   children,
   className,
@@ -74,7 +68,6 @@ export function SiraOgesi({
   );
 }
 
-/** Sayfa içi bölüm başlığı: koz (eyebrow) + editorial başlık + giriş cümlesi */
 export function BolumBasligi({
   koz,
   baslik,
@@ -90,7 +83,9 @@ export function BolumBasligi({
 }) {
   return (
     <div
-      className={`flex flex-wrap items-end justify-between gap-x-6 gap-y-3 ${className ?? ""}`}
+      className={`flex flex-wrap items-end justify-between gap-x-6 gap-y-3 ${
+        className ?? ""
+      }`}
     >
       <div className="min-w-0 space-y-2">
         {koz ? <div className="k-koz text-koz">{koz}</div> : null}
@@ -106,7 +101,6 @@ export function BolumBasligi({
   );
 }
 
-/** Shimmer iskelet bloğu — dönen ikon yerine tasarım diline uygun yükleme */
 export function Iskelet({
   className,
   radius = 12,
@@ -123,7 +117,6 @@ export function Iskelet({
   );
 }
 
-/** İstatistik sayısının yumuşak sayaç girişi (opacity + hafif yukarı akış) */
 export function Metrik({
   children,
   className,

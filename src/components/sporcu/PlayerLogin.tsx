@@ -1,8 +1,9 @@
-// PlayerLogin.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Player } from "@/types/club";
+import { EASE } from "@/lib/motion";
 
 export function getOrCreateWebDeviceId(): string {
   if (typeof window === "undefined") return "web-ssr";
@@ -28,6 +29,7 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
   const [pin, setPin] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const azaltilmis = useReducedMotion();
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -71,15 +73,18 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
   }
 
   return (
-    <div className="max-w-md mx-auto bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] shadow-xs p-6 sm:p-8">
-      <div className="text-center mb-6">
-        <span className="inline-block px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold uppercase tracking-wider mb-2">
-          Sporcu Portalı
-        </span>
-        <h1 className="text-2xl font-black text-[var(--text-primary)]">
+    <motion.div
+      initial={azaltilmis ? false : { opacity: 0, y: 18, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.48, ease: EASE.posta }}
+      className="max-w-md mx-auto k-artik k-artik--yumusuk border-t-4 border-t-[var(--brand-navy)] p-6 sm:p-8"
+    >
+      <div className="text-center mb-6 space-y-1.5">
+        <span className="k-etiket k-etiket--lacivert">SPORCU PORTALI</span>
+        <h1 className="k-posta text-2xl text-[var(--text-primary)]">
           Sporcu Girişi
         </h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">
+        <p className="text-xs sm:text-sm text-[var(--text-secondary)]">
           Tarayıcıdan QR yoklama verin, malzemelerinizi, aidat ve programınızı
           görüntüleyin.
         </p>
@@ -87,7 +92,7 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
 
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+          <label className="k-koz text-[10px] block mb-1.5">
             Sporcu Kodu
           </label>
           <input
@@ -95,38 +100,37 @@ export function PlayerLogin({ onLoginSuccess }: PlayerLoginProps) {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Örn: IKB-101"
-            className="w-full px-4 py-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
+            className="k-alan uppercase font-mono font-bold !py-3"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-            PIN Kodu
-          </label>
+          <label className="k-koz text-[10px] block mb-1.5">PIN Kodu</label>
           <input
             type="password"
             inputMode="numeric"
             value={pin}
             onChange={(e) => setPin(e.target.value)}
             placeholder="••••"
-            className="w-full px-4 py-3 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] font-semibold focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
+            className="k-alan font-bold !py-3"
           />
         </div>
 
         {authError && (
-          <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] border border-[var(--status-danger-text)]/25 text-[var(--status-danger-text)] text-sm font-semibold">
+          <div className="p-3.5 rounded-2xl bg-[var(--status-danger-bg)] border border-[var(--status-danger-text)]/25 text-[var(--status-danger-text)] text-xs font-extrabold">
             {authError}
           </div>
         )}
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.98 }}
           type="submit"
           disabled={authLoading}
-          className="w-full py-3.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold transition cursor-pointer disabled:opacity-60"
+          className="k-buton k-buton--lacivert w-full !py-3.5 !text-sm"
         >
           {authLoading ? "Giriş Yapılıyor..." : "Giriş Yap"}
-        </button>
+        </motion.button>
       </form>
-    </div>
+    </motion.div>
   );
 }

@@ -8,9 +8,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-
-// Tarayıcının ham confirm()/alert() pencereleri yerine kulüp tasarım
-// diline uygun, klavyeyle kullanılabilir onay penceresi ve bildirim şeridi.
+import { AnimatePresence, motion } from "framer-motion";
+import { EASE, SPRING } from "@/lib/motion";
 
 type OnaySecenekleri = {
   baslik?: string;
@@ -59,15 +58,12 @@ export function OnaySaglayici({ children }: { children: React.ReactNode }) {
     []
   );
 
-  const kapat = useCallback(
-    (deger: boolean) => {
-      setIstek((onceki) => {
-        onceki?.resolve(deger);
-        return null;
-      });
-    },
-    []
-  );
+  const kapat = useCallback((deger: boolean) => {
+    setIstek((onceki) => {
+      onceki?.resolve(deger);
+      return null;
+    });
+  }, []);
 
   const bildirim = useCallback((mesaj: string) => {
     const id = ++bildirimSayac;
@@ -91,64 +87,89 @@ export function OnaySaglayici({ children }: { children: React.ReactNode }) {
     <OnayBaglami.Provider value={{ onay, bildirim }}>
       {children}
 
-      {istek && (
-        <div
-          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={() => kapat(false)}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="onay-baslik"
-            onClick={(e) => e.stopPropagation()}
-            className="bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-subtle)] rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
+      <AnimatePresence>
+        {istek && (
+          <motion.div
+            key="onay-perde"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: EASE.yumusak }}
+            className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => kapat(false)}
           >
-            <h3
-              id="onay-baslik"
-              className="text-base font-black tracking-tight"
+            <motion.div
+              key="onay-kart"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="onay-baslik"
+              initial={{ opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={SPRING.keskin}
+              onClick={(e) => e.stopPropagation()}
+              className="k-cam bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-3xl max-w-sm w-full p-6 space-y-4 shadow-2xl"
             >
-              {istek.baslik}
-            </h3>
-            <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
-              {istek.mesaj}
-            </p>
-            <div className="flex flex-wrap justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => kapat(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-extrabold cursor-pointer transition border border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-subtle)] hover:text-[var(--text-primary)]"
-              >
-                {istek.olumsuzMetin}
-              </button>
-              <button
-                ref={olumluRef}
-                type="button"
-                onClick={() => kapat(true)}
-                className={`px-4 py-2.5 rounded-xl text-xs font-extrabold text-white cursor-pointer transition ${
-                  istek.tehlikeli
-                    ? "bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
-                    : "bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)]"
-                }`}
-              >
-                {istek.olumluMetin}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="space-y-1.5">
+                <span className="k-koz text-[10px] tracking-[0.22em] block">
+                  ÇORUM İKBAL SPOR
+                </span>
+                <h3
+                  id="onay-baslik"
+                  className="k-posta text-xl font-semibold tracking-tight"
+                >
+                  {istek.baslik}
+                </h3>
+              </div>
+              <p className="text-xs sm:text-sm text-[var(--text-secondary)] leading-relaxed">
+                {istek.mesaj}
+              </p>
+              <div className="flex flex-wrap justify-end gap-2 pt-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  onClick={() => kapat(false)}
+                  className="k-buton k-buton--hayalet"
+                >
+                  {istek.olumsuzMetin}
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  ref={olumluRef}
+                  type="button"
+                  onClick={() => kapat(true)}
+                  className={`k-buton ${
+                    istek.tehlikeli ? "k-buton--kirmizi" : "k-buton--lacivert"
+                  }`}
+                >
+                  {istek.olumluMetin}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div
         aria-live="polite"
-        className="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 max-w-sm"
+        className="fixed bottom-4 right-4 z-[80] flex flex-col gap-2 max-w-sm pointer-events-none"
       >
-        {bildirimler.map((b) => (
-          <div
-            key={b.id}
-            className="px-4 py-3 rounded-2xl bg-[var(--brand-navy)] text-white text-xs font-extrabold shadow-lg"
-          >
-            {b.mesaj}
-          </div>
-        ))}
+        <AnimatePresence initial={false}>
+          {bildirimler.map((b) => (
+            <motion.div
+              layout
+              key={b.id}
+              initial={{ opacity: 0, y: 18, scale: 0.94 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 24, scale: 0.95 }}
+              transition={SPRING.yay}
+              className="pointer-events-auto px-4 py-3 rounded-2xl bg-[var(--brand-navy)] border border-white/15 text-white text-xs font-extrabold shadow-xl flex items-center gap-2.5"
+            >
+              <span className="w-2 h-2 rounded-full bg-[var(--brand-red)] shrink-0" />
+              <span>{b.mesaj}</span>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </OnayBaglami.Provider>
   );

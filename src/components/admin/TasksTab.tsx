@@ -1,7 +1,7 @@
-// TasksTab.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import {
   AGE_GROUPS,
@@ -13,6 +13,7 @@ import {
 } from "@/types/club";
 import { buildSympatheticMatchMessage, sendPushViaApi } from "@/lib/club-utils";
 import { useOnay } from "@/components/ui/OnayDialog";
+import { EASE, SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 
@@ -82,6 +83,8 @@ export function TasksTab({
   onRefreshTasks,
 }: TasksTabProps) {
   const { onay } = useOnay();
+  const azaltilmis = useReducedMotion();
+
   const [homeTeam, setHomeTeam] = useState("Çorum İkbal Spor");
   const [awayTeam, setAwayTeam] = useState("");
   const [newTask, setNewTask] = useState({
@@ -102,11 +105,10 @@ export function TasksTab({
   );
   const [corumfitHtml, setCorumfitHtml] = useState("");
   const [syncingCorumfit, setSyncingCorumfit] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingTask, setSavingTask] = useState(false);
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState<number>(0);
 
-  const [ikbalSide, setIkbalSide] = useState<"home" | "away">("home");
-  const [opponentName, setOpponentName] = useState("");
   const [matchWaPreview, setMatchWaPreview] = useState<{
     message: string;
     targets: Player[];
@@ -119,15 +121,20 @@ export function TasksTab({
     return () => clearTimeout(timer);
   }, []);
 
+  const visibleTasks = useMemo(
+    () => tasks.filter((t) => !deletedIds.includes(t.id)),
+    [tasks, deletedIds]
+  );
+
   const { upcomingTasks, pastTasks } = useMemo(() => {
     if (!nowMs) {
-      return { upcomingTasks: tasks, pastTasks: [] as TaskAssignment[] };
+      return { upcomingTasks: visibleTasks, pastTasks: [] as TaskAssignment[] };
     }
     return {
-      upcomingTasks: tasks.filter((t) => isTaskUpcoming(t, nowMs)),
-      pastTasks: tasks.filter((t) => !isTaskUpcoming(t, nowMs)),
+      upcomingTasks: visibleTasks.filter((t) => isTaskUpcoming(t, nowMs)),
+      pastTasks: visibleTasks.filter((t) => !isTaskUpcoming(t, nowMs)),
     };
-  }, [tasks, nowMs]);
+  }, [visibleTasks, nowMs]);
 
   async function handleSyncCorumfit() {
     setSyncingCorumfit(true);
@@ -160,7 +167,9 @@ export function TasksTab({
         return;
       }
 
-      const insertedList = Array.isArray(data.insertedMatches) ? data.insertedMatches : [];
+      const insertedList = Array.isArray(data.insertedMatches)
+        ? data.insertedMatches
+        : [];
       let totalPushSent = 0;
 
       for (const m of insertedList) {
@@ -225,6 +234,8 @@ export function TasksTab({
 
   async function addTask(e: React.FormEvent) {
     e.preventDefault();
+    if (savingTask) return;
+
     const computedTitle =
       newTask.task_type === "mac"
         ? `${homeTeam.trim()} - ${awayTeam.trim()}`.replace(/^\s*-\s*|\s*-\s*$/g, "")
@@ -233,91 +244,98 @@ export function TasksTab({
       onFeedback("Lütfen maç takımlarını veya etkinlik başlığını girin.");
       return;
     }
-    const finalLocation =
-      newTask.field_choice === "Diğer"
-        ? newTask.custom_location.trim() || "Özel Saha"
-        : newTask.field_choice;
-    const mapsLink = buildMapsUrl(finalLocation);
-    const cleanDate = newTask.event_date.slice(0, 10);
-    const squadIds =
-      newTask.squad_player_ids.length > 0
-        ? newTask.squad_player_ids
-        : players
-            .filter((p) => p.age_group === newTask.age_group)
-            .map((p) => p.id);
 
-    const { error } = await supabase.from("tasks_assignments").insert({
-      title: computedTitle,
-      task_type: newTask.task_type,
-      age_group: newTask.age_group,
-      event_date: cleanDate,
-      match_time: newTask.match_time,
-      has_shuttle: newTask.has_shuttle,
-      squad_player_ids: squadIds,
-      location: finalLocation,
-      notes: newTask.notes || null,
-    });
+    setSavingTask(true);
+    try {
+      const finalLocation =
+        newTask.field_choice === "Diğer"
+          ? newTask.custom_location.trim() || "Özel Saha"
+          : newTask.field_choice;
+      const mapsLink = buildMapsUrl(finalLocation);
+      const cleanDate = newTask.event_date.slice(0, 10);
+      const squadIds =
+        newTask.squad_player_ids.length > 0
+          ? newTask.squad_player_ids
+          : players
+              .filter((p) => p.age_group === newTask.age_group)
+              .map((p) => p.id);
 
-    if (error) {
-      onFeedback("Maç eklenemedi: " + error.message);
-      return;
+      const { error } = await supabase.from("tasks_assignments").insert({
+        title: computedTitle,
+        task_type: newTask.task_type,
+        age_group: newTask.age_group,
+        event_date: cleanDate,
+        match_time: newTask.match_time,
+        has_shuttle: newTask.has_shuttle,
+        squad_player_ids: squadIds,
+        location: finalLocation,
+        notes: newTask.notes || null,
+      });
+
+      if (error) {
+        onFeedback("Maç eklenemedi: " + error.message);
+        return;
+      }
+
+      const formattedDate = formatDisplayDate(cleanDate);
+      const baseMsg = buildSympatheticMatchMessage({
+        title: computedTitle,
+        event_date: formattedDate,
+        match_time: newTask.match_time,
+        location: finalLocation,
+        has_shuttle: newTask.has_shuttle,
+        age_group: newTask.age_group,
+      });
+      const msg = `${baseMsg}\nKonum Haritası: ${mapsLink}`;
+
+      const taskCombined = `MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${computedTitle} (${newTask.age_group})\n${msg}`;
+      await supabase.from("club_messages").insert({
+        body: taskCombined,
+        message_text: taskCombined,
+        age_group: newTask.age_group || "Tümü",
+        sender_name:
+          role === "coach" && activeCoach
+            ? `Antrenör ${activeCoach.full_name}`
+            : adminName || "Yönetici",
+        created_at: new Date().toISOString(),
+      });
+
+      const pushRes = await sendPushViaApi(
+        ["Tümü"],
+        `Yeni Maç / Etkinlik: ${computedTitle}`,
+        `${formattedDate} ${newTask.match_time} • ${newTask.age_group} • ${finalLocation}`
+      );
+
+      await onLogActivity(
+        "Maç Ekleme",
+        `${computedTitle} (${newTask.age_group}) — ${formattedDate} ${finalLocation}`
+      );
+      setMatchWaPreview({
+        message: msg,
+        targets: players,
+      });
+      onFeedback(
+        `Maç ve harita bağlantısı kaydedildi, tüm oyunculara bildirim gönderildi (${pushRes.sentCount} telefon).`
+      );
+      setNewTask({
+        title: "",
+        task_type: "mac",
+        age_group: "Minikler",
+        event_date: "",
+        match_time: "14:00",
+        field_choice: "Nazmi Avluca Spor Tesisi",
+        custom_location: "",
+        has_shuttle: true,
+        squad_player_ids: [],
+        notes: "",
+      });
+      await onRefreshTasks();
+    } finally {
+      setSavingTask(false);
     }
-
-    const formattedDate = formatDisplayDate(cleanDate);
-    const baseMsg = buildSympatheticMatchMessage({
-      title: computedTitle,
-      event_date: formattedDate,
-      match_time: newTask.match_time,
-      location: finalLocation,
-      has_shuttle: newTask.has_shuttle,
-      age_group: newTask.age_group,
-    });
-    const msg = `${baseMsg}\nKonum Haritası: ${mapsLink}`;
-
-    const taskCombined = `MAÇ / ETKİNLİK BİLGİLENDİRMESİ: ${computedTitle} (${newTask.age_group})\n${msg}`;
-    await supabase.from("club_messages").insert({
-      body: taskCombined,
-      message_text: taskCombined,
-      age_group: newTask.age_group || "Tümü",
-      sender_name:
-        role === "coach" && activeCoach
-          ? `Antrenör ${activeCoach.full_name}`
-          : adminName || "Yönetici",
-      created_at: new Date().toISOString(),
-    });
-
-    const pushRes = await sendPushViaApi(
-      ["Tümü"],
-      `Yeni Maç / Etkinlik: ${computedTitle}`,
-      `${formattedDate} ${newTask.match_time} • ${newTask.age_group} • ${finalLocation}`
-    );
-
-    await onLogActivity(
-      "Maç Ekleme",
-      `${newTask.title} (${newTask.age_group}) — ${formattedDate} ${finalLocation}`
-    );
-    setMatchWaPreview({
-      message: msg,
-      targets: players,
-    });
-    onFeedback(
-      `Maç ve harita bağlantısı kaydedildi, tüm oyunculara bildirim gönderildi (${pushRes.sentCount} telefon).`
-    );
-    setNewTask({
-      title: "",
-      task_type: "mac",
-      age_group: "Minikler",
-      event_date: "",
-      match_time: "14:00",
-      field_choice: "Nazmi Avluca Spor Tesisi",
-      custom_location: "",
-      has_shuttle: true,
-      squad_player_ids: [],
-      notes: "",
-    });
-    await onRefreshTasks();
   }
 
+  // Optimistic silme + hata durumunda rollback
   async function deleteTask(task: TaskAssignment) {
     if (
       !(await onay(`"${task.title}" kaydını silmek istediğinize emin misiniz?`, {
@@ -326,15 +344,18 @@ export function TasksTab({
       }))
     )
       return;
-    setDeletingId(task.id);
+
+    setDeletedIds((prev) => [...prev, task.id]);
+    onFeedback(`"${task.title}" silindi.`);
+
     const { error } = await supabase
       .from("tasks_assignments")
       .delete()
       .eq("id", task.id);
-    setDeletingId(null);
 
     if (error) {
-      onFeedback("Kayıt silinemedi: " + error.message);
+      setDeletedIds((prev) => prev.filter((id) => id !== task.id));
+      onFeedback("Kayıt silinemedi, geri alındı: " + error.message);
       return;
     }
 
@@ -342,8 +363,8 @@ export function TasksTab({
       "Maç / Etkinlik Silme",
       `"${task.title}" (${task.age_group}, ${formatDisplayDate(task.event_date)}) silindi.`
     );
-    onFeedback(`"${task.title}" silindi.`);
     await onRefreshTasks();
+    setDeletedIds((prev) => prev.filter((id) => id !== task.id));
   }
 
   async function sendOneDayBeforeReminder(t: TaskAssignment) {
@@ -388,25 +409,28 @@ export function TasksTab({
 
   return (
     <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-base font-black text-[var(--text-primary)]">
+      {/* Corumfit Ajanı */}
+      <div className="k-artik p-5 sm:p-6 space-y-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] block">OTOMATİK FİKSTÜR</span>
+            <h2 className="k-posta text-lg text-[var(--text-primary)]">
               Corumfit Haftalık Maç Senkronizasyon Ajanı
             </h2>
             <p className="text-xs text-[var(--text-secondary)]">
-              Verilen sayfadaki güncel İkbal Spor maçlarını çeker; bozuk/geçmiş
-              tarihli maçları atlar ve çift kayıt oluşturmadan sisteme ekler.
+              Güncel İkbal Spor maçlarını çeker; geçmiş maçları atlar ve çift
+              kayıt oluşturmadan sisteme ekler.
             </p>
           </div>
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             type="button"
             disabled={syncingCorumfit}
             onClick={handleSyncCorumfit}
-            className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] disabled:opacity-50 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer shrink-0 transition"
+            className="k-buton k-buton--lacivert shrink-0"
           >
             {syncingCorumfit ? "Taranıyor..." : "İkbal Spor Maçlarını Çek"}
-          </button>
+          </motion.button>
         </div>
 
         <input
@@ -414,11 +438,11 @@ export function TasksTab({
           value={corumfitUrl}
           onChange={(e) => setCorumfitUrl(e.target.value)}
           placeholder="https://corumfit.org/index.asp?id=hft_prg"
-          className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs sm:text-sm"
+          className="k-alan text-xs sm:text-sm"
         />
 
         <details className="text-xs text-[var(--text-secondary)]">
-          <summary className="cursor-pointer font-semibold text-[var(--brand-ink)]">
+          <summary className="cursor-pointer font-extrabold text-[var(--brand-ink)]">
             Site sunucudan doğrudan çekilemezse sayfa HTML kaynağını buraya
             yapıştır
           </summary>
@@ -427,18 +451,20 @@ export function TasksTab({
             value={corumfitHtml}
             onChange={(e) => setCorumfitHtml(e.target.value)}
             placeholder="İsteğe bağlı: Corumfit sayfasının HTML kodu..."
-            className="mt-2 w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl p-2.5 text-xs font-mono"
+            className="mt-2 k-alan text-xs font-mono"
           />
         </details>
       </div>
 
-      <form
-        onSubmit={addTask}
-        className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4"
-      >
-        <h2 className="text-lg font-black text-[var(--text-primary)]">
-          Yeni Maç / Etkinlik Ekle
-        </h2>
+      {/* Yeni Maç / Etkinlik Ekle */}
+      <form onSubmit={addTask} className="k-artik p-5 sm:p-6 space-y-4">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">TAKVİM KAYDI</span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Yeni Maç / Etkinlik Ekle
+          </h2>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
           {newTask.task_type === "mac" ? (
             <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -448,7 +474,7 @@ export function TasksTab({
                   placeholder="Ev Sahibi Takım"
                   value={homeTeam}
                   onChange={(e) => setHomeTeam(e.target.value)}
-                  className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+                  className="k-alan font-bold"
                 />
                 <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--brand-ink)] cursor-pointer select-none">
                   <input
@@ -462,6 +488,7 @@ export function TasksTab({
                         setHomeTeam("");
                       }
                     }}
+                    className="accent-[var(--brand-navy)]"
                   />
                   Çorum İkbal Spor
                 </label>
@@ -472,7 +499,7 @@ export function TasksTab({
                   placeholder="Deplasman Takım"
                   value={awayTeam}
                   onChange={(e) => setAwayTeam(e.target.value)}
-                  className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+                  className="k-alan font-bold"
                 />
                 <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[var(--brand-red)] cursor-pointer select-none">
                   <input
@@ -486,6 +513,7 @@ export function TasksTab({
                         setAwayTeam("");
                       }
                     }}
+                    className="accent-[var(--brand-red)]"
                   />
                   Çorum İkbal Spor
                 </label>
@@ -497,7 +525,7 @@ export function TasksTab({
               placeholder="Etkinlik Başlığı"
               value={newTask.title}
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"
+              className="k-alan font-bold md:col-span-2"
             />
           )}
           <select
@@ -505,7 +533,7 @@ export function TasksTab({
             onChange={(e) =>
               setNewTask({ ...newTask, task_type: e.target.value })
             }
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+            className="k-alan font-bold"
           >
             <option value="mac">Maç</option>
             <option value="etkinlik">Etkinlik</option>
@@ -515,7 +543,7 @@ export function TasksTab({
             onChange={(e) =>
               setNewTask({ ...newTask, age_group: e.target.value })
             }
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+            className="k-alan font-bold"
           >
             {AGE_GROUPS.map((g) => (
               <option key={g}>{g}</option>
@@ -529,7 +557,7 @@ export function TasksTab({
               onChange={(e) =>
                 setNewTask({ ...newTask, event_date: e.target.value })
               }
-              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-2 py-2 text-xs"
+              className="k-alan !px-2 text-xs font-bold"
             />
             <input
               type="time"
@@ -538,7 +566,7 @@ export function TasksTab({
               onChange={(e) =>
                 setNewTask({ ...newTask, match_time: e.target.value })
               }
-              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-2 py-2 text-xs"
+              className="k-alan !px-2 text-xs font-bold text-center"
             />
           </div>
         </div>
@@ -549,7 +577,7 @@ export function TasksTab({
             onChange={(e) =>
               setNewTask({ ...newTask, field_choice: e.target.value })
             }
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+            className="k-alan font-bold"
           >
             {MATCH_FIELDS.map((f) => (
               <option key={f}>{f}</option>
@@ -564,17 +592,18 @@ export function TasksTab({
               onChange={(e) =>
                 setNewTask({ ...newTask, custom_location: e.target.value })
               }
-              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+              className="k-alan font-semibold"
             />
           )}
 
-          <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] p-2.5 rounded-xl border border-[var(--border-subtle)] cursor-pointer">
+          <label className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)] p-2.5 rounded-xl border border-[var(--border-subtle)] cursor-pointer">
             <input
               type="checkbox"
               checked={newTask.has_shuttle}
               onChange={(e) =>
                 setNewTask({ ...newTask, has_shuttle: e.target.checked })
               }
+              className="accent-[var(--brand-navy)]"
             />
             {newTask.has_shuttle
               ? "Servis Var (2 saat önce Nazmi Avluca'da)"
@@ -592,102 +621,135 @@ export function TasksTab({
             )}
             target="_blank"
             rel="noreferrer"
-            className="text-[var(--brand-ink)] font-bold underline"
+            className="k-altcizgi text-[var(--brand-ink)] font-extrabold"
           >
-            Google Maps&apos;te Önizle
+            Google Maps&apos;te Önizle →
           </a>
         </div>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.98 }}
           type="submit"
-          className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold rounded-xl px-6 py-2.5 text-sm cursor-pointer transition"
+          disabled={savingTask}
+          className="k-buton k-buton--kirmizi !px-6 !py-3"
         >
-          Maçı / Etkinliği Kaydet &amp; Tüm Oyunculara Bildirim Gönder
-        </button>
+          {savingTask
+            ? "Kaydediliyor..."
+            : "Maçı / Etkinliği Kaydet & Tüm Oyunculara Bildirim Gönder"}
+        </motion.button>
       </form>
 
-      {matchWaPreview && (
-        <div className="bg-[var(--status-success-bg)]/60 border border-[var(--status-success-text)]/30 p-4 rounded-2xl space-y-3">
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            <h3 className="font-bold text-[var(--status-success-text)]">
-              Maç / Etkinlik WhatsApp Mesajı
-            </h3>
-            <a
-              href={`https://wa.me/?text=${encodeURIComponent(
-                matchWaPreview.message
-              )}`}
-              target="_blank"
-              rel="noreferrer"
-              className="bg-emerald-600 text-white text-xs font-extrabold px-4 py-2 rounded-xl"
-            >
-              WhatsApp Grubunda Paylaş
-            </a>
-          </div>
-          <pre className="text-xs bg-[var(--bg-surface)] p-3 rounded-xl border border-[var(--border-subtle)] whitespace-pre-wrap text-[var(--text-primary)]">
-            {matchWaPreview.message}
-          </pre>
-        </div>
-      )}
+      <AnimatePresence>
+        {matchWaPreview && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: EASE.yumusak }}
+            className="k-artik bg-[var(--status-success-bg)]/60 border-[var(--status-success-text)]/30 p-5 space-y-3"
+          >
+            <div className="flex flex-wrap justify-between items-center gap-2">
+              <h3 className="font-extrabold text-sm text-[var(--status-success-text)]">
+                Maç / Etkinlik WhatsApp Mesajı
+              </h3>
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(
+                  matchWaPreview.message
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="k-buton !bg-emerald-600 hover:!bg-emerald-700 !text-white !py-2 !px-4 !text-xs"
+              >
+                WhatsApp Grubunda Paylaş
+              </a>
+            </div>
+            <pre className="text-xs bg-[var(--bg-surface)] p-3.5 rounded-xl border border-[var(--border-subtle)] whitespace-pre-wrap text-[var(--text-primary)]">
+              {matchWaPreview.message}
+            </pre>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
-        <h3 className="font-black text-[var(--text-primary)] text-base">
-          Yaklaşan Maçlar &amp; Etkinlikler ({upcomingTasks.length})
-        </h3>
+      {/* Yaklaşan Maçlar */}
+      <div className="k-artik p-5 sm:p-6 space-y-4">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">GÜNCEL PROGRAM</span>
+          <h3 className="k-posta text-lg text-[var(--text-primary)]">
+            Yaklaşan Maçlar &amp; Etkinlikler ({upcomingTasks.length})
+          </h3>
+        </div>
         {upcomingTasks.length === 0 ? (
           <p className="text-xs text-[var(--text-secondary)]">
             Yaklaşan kayıt yok.
           </p>
         ) : (
-          upcomingTasks.map((t) => (
-            <div
-              key={t.id}
-              className="border-b border-[var(--border-subtle)] last:border-b-0 pb-3 last:pb-0 text-sm flex flex-wrap justify-between items-center gap-2"
-            >
-              <div className="space-y-0.5">
-                <div>
-                  <strong>{t.title}</strong> ({t.age_group}) —{" "}
-                  {formatDisplayDate(t.event_date)}{" "}
-                  {t.match_time ? `• ${t.match_time}` : ""}
-                </div>
-                <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center gap-2">
-                  <span>Yer: {t.location || "Konum belirtilmedi"}</span>
-                  {t.location && (
-                    <a
-                      href={buildMapsUrl(t.location)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[var(--brand-ink)] font-bold underline"
+          <div className="divide-y divide-[var(--border-subtle)]">
+            <AnimatePresence initial={false}>
+              {upcomingTasks.map((t) => (
+                <motion.div
+                  layout
+                  key={t.id}
+                  initial={azaltilmis ? false : { opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={SPRING.yumusak}
+                  className="py-3.5 first:pt-0 last:pb-0 text-sm flex flex-wrap justify-between items-center gap-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <strong className="text-[var(--text-primary)]">
+                        {t.title}
+                      </strong>
+                      <span className="k-etiket k-etiket--lacivert">
+                        {t.age_group}
+                      </span>
+                      <span className="text-xs font-extrabold text-[var(--brand-red)]">
+                        {formatDisplayDate(t.event_date)}
+                        {t.match_time ? ` • ${t.match_time}` : ""}
+                      </span>
+                    </div>
+                    <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center gap-2">
+                      <span>Yer: {t.location || "Konum belirtilmedi"}</span>
+                      {t.location && (
+                        <a
+                          href={buildMapsUrl(t.location)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="k-altcizgi text-[var(--brand-ink)] font-extrabold"
+                        >
+                          Haritada Aç
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <motion.button
+                      whileTap={{ scale: 0.96 }}
+                      type="button"
+                      onClick={() => sendOneDayBeforeReminder(t)}
+                      className="k-buton !bg-emerald-600 hover:!bg-emerald-700 !text-white !py-1.5 !px-3 !text-xs"
                     >
-                      Haritada Aç
-                    </a>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => sendOneDayBeforeReminder(t)}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer"
-                >
-                  Bildirim &amp; WP Gönder
-                </button>
-                <button
-                  type="button"
-                  disabled={deletingId === t.id}
-                  onClick={() => deleteTask(t)}
-                  className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--brand-red)] text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer disabled:opacity-50"
-                >
-                  {deletingId === t.id ? "Siliniyor..." : "Sil"}
-                </button>
-              </div>
-            </div>
-          ))
+                      Bildirim &amp; WP Gönder
+                    </motion.button>
+                    <button
+                      type="button"
+                      onClick={() => deleteTask(t)}
+                      className="px-3 py-1.5 rounded-xl bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer transition"
+                    >
+                      Sil
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
+      {/* Geçmiş Maçlar */}
       {pastTasks.length > 0 && (
-        <div className="bg-[var(--bg-subtle)] p-5 rounded-2xl border border-[var(--border-subtle)] space-y-2.5">
-          <h3 className="font-extrabold text-[var(--text-secondary)] text-sm">
+        <div className="k-artik bg-[var(--bg-subtle)] p-5 space-y-2.5">
+          <h3 className="k-koz text-[10px]">
             Geçmiş Maçlar &amp; Etkinlikler ({pastTasks.length})
           </h3>
           {pastTasks.slice(0, 20).map((t) => (
@@ -702,15 +764,14 @@ export function TasksTab({
                 ({t.age_group}) — {t.location || "-"}
               </span>
               <div className="flex items-center gap-3">
-                <span className="font-mono">
+                <span className="font-mono font-bold">
                   {formatDisplayDate(t.event_date)}
                   {t.match_time ? ` ${t.match_time}` : ""}
                 </span>
                 <button
                   type="button"
-                  disabled={deletingId === t.id}
                   onClick={() => deleteTask(t)}
-                  className="text-[var(--brand-red)] hover:underline font-bold cursor-pointer disabled:opacity-50"
+                  className="text-[var(--brand-red)] hover:underline font-extrabold cursor-pointer"
                 >
                   Sil
                 </button>

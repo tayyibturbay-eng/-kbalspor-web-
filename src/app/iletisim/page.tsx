@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Navbar } from "@/components/ikbal/Navbar";
+import { Vitrin } from "@/components/ikbal/Motion";
+import { EASE } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 import { sendPushViaApi } from "@/lib/club-utils";
@@ -151,15 +154,16 @@ export default function ContactPage() {
     <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[var(--brand-navy-hover)] to-[var(--brand-red)] text-white py-6 px-4 shadow-sm">
-        <div className="max-w-5xl mx-auto">
-          <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
+      <section className="k-sahne text-white py-8 px-4 shadow-sm">
+        <div className="max-w-5xl mx-auto space-y-2">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full k-cam--marka text-[11px] font-extrabold uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
             Çorum İkbal Spor Kulübü • İletişim &amp; Tesisler
           </span>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-1">
+          <h1 className="k-posta k-posta--wonk text-2xl sm:text-4xl text-white">
             Kulüp İletişim &amp; Saha Bilgileri
           </h1>
-          <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
+          <p className="text-xs sm:text-sm text-slate-200 max-w-2xl">
             Antrenman sahaları, harita konumları, maç organizasyonları ve
             veli/sporcu iletişim kanalları.
           </p>
@@ -167,16 +171,19 @@ export default function ContactPage() {
       </section>
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5 space-y-4">
-          <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4">
-            <h2 className="text-base font-black text-[var(--text-primary)]">
-              Tesis &amp; Harita Bağlantıları
-            </h2>
+        <Vitrin className="lg:col-span-5 space-y-4">
+          <div className="k-artik p-6 space-y-4">
+            <div className="space-y-0.5">
+              <span className="k-koz text-[10px] block">KONUMLAR</span>
+              <h2 className="k-posta text-xl text-[var(--text-primary)]">
+                Tesis &amp; Harita Bağlantıları
+              </h2>
+            </div>
 
             {FACILITIES.map((fac) => (
               <div
                 key={fac.name}
-                className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-2"
+                className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-4 space-y-2"
               >
                 <div
                   className={`text-xs font-black ${
@@ -194,7 +201,7 @@ export default function ContactPage() {
                   href={fac.mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--brand-navy)] hover:opacity-90 text-white text-[11px] font-extrabold transition"
+                  className="k-buton k-buton--lacivert !py-1.5 !px-3 !text-[11px]"
                 >
                   Haritada Aç →
                 </a>
@@ -226,95 +233,107 @@ export default function ContactPage() {
               </div>
             )}
           </div>
-        </div>
+        </Vitrin>
 
-        <form
-          onSubmit={handleSendMessage}
-          className="lg:col-span-7 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 shadow-xs space-y-4"
-        >
-          <h2 className="text-base font-black text-[var(--text-primary)]">
-            Kulübe Mesaj Gönder
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Ad Soyad *
-              </label>
-              <input
-                type="text"
-                required
-                value={senderName}
-                onChange={(e) => setSenderName(e.target.value)}
-                placeholder="Adınız ve soyadınız"
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm text-[var(--text-primary)]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Telefon veya E-posta
-              </label>
-              <input
-                type="text"
-                value={senderContact}
-                onChange={(e) => setSenderContact(e.target.value)}
-                placeholder="05XX... veya e-posta"
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm text-[var(--text-primary)]"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Konu / Birim
-            </label>
-            <select
-              value={targetGroup}
-              onChange={(e) => setTargetGroup(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-bold text-[var(--text-primary)]"
-            >
-              <option value="Genel">Genel Bilgi</option>
-              <option value="Altyapı">Altyapı &amp; Antrenman</option>
-              <option value="Aidat & Malzeme">Aidat &amp; Malzeme</option>
-              <option value="Maç & Organizasyon">Maç &amp; Organizasyon</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Mesajınız *
-            </label>
-            <textarea
-              rows={4}
-              required
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              placeholder="Sorunuzu veya iletmek istediğiniz notu yazın..."
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm text-[var(--text-primary)]"
-            />
-          </div>
-
-          {feedback && (
-            <div
-              className={`p-3.5 rounded-2xl text-xs font-bold ${
-                feedback.ok
-                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                  : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
-              }`}
-            >
-              {feedback.text}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={sending}
-            className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-black cursor-pointer disabled:opacity-50"
+        <Vitrin delay={0.08} className="lg:col-span-7">
+          <form
+            onSubmit={handleSendMessage}
+            className="k-artik p-6 sm:p-7 space-y-4"
           >
-            {sending ? "Gönderiliyor..." : "Mesajı Gönder"}
-          </button>
-        </form>
+            <div className="space-y-0.5">
+              <span className="k-koz text-[10px] block">DOĞRUDAN HAT</span>
+              <h2 className="k-posta text-xl text-[var(--text-primary)]">
+                Kulübe Mesaj Gönder
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="k-koz text-[10px] block mb-1.5">
+                  Ad Soyad *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={senderName}
+                  onChange={(e) => setSenderName(e.target.value)}
+                  placeholder="Adınız ve soyadınız"
+                  className="k-alan"
+                />
+              </div>
+
+              <div>
+                <label className="k-koz text-[10px] block mb-1.5">
+                  Telefon veya E-posta
+                </label>
+                <input
+                  type="text"
+                  value={senderContact}
+                  onChange={(e) => setSenderContact(e.target.value)}
+                  placeholder="05XX... veya e-posta"
+                  className="k-alan"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="k-koz text-[10px] block mb-1.5">
+                Konu / Birim
+              </label>
+              <select
+                value={targetGroup}
+                onChange={(e) => setTargetGroup(e.target.value)}
+                className="k-alan font-bold"
+              >
+                <option value="Genel">Genel Bilgi</option>
+                <option value="Altyapı">Altyapı &amp; Antrenman</option>
+                <option value="Aidat & Malzeme">Aidat &amp; Malzeme</option>
+                <option value="Maç & Organizasyon">Maç &amp; Organizasyon</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="k-koz text-[10px] block mb-1.5">
+                Mesajınız *
+              </label>
+              <textarea
+                rows={4}
+                required
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                placeholder="Sorunuzu veya iletmek istediğiniz notu yazın..."
+                className="k-alan"
+              />
+            </div>
+
+            <AnimatePresence>
+              {feedback && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.22, ease: EASE.yumusak }}
+                  className={`p-3.5 rounded-2xl text-xs font-bold ${
+                    feedback.ok
+                      ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                      : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
+                  }`}
+                >
+                  {feedback.text}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={sending}
+              className="k-buton k-buton--kirmizi w-full sm:w-auto !px-6 !py-3 !text-sm"
+            >
+              {sending ? "Gönderiliyor..." : "Mesajı Gönder"}
+            </motion.button>
+          </form>
+        </Vitrin>
       </main>
     </div>
   );

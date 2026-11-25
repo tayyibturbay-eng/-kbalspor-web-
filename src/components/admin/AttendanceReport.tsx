@@ -1,9 +1,11 @@
-// AttendanceReport.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useOnay } from "@/components/ui/OnayDialog";
+import { Iskelet } from "@/components/ikbal/Motion";
 import { createClient } from "@/lib/supabase/client";
+import { SPRING } from "@/lib/motion";
 
 type SessionRow = {
   id: string;
@@ -83,6 +85,7 @@ export function AttendanceReport({
     };
   }, []);
 
+  // Optimistic oturum silme + rollback
   async function handleDeleteSession(sess: SessionRow) {
     if (!isAdmin) return;
     if (
@@ -92,6 +95,12 @@ export function AttendanceReport({
       ))
     )
       return;
+
+    const prevSessions = sessions;
+    const prevAttendance = attendance;
+    setSessions((prev) => prev.filter((x) => x.id !== sess.id));
+    setAttendance((prev) => prev.filter((a) => a.session_id !== sess.id));
+    bildirim("Etkinlik ve yoklama kayıtları silindi.");
 
     const supabase = createClient();
     await supabase
@@ -104,11 +113,12 @@ export function AttendanceReport({
       .eq("id", sess.id);
 
     if (error) {
-      bildirim("Etkinlik silinemedi: " + error.message);
+      setSessions(prevSessions);
+      setAttendance(prevAttendance);
+      bildirim("Etkinlik silinemedi, geri alındı: " + error.message);
       return;
     }
 
-    bildirim("Etkinlik ve yoklama kayıtları silindi.");
     await loadReport();
     onSessionDeleted?.();
   }
@@ -135,21 +145,27 @@ export function AttendanceReport({
 
   if (loading) {
     return (
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] text-sm text-[var(--text-secondary)]">
-        Katılım çizelgesi yükleniyor...
+      <div className="k-artik p-5 space-y-3">
+        <Iskelet className="h-6 w-56" radius={10} />
+        <div className="grid sm:grid-cols-3 gap-2.5">
+          {[1, 2, 3].map((n) => (
+            <Iskelet key={n} className="h-14 w-full" radius={14} />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 text-[var(--text-primary)]">
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
+      <div className="k-artik p-5 sm:p-6 space-y-4">
         <div className="flex flex-wrap justify-between items-center gap-3">
-          <div>
-            <h3 className="text-lg font-black text-[var(--text-primary)]">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] block">DEVAMLILIK ANALİZİ</span>
+            <h3 className="k-posta text-lg text-[var(--text-primary)]">
               Düzenli Katılım Sıralaması
             </h3>
-            <p className="text-xs text-[var(--text-secondary)] tabular-nums">
+            <p className="text-xs text-[var(--text-secondary)]">
               Toplam {sessions.length} etkinlik üzerinden %80 ve üzeri katılım
               sağlayanlar Düzenli Katılımcı olarak işaretlenir.
             </p>
@@ -157,7 +173,7 @@ export function AttendanceReport({
           <select
             value={groupFilter}
             onChange={(e) => setGroupFilter(e.target.value)}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-3 py-1.5 text-xs font-bold"
+            className="k-alan !w-auto !py-1.5 text-xs font-bold"
           >
             {ageGroups.map((g) => (
               <option key={g} value={g}>
@@ -172,11 +188,11 @@ export function AttendanceReport({
             Henüz katılım kaydı bulunmuyor.
           </p>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5 tabular-nums">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
             {leaderboard.map((item, idx) => (
               <div
                 key={item.player.id}
-                className={`p-3 rounded-xl border flex items-center justify-between text-xs ${
+                className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs ${
                   item.pct >= 80
                     ? "bg-[var(--status-warning-bg)]/55 border-amber-400"
                     : "bg-[var(--bg-subtle)] border-[var(--border-subtle)]"
@@ -207,65 +223,73 @@ export function AttendanceReport({
         )}
       </div>
 
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
-        <h3 className="text-lg font-black text-[var(--text-primary)] tabular-nums">
-          Geçmiş Etkinlikler ({sessions.length})
-        </h3>
+      <div className="k-artik p-5 sm:p-6 space-y-3.5">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">YOKLAMA GEÇMİŞİ</span>
+          <h3 className="k-posta text-lg text-[var(--text-primary)]">
+            Geçmiş Etkinlikler ({sessions.length})
+          </h3>
+        </div>
         {sessions.length === 0 ? (
           <p className="text-xs text-[var(--text-secondary)]">
             Kayıtlı etkinlik yok.
           </p>
         ) : (
           <div className="space-y-2.5">
-            {sessions.map((s) => {
-              const sessAtt = attendance.filter((a) => a.session_id === s.id);
-              const names = sessAtt
-                .map(
-                  (a) => players.find((p) => p.id === a.player_id)?.full_name
-                )
-                .filter(Boolean);
-              return (
-                <div
-                  key={s.id}
-                  className="p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] space-y-1.5"
-                >
-                  <div className="flex flex-wrap justify-between items-center gap-2">
-                    <div className="text-sm">
-                      <strong className="text-[var(--text-primary)]">
-                        {s.title}
-                      </strong>{" "}
-                      <span className="text-xs text-[var(--text-muted)] tabular-nums">
-                        ({s.session_date})
-                      </span>
-                      {s.is_active && (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-[10px] font-extrabold">
-                          Aktif
+            <AnimatePresence initial={false}>
+              {sessions.map((s) => {
+                const sessAtt = attendance.filter((a) => a.session_id === s.id);
+                const names = sessAtt
+                  .map(
+                    (a) => players.find((p) => p.id === a.player_id)?.full_name
+                  )
+                  .filter(Boolean);
+                return (
+                  <motion.div
+                    layout
+                    key={s.id}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={SPRING.yumusak}
+                    className="p-4 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-subtle)] space-y-1.5"
+                  >
+                    <div className="flex flex-wrap justify-between items-center gap-2">
+                      <div className="text-sm flex flex-wrap items-center gap-2">
+                        <strong className="text-[var(--text-primary)]">
+                          {s.title}
+                        </strong>
+                        <span className="text-xs text-[var(--text-muted)]">
+                          ({s.session_date})
                         </span>
-                      )}
+                        {s.is_active && (
+                          <span className="k-etiket k-etiket--basari">
+                            Aktif
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="k-etiket k-etiket--lacivert">
+                          {sessAtt.length} Katılımcı
+                        </span>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSession(s)}
+                            className="px-3 py-1 rounded-xl bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer transition"
+                          >
+                            Sil
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 tabular-nums">
-                      <span className="text-xs font-extrabold text-[var(--text-primary)]">
-                        {sessAtt.length} Katılımcı
-                      </span>
-                      {isAdmin && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSession(s)}
-                          className="px-2.5 py-1 rounded-lg bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer"
-                        >
-                          Sil
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {names.length > 0 && (
-                    <p className="text-xs text-[var(--text-secondary)]">
-                      {names.join(", ")}
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+                    {names.length > 0 && (
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        {names.join(", ")}
+                      </p>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
       </div>

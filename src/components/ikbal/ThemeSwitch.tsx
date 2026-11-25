@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { SPRING } from "@/lib/motion";
 
 interface ThemeSwitchProps {
   theme: "light" | "dark";
@@ -14,6 +16,7 @@ export function ThemeSwitch({
   compact = false,
 }: ThemeSwitchProps) {
   const isDark = theme === "dark";
+  const azaltilmis = useReducedMotion();
 
   return (
     <button
@@ -31,8 +34,10 @@ export function ThemeSwitch({
             : "bg-slate-200 border-slate-900"
         }`}
       >
-        <span
-          className={`w-4 h-4 rounded-full transition-transform duration-200 shadow-xs ${
+        <motion.span
+          layout
+          transition={azaltilmis ? { duration: 0 } : SPRING.keskin}
+          className={`w-4 h-4 rounded-full shadow-xs ${
             isDark
               ? "translate-x-5 bg-white"
               : "translate-x-0 bg-slate-950"

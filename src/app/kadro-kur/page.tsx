@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { SquadShareBar } from "@/components/kadro/SquadShareBar";
+import { Vitrin } from "@/components/ikbal/Motion";
+import { EASE, SPRING } from "@/lib/motion";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 import {
@@ -30,6 +33,7 @@ export default function SquadBuilderPage() {
   );
   const [formationKey, setFormationKey] = useState<string>("4-3-3");
   const [tacticPlan, setTacticPlan] = useState<string>(TACTIC_PLANS[0]);
+  const azaltilmis = useReducedMotion();
 
   const [isPlayerLoggedIn, setIsPlayerLoggedIn] = useState<boolean>(false);
   const [clubPlayers, setClubPlayers] = useState<SquadPlayer[]>([]);
@@ -257,25 +261,26 @@ export default function SquadBuilderPage() {
   const activeFormation = FORMATIONS[formationKey] || FORMATIONS["4-3-3"];
 
   return (
-    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors">
+    <div className="min-h-screen bg-[var(--bg-canvas)] text-[var(--text-primary)] flex flex-col transition-colors tabular-nums">
       <Navbar />
 
-      <section className="bg-gradient-to-r from-[var(--brand-navy)] via-[var(--brand-navy-hover)] to-[var(--brand-red)] text-white py-6 px-4 shadow-sm">
+      <section className="k-sahne text-white py-8 px-4 shadow-sm">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <span className="inline-block px-3 py-0.5 rounded-full bg-white/15 border border-white/25 text-[11px] font-extrabold uppercase tracking-wider">
+          <div className="space-y-1.5">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full k-cam--marka text-[11px] font-extrabold uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-300" />
               Çorum İkbal Spor Kulübü • Taktik &amp; Kadro Planlama
             </span>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-1">
+            <h1 className="k-posta k-posta--wonk text-2xl sm:text-4xl text-white">
               Kadro Kur &amp; Taktik Tahtası
             </h1>
           </div>
 
-          <div className="px-4 py-2 rounded-2xl bg-white/10 border border-white/20 text-right tabular-nums">
-            <div className="text-[10px] uppercase text-amber-200 font-bold">
+          <div className="px-5 py-3 rounded-2xl k-cam--marka text-right">
+            <div className="text-[10px] uppercase text-amber-200 font-extrabold tracking-widest">
               Kadro Sayısı
             </div>
-            <div className="text-base font-black">
+            <div className="text-lg font-black mt-0.5">
               {totalAssignedCount} / {MAX_SQUAD_PLAYERS}{" "}
               <span className="text-xs font-semibold text-slate-200">
                 (Min: {MIN_SQUAD_PLAYERS})
@@ -285,59 +290,61 @@ export default function SquadBuilderPage() {
         </div>
       </section>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
-        <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 shadow-xs">
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Kategori / Statü
-            </label>
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
-            >
-              {SQUAD_CATEGORIES.map((c) => (
-                <option key={c.key} value={c.key}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-7 space-y-6">
+        <Vitrin>
+          <div className="k-artik p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            <div>
+              <label className="k-koz text-[10px] block mb-1.5">
+                Kategori / Statü
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="k-alan font-bold text-xs sm:text-sm"
+              >
+                {SQUAD_CATEGORIES.map((c) => (
+                  <option key={c.key} value={c.key}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Diziliş (Formasyon)
-            </label>
-            <select
-              value={formationKey}
-              onChange={(e) => setFormationKey(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
-            >
-              {Object.entries(FORMATIONS).map(([key, val]) => (
-                <option key={key} value={key}>
-                  {val.label}
-                </option>
-              ))}
-            </select>
-          </div>
+            <div>
+              <label className="k-koz text-[10px] block mb-1.5">
+                Diziliş (Formasyon)
+              </label>
+              <select
+                value={formationKey}
+                onChange={(e) => setFormationKey(e.target.value)}
+                className="k-alan font-bold text-xs sm:text-sm"
+              >
+                {Object.entries(FORMATIONS).map(([key, val]) => (
+                  <option key={key} value={key}>
+                    {val.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-              Oyun Planı
-            </label>
-            <select
-              value={tacticPlan}
-              onChange={(e) => setTacticPlan(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
-            >
-              {TACTIC_PLANS.map((tp) => (
-                <option key={tp} value={tp}>
-                  {tp}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label className="k-koz text-[10px] block mb-1.5">
+                Oyun Planı
+              </label>
+              <select
+                value={tacticPlan}
+                onChange={(e) => setTacticPlan(e.target.value)}
+                className="k-alan font-bold text-xs sm:text-sm"
+              >
+                {TACTIC_PLANS.map((tp) => (
+                  <option key={tp} value={tp}>
+                    {tp}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
+        </Vitrin>
 
         <SquadShareBar
           categoryLabel={SQUAD_CATEGORIES.find((c) => c.key === selectedCategory)?.label || selectedCategory}
@@ -348,23 +355,37 @@ export default function SquadBuilderPage() {
           benchPlayers={benchPlayers}
         />
 
-        {warningMsg && (
-          <div className="p-3.5 rounded-2xl bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-xs font-extrabold border border-amber-400/50">
-            {warningMsg}
-          </div>
-        )}
+        <AnimatePresence>
+          {warningMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.22, ease: EASE.yumusak }}
+              className="p-3.5 rounded-2xl bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-xs font-extrabold border border-amber-400/50"
+            >
+              {warningMsg}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Saha */}
-          <section className="lg:col-span-7 rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-900 text-white p-5 border-2 border-emerald-400/50 shadow-md space-y-5">
-            <div className="flex items-center justify-between text-xs font-extrabold">
-              <span>Diziliş: {activeFormation.label}</span>
-              <span className="px-2.5 py-1 rounded-full bg-black/25">
+          {/* Taktik Saha */}
+          <section className="lg:col-span-7 relative rounded-3xl bg-gradient-to-b from-emerald-700 via-emerald-800 to-emerald-950 text-white p-5 sm:p-6 border-2 border-emerald-400/50 shadow-lg space-y-5 overflow-hidden">
+            {/* Saha orta çizgisi ve dairesi */}
+            <div className="pointer-events-none absolute inset-x-6 top-1/2 -translate-y-1/2 border-t border-white/20" />
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border border-white/20" />
+
+            <div className="relative z-10 flex items-center justify-between text-xs font-extrabold">
+              <span className="px-3 py-1 rounded-full bg-black/25 backdrop-blur-xs">
+                Diziliş: {activeFormation.label}
+              </span>
+              <span className="px-3 py-1 rounded-full bg-black/25 backdrop-blur-xs">
                 {tacticPlan}
               </span>
             </div>
 
-            <div className="space-y-4 py-2">
+            <div className="relative z-10 space-y-4 py-3">
               {activeFormation.rows.map((row, rIdx) => {
                 const rowSlots = slots.filter((s) =>
                   s.slotKey.startsWith(`${formationKey}-${rIdx}-`)
@@ -377,22 +398,26 @@ export default function SquadBuilderPage() {
                     {rowSlots.map((slot) => {
                       const isPicked = selectedSlotKey === slot.slotKey;
                       return (
-                        <div
+                        <motion.div
+                          layout
+                          whileHover={azaltilmis ? undefined : { y: -3, scale: 1.03 }}
+                          whileTap={azaltilmis ? undefined : { scale: 0.96 }}
+                          transition={SPRING.keskin}
                           key={slot.slotKey}
                           onClick={() =>
                             setSelectedSlotKey((prev) =>
                               prev === slot.slotKey ? null : slot.slotKey
                             )
                           }
-                          className={`min-w-[110px] rounded-2xl px-3 py-2.5 text-center border cursor-pointer transition ${
+                          className={`min-w-[114px] rounded-2xl px-3.5 py-2.5 text-center border cursor-pointer transition-colors ${
                             isPicked
-                              ? "bg-amber-400 text-slate-950 border-white scale-105"
+                              ? "bg-amber-400 text-slate-950 border-white shadow-lg"
                               : slot.player
-                              ? "bg-[var(--brand-navy)]/90 text-white border-white/40"
+                              ? "bg-[var(--brand-navy)]/95 text-white border-white/45 shadow-md"
                               : "bg-black/25 text-emerald-100 border-dashed border-white/40 hover:bg-black/35"
                           }`}
                         >
-                          <div className="text-[10px] font-black uppercase opacity-80">
+                          <div className="text-[10px] font-black uppercase tracking-wider opacity-85">
                             {slot.role}
                           </div>
                           <div className="text-xs font-extrabold truncate mt-0.5">
@@ -410,7 +435,7 @@ export default function SquadBuilderPage() {
                               Kaldır
                             </button>
                           )}
-                        </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -419,8 +444,8 @@ export default function SquadBuilderPage() {
             </div>
 
             {benchPlayers.length > 0 && (
-              <div className="pt-3 border-t border-white/20 space-y-2">
-                <div className="text-xs font-black uppercase text-emerald-100">
+              <div className="relative z-10 pt-3 border-t border-white/20 space-y-2">
+                <div className="text-xs font-black uppercase tracking-wider text-emerald-100">
                   Yedek Kulübesi ({benchPlayers.length})
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -445,19 +470,19 @@ export default function SquadBuilderPage() {
           </section>
 
           {/* Oyuncu Havuzu */}
-          <aside className="lg:col-span-5 bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-5 shadow-xs space-y-4">
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
+          <aside className="lg:col-span-5 k-artik p-5 sm:p-6 space-y-4">
+            <div className="space-y-1">
+              <span className="k-koz text-[10px] text-[var(--brand-red)] block">
                 {isPlayerLoggedIn
                   ? "Sporcu Girişi Aktif"
                   : "Misafir Modu • Boş Profiller"}
               </span>
-              <h2 className="text-base font-black text-[var(--text-primary)]">
+              <h2 className="k-posta text-xl text-[var(--text-primary)]">
                 {isPlayerLoggedIn
                   ? "Kulüp Sporcularımız"
                   : "Özel / Boş Profil Oluştur & Yerleştir"}
               </h2>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                 {isPlayerLoggedIn
                   ? "Sporcu girişi yapıldığı için kayıtlı sporcular listeleniyor. Bir slot seçip oyuncuya tıklayın."
                   : "Sporcu girişi yapılmadığı için kayıtlı sporcular gizlidir. İsim vererek boş profiller oluşturup kadroya yerleştirebilirsiniz."}
@@ -475,7 +500,7 @@ export default function SquadBuilderPage() {
                     value={newProfileName}
                     onChange={(e) => setNewProfileName(e.target.value)}
                     placeholder="Oyuncu adı..."
-                    className="sm:col-span-2 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold text-[var(--text-primary)]"
+                    className="sm:col-span-2 k-alan text-xs font-bold"
                   />
                   <input
                     type="number"
@@ -484,26 +509,27 @@ export default function SquadBuilderPage() {
                     value={newProfileNumber}
                     onChange={(e) => setNewProfileNumber(e.target.value)}
                     placeholder="No"
-                    className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold text-[var(--text-primary)]"
+                    className="k-alan text-xs font-bold"
                   />
                 </div>
                 <div className="flex gap-2">
                   <select
                     value={newProfilePosition}
                     onChange={(e) => setNewProfilePosition(e.target.value)}
-                    className="flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] px-3 py-2 text-xs font-bold text-[var(--text-primary)]"
+                    className="flex-1 k-alan text-xs font-bold"
                   >
                     <option value="Kaleci">Kaleci</option>
                     <option value="Defans">Defans</option>
                     <option value="Orta Saha">Orta Saha</option>
                     <option value="Forvet">Forvet</option>
                   </select>
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
                     type="submit"
-                    className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer shrink-0"
+                    className="k-buton k-buton--lacivert shrink-0"
                   >
                     + Profil Ekle
-                  </button>
+                  </motion.button>
                 </div>
               </form>
             )}
@@ -512,7 +538,7 @@ export default function SquadBuilderPage() {
               {availablePool.map((item) => (
                 <div
                   key={item.id}
-                  className="py-2.5 flex items-center justify-between gap-2 text-xs"
+                  className="py-3 flex items-center justify-between gap-2 text-xs"
                 >
                   <div className="min-w-0">
                     <div className="font-extrabold text-[var(--text-primary)] truncate">
@@ -527,13 +553,14 @@ export default function SquadBuilderPage() {
                     </div>
                   </div>
 
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
                     type="button"
                     onClick={() => handleAssignToSlotOrBench(item)}
-                    className="px-3 py-1.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer shrink-0"
+                    className="k-buton k-buton--kirmizi shrink-0 !py-1.5 !px-3"
                   >
                     {selectedSlotKey ? "Slota Koy" : "Kadroya Al"}
-                  </button>
+                  </motion.button>
                 </div>
               ))}
             </div>

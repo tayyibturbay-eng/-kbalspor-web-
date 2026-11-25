@@ -1,7 +1,7 @@
-// QrAttendanceTab.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import {
   Player,
@@ -54,14 +54,14 @@ export function QrAttendanceTab({
         "postgres_changes",
         { event: "*", schema: "public", table: "prayer_attendance" },
         () => {
-          onRefreshQr();
+          void onRefreshQr();
         }
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "prayer_sessions" },
         () => {
-          onRefreshQr();
+          void onRefreshQr();
         }
       )
       .subscribe();
@@ -142,7 +142,11 @@ export function QrAttendanceTab({
     if (
       !(await onay(
         "Yeni bir QR yoklama oturumu oluşturmak istediğinize emin misiniz? Mevcut aktif QR kodu kapatılacaktır.",
-        { baslik: "Yeni Yoklama Oturumu", olumluMetin: "Evet, Oluştur", tehlikeli: false }
+        {
+          baslik: "Yeni Yoklama Oturumu",
+          olumluMetin: "Evet, Oluştur",
+          tehlikeli: false,
+        }
       ))
     )
       return;
@@ -270,63 +274,70 @@ export function QrAttendanceTab({
   return (
     <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
-          <form onSubmit={createQrSession} className="space-y-2">
+        <div className="k-artik p-5 sm:p-6 space-y-4">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] block">CANLI QR OTURUMU</span>
+            <h2 className="k-posta text-lg text-[var(--text-primary)]">
+              Yoklama Kodu Oluştur &amp; Yönet
+            </h2>
+          </div>
+
+          <form onSubmit={createQrSession} className="space-y-2.5">
             <div className="flex flex-wrap gap-2">
               <input
                 value={newSessionTitle}
                 onChange={(e) => setNewSessionTitle(e.target.value)}
                 placeholder="Yoklama Başlığı"
-                className="flex-1 min-w-[180px] border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+                className="k-alan flex-1 min-w-[180px] font-bold"
               />
               <input
                 type="date"
                 value={newSessionDate}
                 onChange={(e) => setNewSessionDate(e.target.value)}
-                className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
+                className="k-alan !w-auto font-bold"
               />
             </div>
-            <button
+            <motion.button
+              whileTap={{ scale: 0.98 }}
               type="submit"
-              className="w-full bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
+              className="k-buton k-buton--lacivert w-full !py-2.5"
             >
               Yeni QR Oluştur
-            </button>
+            </motion.button>
           </form>
 
           {activeSession ? (
-            <div className="flex flex-col items-center p-4 bg-[var(--bg-subtle)] rounded-xl border border-[var(--border-subtle)] space-y-3">
-              <div className="text-center">
-                <span className="inline-block px-2.5 py-0.5 rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-[11px] font-extrabold mb-1">
-                  Aktif Yoklama
-                </span>
-                <p className="font-bold text-[var(--text-primary)]">
+            <div className="flex flex-col items-center p-5 bg-[var(--bg-subtle)] rounded-2xl border border-[var(--border-subtle)] space-y-3">
+              <div className="text-center space-y-1">
+                <span className="k-etiket k-etiket--basari">Aktif Yoklama</span>
+                <p className="font-black text-base text-[var(--text-primary)]">
                   {activeSession.title}
                 </p>
                 <p className="text-xs text-[var(--text-secondary)]">
                   Tarih: {activeSession.session_date}
                 </p>
               </div>
-              <div className="bg-white p-3 rounded-2xl border border-slate-200">
+              <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs">
                 <QRCodeSVG value={activeSession.qr_token} size={200} />
               </div>
-              <p className="text-xs font-mono text-[var(--text-muted)]">
+              <p className="text-xs font-mono font-bold text-[var(--text-muted)]">
                 {activeSession.qr_token}
               </p>
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
                 type="button"
                 disabled={closingSession}
                 onClick={closeActiveSession}
-                className="w-full bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
+                className="k-buton k-buton--kirmizi w-full !py-2.5"
               >
                 {closingSession
                   ? "Kapatılıyor..."
                   : "Yoklamayı Kapat / Etkinliği Sonlandır"}
-              </button>
+              </motion.button>
             </div>
           ) : (
-            <div className="text-center py-6 px-4 bg-[var(--bg-subtle)] rounded-xl border border-dashed border-[var(--border-strong)] space-y-1">
-              <p className="text-xs font-bold text-[var(--text-primary)]">
+            <div className="text-center py-8 px-4 bg-[var(--bg-subtle)] rounded-2xl border border-dashed border-[var(--border-strong)] space-y-1">
+              <p className="text-xs font-extrabold text-[var(--text-primary)]">
                 Şu anda aktif bir QR yoklama oturumu bulunmuyor.
               </p>
               <p className="text-xs text-[var(--text-secondary)]">
@@ -337,16 +348,19 @@ export function QrAttendanceTab({
           )}
         </div>
 
-        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
+        <div className="k-artik p-5 sm:p-6 space-y-3.5">
           <div className="flex flex-wrap justify-between items-center gap-2">
-            <h3 className="font-black text-[var(--text-primary)]">
-              Yoklama Listesi ({checkedInIds.size} / {players.length})
-            </h3>
+            <div>
+              <span className="k-koz text-[10px] block">ANLIK LİSTE</span>
+              <h3 className="k-posta text-lg text-[var(--text-primary)]">
+                Yoklama Listesi ({checkedInIds.size} / {players.length})
+              </h3>
+            </div>
             <input
               placeholder="İsim ara..."
               value={qrSearch}
               onChange={(e) => setQrSearch(e.target.value)}
-              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-lg px-2.5 py-1 text-xs"
+              className="k-alan !w-44 !py-1.5 text-xs"
             />
           </div>
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
@@ -359,29 +373,33 @@ export function QrAttendanceTab({
                 return (
                   <div
                     key={p.id}
-                    className={`px-3 py-2 rounded-xl text-sm flex justify-between items-center ${
+                    className={`px-3.5 py-2.5 rounded-xl text-xs sm:text-sm flex justify-between items-center transition-colors ${
                       ok
-                        ? "bg-[var(--status-success-bg)]/65 text-[var(--text-primary)] font-bold"
+                        ? "bg-[var(--status-success-bg)]/65 text-[var(--text-primary)] font-extrabold"
                         : "bg-[var(--bg-subtle)] text-[var(--text-primary)]"
                     }`}
                   >
                     <span>
-                      {p.full_name} ({p.age_group})
+                      {p.full_name}{" "}
+                      <span className="text-xs text-[var(--text-muted)] font-semibold">
+                        ({p.age_group})
+                      </span>
                     </span>
                     {activeSession && (
-                      <button
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
                         type="button"
                         onClick={() =>
                           toggleManualAttendance(activeSession.id, p, ok)
                         }
-                        className={`text-xs font-bold px-3 py-1 rounded-lg cursor-pointer ${
+                        className={`px-3 py-1 rounded-xl text-xs font-extrabold cursor-pointer transition ${
                           ok
                             ? "bg-emerald-700 text-white"
                             : "bg-[var(--brand-navy)] text-white"
                         }`}
                       >
-                        {ok ? "Geldi" : "Geldi İşaretle"}
-                      </button>
+                        {ok ? "✓ Geldi" : "Geldi İşaretle"}
+                      </motion.button>
                     )}
                   </div>
                 );

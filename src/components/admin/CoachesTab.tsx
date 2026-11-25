@@ -1,10 +1,11 @@
-// CoachesTab.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, Coach } from "@/types/club";
 import { useOnay } from "@/components/ui/OnayDialog";
+import { SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 
@@ -29,6 +30,12 @@ export function CoachesTab({
     phone: "",
     assigned_groups: ["Tümü"] as string[],
   });
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  const [optimisticGroups, setOptimisticGroups] = useState<
+    Record<string, string[]>
+  >({});
+
+  const visibleCoaches = coaches.filter((c) => !deletedIds.includes(c.id));
 
   function toggleGroup(group: string) {
     setNewCoach((prev) => {
@@ -47,22 +54,30 @@ export function CoachesTab({
     });
   }
 
+  // Optimistic grup güncelleme
   async function updateCoachGroups(coach: Coach, nextGroup: string) {
     const groups = nextGroup === "Tümü" ? ["Tümü"] : [nextGroup];
+    setOptimisticGroups((prev) => ({ ...prev, [coach.id]: groups }));
+    onFeedback(
+      `${coach.full_name} grubu "${groups.join(", ")}" olarak güncellendi.`
+    );
+
     const { error } = await supabase
       .from("coaches")
       .update({ assigned_groups: groups })
       .eq("id", coach.id);
     if (error) {
+      setOptimisticGroups((prev) => {
+        const copy = { ...prev };
+        delete copy[coach.id];
+        return copy;
+      });
       onFeedback("Grup güncellenemedi: " + error.message);
       return;
     }
     await onLogActivity(
       "Antrenör / Temsilci Grubu",
       `${coach.full_name} grubu "${groups.join(", ")}" yapıldı.`
-    );
-    onFeedback(
-      `${coach.full_name} grubu "${groups.join(", ")}" olarak güncellendi.`
     );
     await onRefreshCoaches();
   }
@@ -106,6 +121,7 @@ export function CoachesTab({
     await onRefreshCoaches();
   }
 
+  // Optimistic silme + rollback
   async function deleteCoach(coach: Coach) {
     if (
       !(await onay(
@@ -114,20 +130,32 @@ export function CoachesTab({
       ))
     )
       return;
-    await supabase.from("coaches").delete().eq("id", coach.id);
+
+    setDeletedIds((prev) => [...prev, coach.id]);
+    onFeedback(`${coach.full_name} silindi.`);
+
+    const { error } = await supabase.from("coaches").delete().eq("id", coach.id);
+    if (error) {
+      setDeletedIds((prev) => prev.filter((id) => id !== coach.id));
+      onFeedback("Silme hatası, geri alındı: " + error.message);
+      return;
+    }
+
     await onLogActivity("Antrenör Silme", `${coach.full_name} silindi.`);
     await onRefreshCoaches();
+    setDeletedIds((prev) => prev.filter((id) => id !== coach.id));
   }
 
   return (
-    <div className="space-y-6 text-[var(--text-primary)]">
-      <form
-        onSubmit={addCoach}
-        className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3"
-      >
-        <h2 className="font-black text-[var(--text-primary)]">
-          Yeni Antrenör / Temsilci Ekle (Önyüklü: Tüm Takım)
-        </h2>
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
+      <form onSubmit={addCoach} className="k-artik p-5 sm:p-6 space-y-4">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">TEKNİK EKİP KAYDI</span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Yeni Antrenör / Temsilci Ekle (Önyüklü: Tüm Takım)
+          </h2>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <input
             required
@@ -136,7 +164,7 @@ export function CoachesTab({
             onChange={(e) =>
               setNewCoach({ ...newCoach, full_name: e.target.value })
             }
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm"
+            className="k-alan font-bold"
           />
           <input
             placeholder="Kod (Boşsa ANT-XXXX)"
@@ -144,19 +172,19 @@ export function CoachesTab({
             onChange={(e) =>
               setNewCoach({ ...newCoach, coach_code: e.target.value })
             }
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm uppercase"
+            className="k-alan uppercase font-mono font-bold"
           />
           <input
             placeholder="Giriş Şifresi (PIN)"
             value={newCoach.pin}
             onChange={(e) => setNewCoach({ ...newCoach, pin: e.target.value })}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm"
+            className="k-alan font-bold"
           />
           <input
             placeholder="Telefon"
             value={newCoach.phone}
             onChange={(e) => setNewCoach({ ...newCoach, phone: e.target.value })}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2 text-sm"
+            className="k-alan font-bold"
           />
         </div>
 
@@ -164,78 +192,85 @@ export function CoachesTab({
           {["Tümü", ...AGE_GROUPS].map((g) => {
             const active = newCoach.assigned_groups.includes(g);
             return (
-              <button
+              <motion.button
+                whileTap={{ scale: 0.96 }}
                 key={g}
                 type="button"
                 onClick={() => toggleGroup(g)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold border cursor-pointer transition ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
                   active
-                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)] shadow-2xs"
+                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
                 }`}
               >
                 {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
-              </button>
+              </motion.button>
             );
           })}
         </div>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.98 }}
           type="submit"
-          className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold px-5 py-2.5 rounded-xl text-sm cursor-pointer transition"
+          className="k-buton k-buton--lacivert !px-6 !py-2.5"
         >
           Kaydet
-        </button>
+        </motion.button>
       </form>
 
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-2.5">
-        {coaches.map((c) => {
-          const currentGroup =
-            Array.isArray(c.assigned_groups) && c.assigned_groups.length > 0
-              ? c.assigned_groups[0]
-              : "Tümü";
-          return (
-            <div
-              key={c.id}
-              className="flex flex-wrap justify-between items-center gap-2 border-b border-[var(--border-subtle)] last:border-b-0 pb-2.5 last:pb-0 text-sm"
-            >
-              <div>
-                <strong className="text-[var(--text-primary)]">
-                  {c.full_name}
-                </strong>{" "}
-                — Kod:{" "}
-                <span className="font-mono text-[var(--text-secondary)]">
-                  {c.coach_code}
-                </span>{" "}
-                | Şifre:{" "}
-                <span className="font-mono text-[var(--text-secondary)]">
-                  {c.pin}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={currentGroup}
-                  onChange={(e) => updateCoachGroups(c, e.target.value)}
-                  className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2.5 py-1 text-xs font-bold text-[var(--text-primary)]"
-                >
-                  <option value="Tümü">Tüm Takım</option>
-                  {AGE_GROUPS.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => deleteCoach(c)}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer"
-                >
-                  Sil
-                </button>
-              </div>
-            </div>
-          );
-        })}
+      <div className="k-artik p-5 sm:p-6 divide-y divide-[var(--border-subtle)]">
+        <AnimatePresence initial={false}>
+          {visibleCoaches.map((c) => {
+            const activeArr =
+              optimisticGroups[c.id] || c.assigned_groups || [];
+            const currentGroup =
+              Array.isArray(activeArr) && activeArr.length > 0
+                ? activeArr[0]
+                : "Tümü";
+            return (
+              <motion.div
+                layout
+                key={c.id}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={SPRING.yumusak}
+                className="flex flex-wrap justify-between items-center gap-3 py-3 first:pt-0 last:pb-0 text-sm"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <strong className="text-[var(--text-primary)]">
+                    {c.full_name}
+                  </strong>
+                  <span className="k-etiket k-etiket--lacivert font-mono">
+                    Kod: {c.coach_code}
+                  </span>
+                  <span className="text-xs font-mono text-[var(--text-secondary)]">
+                    PIN: {c.pin}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={currentGroup}
+                    onChange={(e) => updateCoachGroups(c, e.target.value)}
+                    className="k-alan !w-auto !py-1.5 text-xs font-bold"
+                  >
+                    <option value="Tümü">Tüm Takım</option>
+                    {AGE_GROUPS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => deleteCoach(c)}
+                    className="px-3 py-1.5 rounded-xl bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer transition"
+                  >
+                    Sil
+                  </button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
       </div>
     </div>
   );

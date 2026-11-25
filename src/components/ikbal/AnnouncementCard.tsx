@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { motion, useReducedMotion } from "framer-motion";
+import { KART_HOVER, SPRING } from "@/lib/motion";
 
 export interface AnnouncementItem {
   id: string;
@@ -123,6 +125,7 @@ export function AnnouncementCard({
   compact = false,
   dateLabel,
 }: AnnouncementCardProps) {
+  const azaltilmis = useReducedMotion();
   const { cleanedTitle, cleanedBody, extractedImageUrl } =
     extractAnnouncementMediaAndCleanText(announcement);
 
@@ -136,7 +139,11 @@ export function AnnouncementCard({
 
   if (compact) {
     return (
-      <article className="flex items-center gap-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 transition hover:border-[var(--brand-red)]/50">
+      <motion.article
+        whileHover={azaltilmis ? undefined : { x: 2 }}
+        transition={SPRING.keskin}
+        className="flex items-center gap-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 transition hover:border-[var(--brand-red)]/50"
+      >
         <div className="shrink-0 w-14 h-14 rounded-2xl overflow-hidden bg-[var(--brand-red)] border-2 border-[var(--brand-red)] shadow-xs">
           <img
             src={imgSrc}
@@ -153,7 +160,7 @@ export function AnnouncementCard({
 
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wide truncate font-black text-[var(--brand-red)]">
+            <span className="k-koz text-[10px] !text-[var(--brand-red)] truncate">
               {groupLabel}
             </span>
           </div>
@@ -170,12 +177,16 @@ export function AnnouncementCard({
             </p>
           )}
         </div>
-      </article>
+      </motion.article>
     );
   }
 
   return (
-    <article className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 sm:p-5 shadow-xs flex items-start gap-4">
+    <motion.article
+      whileHover={azaltilmis ? undefined : KART_HOVER}
+      transition={SPRING.keskin}
+      className="k-artik k-kart p-4 sm:p-5 flex items-start gap-4"
+    >
       <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-[var(--brand-red)] border-2 border-[var(--brand-red)] shadow-xs">
         <img
           src={imgSrc}
@@ -192,9 +203,7 @@ export function AnnouncementCard({
 
       <div className="min-w-0 flex-1 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="px-2.5 py-0.5 rounded-full bg-red-600/12 font-black text-[var(--brand-red)]">
-            {groupLabel}
-          </span>
+          <span className="k-etiket k-etiket--tehlike">{groupLabel}</span>
           {dateLabel && (
             <span className="tabular-nums font-semibold text-[var(--text-muted)]">
               {dateLabel}
@@ -203,13 +212,13 @@ export function AnnouncementCard({
         </div>
 
         {cleanedTitle && (
-          <h2 className="text-base sm:text-lg leading-snug font-black text-[var(--text-primary)]">
+          <h2 className="k-posta text-lg sm:text-xl leading-snug text-[var(--text-primary)]">
             {cleanedTitle}
           </h2>
         )}
 
         {cleanedBody && (
-          <p className="text-sm whitespace-pre-line leading-relaxed font-medium text-[var(--text-secondary)]">
+          <p className="text-xs sm:text-sm whitespace-pre-line leading-relaxed font-medium text-[var(--text-secondary)]">
             {cleanedBody}
           </p>
         )}
@@ -220,6 +229,6 @@ export function AnnouncementCard({
           </div>
         )}
       </div>
-    </article>
+    </motion.article>
   );
 }

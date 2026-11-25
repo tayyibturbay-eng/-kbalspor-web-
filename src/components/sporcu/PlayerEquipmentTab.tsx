@@ -1,8 +1,9 @@
-// PlayerEquipmentTab.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { EquipmentLog, JerseySetMini, StockItemMini } from "@/types/club";
+import { SPRING } from "@/lib/motion";
 
 interface PlayerEquipmentTabProps {
   equipmentLogs: EquipmentLog[];
@@ -19,6 +20,7 @@ export function PlayerEquipmentTab({
     url: string;
     title: string;
   } | null>(null);
+  const azaltilmis = useReducedMotion();
 
   useEffect(() => {
     if (!previewPhoto) return;
@@ -49,24 +51,25 @@ export function PlayerEquipmentTab({
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-5 shadow-xs">
+    <div className="space-y-6 tabular-nums">
+      <div className="k-artik p-6 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-black text-[var(--text-primary)]">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] block">ZİMMET &amp; EKİPMAN</span>
+            <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
               Malzemelerim &amp; Zimmet Kayıtları
             </h2>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+            <p className="text-xs text-[var(--text-secondary)]">
               Kulüp tarafından size teslim edilen forma ve ekipmanları
               görselleriyle takip edebilirsiniz.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 tabular-nums">
-            <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold">
+          <div className="flex flex-wrap gap-2">
+            <span className="k-etiket k-etiket--lacivert">
               Üzerimde: {activeEquipmentCount}
             </span>
             {missingEquipmentCount > 0 && (
-              <span className="px-3 py-1 rounded-full bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold">
+              <span className="k-etiket k-etiket--tehlike">
                 Eksik/Kayıp: {missingEquipmentCount}
               </span>
             )}
@@ -92,7 +95,7 @@ export function PlayerEquipmentTab({
               return (
                 <div
                   key={eq.id}
-                  className={`rounded-2xl border overflow-hidden shadow-xs flex flex-col transition hover:shadow-md ${
+                  className={`k-kart rounded-2xl border overflow-hidden flex flex-col ${
                     isMissing
                       ? "bg-[var(--status-danger-bg)]/35 border-[var(--status-danger-text)]/30"
                       : isDelivered
@@ -119,8 +122,8 @@ export function PlayerEquipmentTab({
                       </span>
                     </button>
                   ) : (
-                    <div className="w-full h-32 bg-gradient-to-br from-[var(--brand-navy)] to-[#06396b] flex flex-col items-center justify-center text-white/90">
-                      <span className="text-xs font-extrabold uppercase tracking-wider px-3 py-1 rounded-full bg-white/15">
+                    <div className="w-full h-32 k-sahne flex flex-col items-center justify-center text-white/95">
+                      <span className="px-3 py-1 rounded-full k-cam--marka text-xs font-extrabold uppercase tracking-wider">
                         {eq.category || "Kulüp Malzemesi"}
                       </span>
                     </div>
@@ -133,7 +136,7 @@ export function PlayerEquipmentTab({
                           {eq.category || "Ekipman"}
                         </span>
                         {isDelivered && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)] text-[11px] font-extrabold">
+                          <span className="k-etiket k-etiket--basari">
                             Üzerimde
                           </span>
                         )}
@@ -143,7 +146,7 @@ export function PlayerEquipmentTab({
                           </span>
                         )}
                         {isMissing && (
-                          <span className="px-2.5 py-0.5 rounded-full bg-[var(--status-danger-text)] text-white text-[11px] font-extrabold">
+                          <span className="k-etiket k-etiket--tehlike">
                             Kayıp / Eksik
                           </span>
                         )}
@@ -154,7 +157,7 @@ export function PlayerEquipmentTab({
                       </h3>
                     </div>
 
-                    <div className="pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)] tabular-nums">
+                    <div className="pt-2 border-t border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
                       <div className="flex items-center gap-2">
                         {eq.item_size && (
                           <span className="px-2 py-0.5 rounded bg-[var(--bg-subtle)] font-bold text-[var(--text-primary)]">
@@ -179,37 +182,46 @@ export function PlayerEquipmentTab({
         )}
       </div>
 
-      {previewPhoto && (
-        <div
-          onClick={() => setPreviewPhoto(null)}
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-[var(--bg-surface)] rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-[var(--border-subtle)]"
+      <AnimatePresence>
+        {previewPhoto && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPreviewPhoto(null)}
+            className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4"
           >
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-subtle)]">
-              <h3 className="font-extrabold text-sm text-[var(--text-primary)]">
-                {previewPhoto.title}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPreviewPhoto(null)}
-                className="px-3 py-1 rounded-lg bg-[var(--bg-subtle)] hover:opacity-85 text-xs font-bold text-[var(--text-primary)] cursor-pointer"
-              >
-                Kapat
-              </button>
-            </div>
-            <div className="bg-[var(--bg-subtle)] p-2 flex items-center justify-center">
-              <img
-                src={previewPhoto.url}
-                alt={previewPhoto.title}
-                className="max-h-[75vh] w-auto object-contain rounded-2xl"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+            <motion.div
+              initial={azaltilmis ? false : { opacity: 0, scale: 0.94, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={SPRING.keskin}
+              onClick={(e) => e.stopPropagation()}
+              className="k-artik max-w-lg w-full overflow-hidden shadow-2xl"
+            >
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-[var(--border-subtle)]">
+                <h3 className="k-posta text-base text-[var(--text-primary)]">
+                  {previewPhoto.title}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setPreviewPhoto(null)}
+                  className="k-buton k-buton--hayalet !py-1 !px-3 !text-xs"
+                >
+                  Kapat
+                </button>
+              </div>
+              <div className="bg-[var(--bg-subtle)] p-2 flex items-center justify-center">
+                <img
+                  src={previewPhoto.url}
+                  alt={previewPhoto.title}
+                  className="max-h-[75vh] w-auto object-contain rounded-2xl"
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

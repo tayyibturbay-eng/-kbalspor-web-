@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, POSITIONS, Player, UserRole } from "@/types/club";
 import { useOnay } from "@/components/ui/OnayDialog";
+import { EASE, SPRING } from "@/lib/motion";
 import {
   calcAgeGroupFromBirthDate,
   defaultPinFromPhone,
@@ -28,9 +30,6 @@ interface PlayersTabProps {
   onRefreshPlayers: () => Promise<void>;
 }
 
-const fieldClass =
-  "border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]";
-
 export function PlayersTab({
   role,
   players,
@@ -40,9 +39,14 @@ export function PlayersTab({
   onRefreshPlayers,
 }: PlayersTabProps) {
   const { onay } = useOnay();
+  const azaltilmis = useReducedMotion();
+
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("Tümü");
   const [pointStep, setPointStep] = useState<number>(5);
+  const [addingPlayer, setAddingPlayer] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const [newPlayer, setNewPlayer] = useState({
     full_name: "",
     birth_date: "",
@@ -54,6 +58,7 @@ export function PlayersTab({
     player_pin: "",
     license_no: "",
   });
+
   const [editingPlayer, setEditingPlayer] = useState<ExtendedPlayer | null>(
     null
   );
@@ -117,18 +122,10 @@ export function PlayersTab({
   }
 
   async function adjustPlayerPoints(p: ExtendedPlayer, delta: number) {
+    const snapshot = players;
     const currentPts = p.skill_points ?? 20;
     const nextPts = Math.max(0, currentPts + delta);
-
-    const { error } = await supabase
-      .from("players")
-      .update({ skill_points: nextPts })
-      .eq("id", p.id);
-
-    if (error) {
-      onFeedback("Puan güncellenemedi: " + error.message);
-      return;
-    }
+    const label = delta >= 0 ? `+${delta}` : `${delta}`;
 
     setPlayers((prev) =>
       prev.map((x) =>
@@ -137,60 +134,52 @@ export function PlayersTab({
           : x
       )
     );
-    const label = delta >= 0 ? `+${delta}` : `${delta}`;
+    onFeedback(
+      `${p.full_name} puanı ${nextPts} olarak güncellendi (${label}).`
+    );
+
+    const { error } = await supabase
+      .from("players")
+      .update({ skill_points: nextPts })
+      .eq("id", p.id);
+
+    if (error) {
+      setPlayers(snapshot);
+      onFeedback("Puan güncellenemedi, geri alındı: " + error.message);
+      return;
+    }
+
     await onLogActivity(
       "Yetenek Puanı Güncelleme",
       `${p.full_name} oyuncusuna ${label} puan uygulandı (Yeni puan: ${nextPts}).`
     );
-    onFeedback(
-      `${p.full_name} puanı ${nextPts} olarak güncellendi (${label}).`
-    );
-  }
-
-  async function updatePlayerJerseyNumber(player: Player, rawVal: string) {
-    const parsed = parseInt(rawVal.trim(), 10);
-    const nextNum = !rawVal.trim() || isNaN(parsed) ? null : Math.max(1, Math.min(99, parsed));
-    if (nextNum === (player.jersey_number ?? null)) return;
-
-    const { error } = await supabase
-      .from("players")
-      .update({ jersey_number: nextNum })
-      .eq("id", player.id);
-
-    if (error) {
-      onFeedback("Forma no güncellenemedi: " + error.message);
-      return;
-    }
-
-    setPlayers((prev) =>
-      prev.map((x) =>
-        x.id === player.id ? { ...x, jersey_number: nextNum } : x
-      )
-    );
   }
 
   async function updatePlayerPosition(player: Player, newPosition: string) {
+    const snapshot = players;
+    setPlayers((prev) =>
+      prev.map((x) =>
+        x.id === player.id ? { ...x, position: newPosition } : x
+      )
+    );
+    onFeedback(
+      `${player.full_name} mevkisi "${newPosition}" olarak güncellendi.`
+    );
+
     const { error } = await supabase
       .from("players")
       .update({ position: newPosition })
       .eq("id", player.id);
 
     if (error) {
-      onFeedback("Mevki güncellenemedi: " + error.message);
+      setPlayers(snapshot);
+      onFeedback("Mevki güncellenemedi, geri alındı: " + error.message);
       return;
     }
 
-    setPlayers((prev) =>
-      prev.map((x) =>
-        x.id === player.id ? { ...x, position: newPosition } : x
-      )
-    );
     await onLogActivity(
       "Mevki Güncelleme",
       `${player.full_name} mevkisi "${newPosition}" yapıldı.`
-    );
-    onFeedback(
-      `${player.full_name} mevkisi "${newPosition}" olarak güncellendi.`
     );
   }
 
@@ -198,18 +187,9 @@ export function PlayersTab({
     player: ExtendedPlayer,
     secondGroup: string
   ) {
+    const snapshot = players;
     const cleanSecond =
       secondGroup && secondGroup !== player.age_group ? secondGroup : null;
-
-    const { error } = await supabase
-      .from("players")
-      .update({ secondary_age_group: cleanSecond })
-      .eq("id", player.id);
-
-    if (error) {
-      onFeedback("İkinci kategori güncellenemedi: " + error.message);
-      return;
-    }
 
     setPlayers((prev) =>
       prev.map((x) =>
@@ -218,14 +198,26 @@ export function PlayersTab({
           : x
       )
     );
-    await onLogActivity(
-      "İkinci Kategori Güncelleme",
-      `${player.full_name} için ikinci kategori: ${cleanSecond || "Yok"}`
-    );
     onFeedback(
       `${player.full_name} ikinci kategorisi güncellendi (${
         cleanSecond || "Yok"
       }).`
+    );
+
+    const { error } = await supabase
+      .from("players")
+      .update({ secondary_age_group: cleanSecond })
+      .eq("id", player.id);
+
+    if (error) {
+      setPlayers(snapshot);
+      onFeedback("İkinci kategori güncellenemedi: " + error.message);
+      return;
+    }
+
+    await onLogActivity(
+      "İkinci Kategori Güncelleme",
+      `${player.full_name} için ikinci kategori: ${cleanSecond || "Yok"}`
     );
   }
 
@@ -233,35 +225,39 @@ export function PlayersTab({
     player: ExtendedPlayer,
     repGroup: string
   ) {
-    const { error } = await supabase
-      .from("players")
-      .update({ representative_group: repGroup || "Tümü" })
-      .eq("id", player.id);
-
-    if (error) {
-      onFeedback("Temsilci grubu güncellenemedi: " + error.message);
-      return;
-    }
+    const snapshot = players;
+    const nextRepGroup = repGroup || "Tümü";
 
     setPlayers((prev) =>
       prev.map((x) =>
         x.id === player.id
-          ? ({
-              ...x,
-              representative_group: repGroup || "Tümü",
-            } as ExtendedPlayer)
+          ? ({ ...x, representative_group: nextRepGroup } as ExtendedPlayer)
           : x
       )
     );
+    onFeedback(`${player.full_name} temsilci grubu: ${nextRepGroup}`);
+
+    const { error } = await supabase
+      .from("players")
+      .update({ representative_group: nextRepGroup })
+      .eq("id", player.id);
+
+    if (error) {
+      setPlayers(snapshot);
+      onFeedback("Temsilci grubu güncellenemedi: " + error.message);
+      return;
+    }
+
     await onLogActivity(
       "Temsilci Grubu Güncelleme",
-      `${player.full_name} temsilcilik kapsamı: ${repGroup || "Tümü"}`
+      `${player.full_name} temsilcilik kapsamı: ${nextRepGroup}`
     );
-    onFeedback(`${player.full_name} temsilci grubu: ${repGroup || "Tümü"}`);
   }
 
   async function addPlayer(e: React.FormEvent) {
     e.preventDefault();
+    if (addingPlayer) return;
+
     const ageGroup = calcAgeGroupFromBirthDate(newPlayer.birth_date);
     const secondGroup =
       newPlayer.secondary_age_group &&
@@ -274,18 +270,62 @@ export function PlayersTab({
     const autoPin =
       newPlayer.player_pin.trim() || defaultPinFromPhone(newPlayer.parent_phone);
     const cleanLicense = newPlayer.license_no.trim() || null;
+    const cleanName = newPlayer.full_name.trim();
+    const jerseyNum = newPlayer.jersey_number
+      ? Number(newPlayer.jersey_number)
+      : null;
 
-    const { error } = await supabase.from("players").insert({
-      full_name: newPlayer.full_name.trim(),
+    const snapshot = players;
+    const tempId = `temp-${Date.now()}`;
+    const optimisticRow = {
+      id: tempId,
+      full_name: cleanName,
       birth_date: newPlayer.birth_date || null,
       age_group: ageGroup,
       secondary_age_group: secondGroup,
       representative_group: "Tümü",
       position: newPlayer.position,
-      jersey_number: newPlayer.jersey_number
-        ? Number(newPlayer.jersey_number)
-        : null,
+      jersey_number: jerseyNum,
       parent_phone: newPlayer.parent_phone.trim() || null,
+      player_code: autoCode,
+      player_pin: autoPin,
+      license_no: cleanLicense,
+      skill_points: 20,
+      stat_pac: 20,
+      stat_sho: 20,
+      stat_pas: 20,
+      stat_dri: 20,
+      stat_def: 20,
+      stat_phy: 20,
+      pin_changed: false,
+    } as unknown as ExtendedPlayer;
+
+    setAddingPlayer(true);
+    setPlayers((prev) => [optimisticRow, ...prev]);
+    setNewPlayer({
+      full_name: "",
+      birth_date: "",
+      secondary_age_group: "",
+      position: "Orta Saha",
+      jersey_number: "",
+      parent_phone: "",
+      player_code: "",
+      player_pin: "",
+      license_no: "",
+    });
+    onFeedback(
+      `${cleanName} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin} | 20 Puan`
+    );
+
+    const { error } = await supabase.from("players").insert({
+      full_name: cleanName,
+      birth_date: optimisticRow.birth_date,
+      age_group: ageGroup,
+      secondary_age_group: secondGroup,
+      representative_group: "Tümü",
+      position: optimisticRow.position,
+      jersey_number: jerseyNum,
+      parent_phone: optimisticRow.parent_phone,
       player_code: autoCode,
       player_pin: autoPin,
       license_no: cleanLicense,
@@ -299,37 +339,28 @@ export function PlayersTab({
       pin_changed: false,
     });
 
+    setAddingPlayer(false);
+
     if (error) {
-      onFeedback("Hata: " + error.message);
+      setPlayers(snapshot);
+      onFeedback("Oyuncu eklenemedi, geri alındı: " + error.message);
       return;
     }
 
     await onLogActivity(
       "Oyuncu Ekleme",
-      `${newPlayer.full_name} (${ageGroup}${
+      `${cleanName} (${ageGroup}${
         secondGroup ? ` + ${secondGroup}` : ""
       }) eklendi — ID: ${autoCode} | Ön yüklü 20 puan`
     );
-    onFeedback(
-      `${newPlayer.full_name} (${ageGroup}) eklendi. ID: ${autoCode} | Şifre: ${autoPin} | 20 Puan`
-    );
-    setNewPlayer({
-      full_name: "",
-      birth_date: "",
-      secondary_age_group: "",
-      position: "Orta Saha",
-      jersey_number: "",
-      parent_phone: "",
-      player_code: "",
-      player_pin: "",
-      license_no: "",
-    });
     await onRefreshPlayers();
   }
 
   async function savePlayerEdit(e: React.FormEvent) {
     e.preventDefault();
-    if (!editingPlayer) return;
+    if (!editingPlayer || savingEdit) return;
+
+    const snapshot = players;
     const updatedAgeGroup =
       editingPlayer.age_group ||
       (editingPlayer.birth_date
@@ -348,53 +379,85 @@ export function PlayersTab({
       1,
       Math.min(99, parseInt(editPointAmount, 10) || 0)
     );
-    const signedDelta = editPointSign === "+" ? rawAmount : editPointSign === "-" ? -rawAmount : 0;
+    const signedDelta =
+      editPointSign === "+"
+        ? rawAmount
+        : editPointSign === "-"
+        ? -rawAmount
+        : 0;
     const basePoints = Number(editingPlayer.skill_points ?? 20);
     const nextSkillPoints = Math.max(0, basePoints + signedDelta);
 
-    const { error } = await supabase
-      .from("players")
-      .update({
-        full_name: editingPlayer.full_name.trim(),
-        birth_date: editingPlayer.birth_date || null,
-        age_group: updatedAgeGroup,
-        secondary_age_group: cleanSecondGroup,
-        representative_group: repGroup,
-        position: editingPlayer.position,
-        jersey_number: editingPlayer.jersey_number
-          ? Number(editingPlayer.jersey_number)
-          : null,
-        parent_phone: editingPlayer.parent_phone?.trim() || null,
-        player_code: editingPlayer.player_code?.trim().toUpperCase() || null,
-        player_pin: editingPlayer.player_pin?.trim() || "1234",
-        is_representative: isRep,
-        license_no: cleanLicense,
-        bound_device_id: editingPlayer.bound_device_id,
-        skill_points: nextSkillPoints,
-      })
-      .eq("id", editingPlayer.id);
+    const updatedRecord: ExtendedPlayer = {
+      ...editingPlayer,
+      full_name: editingPlayer.full_name.trim(),
+      birth_date: editingPlayer.birth_date || null,
+      age_group: updatedAgeGroup,
+      secondary_age_group: cleanSecondGroup,
+      representative_group: repGroup,
+      position: editingPlayer.position,
+      jersey_number: editingPlayer.jersey_number
+        ? Number(editingPlayer.jersey_number)
+        : null,
+      parent_phone: editingPlayer.parent_phone?.trim() || null,
+      player_code: editingPlayer.player_code?.trim().toUpperCase() || null,
+      player_pin: editingPlayer.player_pin?.trim() || "1234",
+      is_representative: isRep,
+      license_no: cleanLicense,
+      bound_device_id: editingPlayer.bound_device_id,
+      skill_points: nextSkillPoints,
+    };
 
-    if (error) {
-      onFeedback("Güncelleme hatası: " + error.message);
-      return;
-    }
+    setSavingEdit(true);
+    setPlayers((prev) =>
+      prev.map((x) => (x.id === updatedRecord.id ? updatedRecord : x))
+    );
+    setEditingPlayer(null);
 
     const pointLogText =
       Boolean(editPointSign && rawAmount > 0)
         ? ` (${editPointSign}${rawAmount}p -> ${nextSkillPoints}p)`
         : "";
+    onFeedback(
+      Boolean(editPointSign && rawAmount > 0)
+        ? `${updatedRecord.full_name} bilgileri güncellendi (${editPointSign}${rawAmount}p • Yeni Puan: ${nextSkillPoints}).`
+        : `${updatedRecord.full_name} bilgileri güncellendi.`
+    );
+
+    const { error } = await supabase
+      .from("players")
+      .update({
+        full_name: updatedRecord.full_name,
+        birth_date: updatedRecord.birth_date,
+        age_group: updatedAgeGroup,
+        secondary_age_group: cleanSecondGroup,
+        representative_group: repGroup,
+        position: updatedRecord.position,
+        jersey_number: updatedRecord.jersey_number,
+        parent_phone: updatedRecord.parent_phone,
+        player_code: updatedRecord.player_code,
+        player_pin: updatedRecord.player_pin,
+        is_representative: isRep,
+        license_no: cleanLicense,
+        bound_device_id: updatedRecord.bound_device_id,
+        skill_points: nextSkillPoints,
+      })
+      .eq("id", updatedRecord.id);
+
+    setSavingEdit(false);
+
+    if (error) {
+      setPlayers(snapshot);
+      onFeedback("Güncelleme hatası, geri alındı: " + error.message);
+      return;
+    }
+
     await onLogActivity(
       "Oyuncu Düzenleme",
-      `${editingPlayer.full_name} (${updatedAgeGroup}${
+      `${updatedRecord.full_name} (${updatedAgeGroup}${
         cleanSecondGroup ? ` + ${cleanSecondGroup}` : ""
       }) güncellendi${pointLogText}.`
     );
-    onFeedback(
-      Boolean(editPointSign && rawAmount > 0)
-        ? `${editingPlayer.full_name} bilgileri güncellendi (${editPointSign}${rawAmount}p • Yeni Puan: ${nextSkillPoints}).`
-        : `${editingPlayer.full_name} bilgileri güncellendi.`
-    );
-    setEditingPlayer(null);
     await onRefreshPlayers();
   }
 
@@ -406,33 +469,54 @@ export function PlayersTab({
       }))
     )
       return;
-    await supabase.from("players").delete().eq("id", id);
-    await onLogActivity("Oyuncu Silme", `${name} kadrodan silindi.`);
+
+    const snapshot = players;
     setPlayers((prev) => prev.filter((p) => p.id !== id));
+    if (editingPlayer?.id === id) setEditingPlayer(null);
     onFeedback(`${name} kadrodan silindi.`);
+
+    const { error } = await supabase.from("players").delete().eq("id", id);
+    if (error) {
+      setPlayers(snapshot);
+      onFeedback("Oyuncu silinemedi, geri alındı: " + error.message);
+      return;
+    }
+
+    await onLogActivity("Oyuncu Silme", `${name} kadrodan silindi.`);
   }
 
   return (
-    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
-      {role === "admin" && flaggedPlayersCount > 0 && (
-        <div className="p-4 rounded-2xl bg-[var(--status-warning-bg)]/55 border border-amber-400/50 text-[var(--text-primary)] text-sm font-medium">
-          <strong>
-            Kontrol Edilmesi Gereken {flaggedPlayersCount} Oyuncu Var:
-          </strong>{" "}
-          Doğum tarihi eksik, isim hatalı veya çift kayıtlar aşağıda
-          işaretlendi.
-        </div>
-      )}
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums min-w-0">
+      <AnimatePresence>
+        {role === "admin" && flaggedPlayersCount > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE.yumusak }}
+            className="k-artik p-4 bg-[var(--status-warning-bg)]/55 border-amber-400/50 text-xs sm:text-sm font-medium flex items-center gap-3"
+          >
+            <span className="k-etiket k-etiket--uyari shrink-0">
+              {flaggedPlayersCount} Uyarı
+            </span>
+            <span>
+              <strong>Kontrol Edilmesi Gereken Sporcular:</strong> Doğum tarihi
+              eksik, isim hatalı veya mükerrer kayıtlar aşağıda işaretlendi.
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {role === "admin" && (
-        <form
-          onSubmit={addPlayer}
-          className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3"
-        >
-          <h2 className="font-black text-[var(--text-primary)]">
-            Yeni Oyuncu Ekle (Ön Yüklü 20 Puan)
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <form onSubmit={addPlayer} className="k-artik p-4 sm:p-6 space-y-4 min-w-0">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] block">KADRO KAYDI</span>
+            <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+              Yeni Oyuncu Ekle (Ön Yüklü 20 Puan)
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
             <input
               required
               placeholder="Ad Soyad"
@@ -440,17 +524,52 @@ export function PlayersTab({
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, full_name: e.target.value })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             />
+
             <input
-              type="date"
+              type="text"
+              inputMode="numeric"
               required
-              value={newPlayer.birth_date}
-              onChange={(e) =>
-                setNewPlayer({ ...newPlayer, birth_date: e.target.value })
+              aria-label="Doğum Tarihi (gg.aa.yyy)"
+              placeholder="gg.aa.yyy"
+              value={
+                newPlayer.birth_date
+                  ? newPlayer.birth_date.split("-").reverse().join(".")
+                  : ""
               }
-              className={fieldClass}
+              onFocus={(e) => {
+                e.currentTarget.type = "date";
+              }}
+              onBlur={(e) => {
+                if (!e.currentTarget.value) {
+                  e.currentTarget.type = "text";
+                }
+              }}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                  setNewPlayer({ ...newPlayer, birth_date: val });
+                  return;
+                }
+                const digits = val.replace(/\D/g, "").slice(0, 8);
+                let formatted = digits;
+                if (digits.length > 4) {
+                  formatted = `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+                } else if (digits.length > 2) {
+                  formatted = `${digits.slice(0, 2)}.${digits.slice(2)}`;
+                }
+                const parts = formatted.split(".");
+                if (parts.length === 3 && parts[2].length === 4) {
+                  const isoDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+                  setNewPlayer({ ...newPlayer, birth_date: isoDate });
+                } else if (!formatted) {
+                  setNewPlayer({ ...newPlayer, birth_date: "" });
+                }
+              }}
+              className="k-alan font-semibold min-h-[42px]"
             />
+
             <select
               value={newPlayer.secondary_age_group}
               onChange={(e) =>
@@ -459,7 +578,7 @@ export function PlayersTab({
                   secondary_age_group: e.target.value,
                 })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             >
               <option value="">İkinci Kategori (Opsiyonel)</option>
               {AGE_GROUPS.map((g) => (
@@ -474,14 +593,14 @@ export function PlayersTab({
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, parent_phone: e.target.value })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             />
             <select
               value={newPlayer.position}
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, position: e.target.value })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             >
               {POSITIONS.map((pos) => (
                 <option key={pos} value={pos}>
@@ -496,7 +615,7 @@ export function PlayersTab({
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, jersey_number: e.target.value })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             />
             <input
               placeholder="Lisans No (Opsiyonel)"
@@ -504,7 +623,7 @@ export function PlayersTab({
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, license_no: e.target.value })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             />
             <input
               placeholder="Özel ID (Boşsa IKB-XXXX)"
@@ -512,9 +631,10 @@ export function PlayersTab({
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, player_code: e.target.value })
               }
-              className={`uppercase ${fieldClass}`}
+              className="k-alan uppercase font-mono font-bold min-h-[42px]"
             />
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
             <input
               placeholder="Şifre (Boşsa Tel Son 4)"
@@ -522,45 +642,60 @@ export function PlayersTab({
               onChange={(e) =>
                 setNewPlayer({ ...newPlayer, player_pin: e.target.value })
               }
-              className={fieldClass}
+              className="k-alan font-semibold min-h-[42px]"
             />
             <div className="md:col-span-3 flex justify-end">
-              <button
+              <motion.button
+                whileTap={{ scale: 0.97 }}
                 type="submit"
-                className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold rounded-xl px-5 py-2.5 text-sm cursor-pointer"
+                disabled={addingPlayer}
+                className="k-buton k-buton--kirmizi w-full sm:w-auto min-h-[42px] !px-6 !py-2.5"
               >
-                Oyuncu Ekle
-              </button>
+                {addingPlayer ? "Ekleniyor..." : "+ Oyuncu Ekle"}
+              </motion.button>
             </div>
           </div>
         </form>
       )}
 
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
+      <div className="k-artik p-4 sm:p-6 space-y-5 min-w-0">
         <div className="flex flex-wrap justify-between items-center gap-3">
           <div className="flex flex-wrap gap-1.5">
-            {["Tümü", ...AGE_GROUPS].map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setSelectedGroupFilter(g)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
-                  selectedGroupFilter === g
-                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
-                }`}
-              >
-                {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
-              </button>
-            ))}
+            {["Tümü", ...AGE_GROUPS].map((g) => {
+              const active = selectedGroupFilter === g;
+              return (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => setSelectedGroupFilter(g)}
+                  className={`relative min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-extrabold transition-colors cursor-pointer ${
+                    active
+                      ? "text-white"
+                      : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {active && !azaltilmis && (
+                    <motion.span
+                      layoutId="players-grup-pil"
+                      transition={SPRING.yumusak}
+                      className="absolute inset-0 rounded-xl bg-[var(--brand-navy)]"
+                    />
+                  )}
+                  {active && azaltilmis && (
+                    <span className="absolute inset-0 rounded-xl bg-[var(--brand-navy)]" />
+                  )}
+                  <span className="relative z-10">
+                    {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {role === "admin" && (
-              <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl px-2.5 py-1.5">
-                <span className="text-xs font-bold text-[var(--text-secondary)]">
-                  Puan Miktarı:
-                </span>
+              <div className="flex items-center gap-1.5 bg-[var(--bg-subtle)] border border-[var(--border-subtle)] rounded-xl px-3 py-1.5 min-h-[38px]">
+                <span className="k-koz text-[10px]">Puan Adımı:</span>
                 <input
                   type="number"
                   min={1}
@@ -569,7 +704,7 @@ export function PlayersTab({
                   onChange={(e) =>
                     setPointStep(Math.max(1, Number(e.target.value) || 1))
                   }
-                  className="w-14 border border-[var(--border-strong)] bg-[var(--bg-surface)] rounded px-2 py-0.5 text-xs font-bold text-[var(--text-primary)]"
+                  className="w-14 border border-[var(--border-strong)] bg-[var(--bg-surface)] rounded-lg px-2 py-0.5 text-xs font-black text-[var(--text-primary)] text-center"
                 />
               </div>
             )}
@@ -577,7 +712,7 @@ export function PlayersTab({
               placeholder="İsim, ID veya lisans ara..."
               value={playerSearch}
               onChange={(e) => setPlayerSearch(e.target.value)}
-              className={`w-full md:w-64 ${fieldClass}`}
+              className="k-alan flex-1 md:w-64 min-h-[38px] !py-2"
             />
           </div>
         </div>
@@ -585,23 +720,27 @@ export function PlayersTab({
         {groupedPlayers.map(({ group, items }) => (
           <div
             key={group}
-            className="border border-[var(--border-subtle)] rounded-xl overflow-hidden"
+            className="border border-[var(--border-subtle)] rounded-2xl overflow-hidden shadow-2xs"
           >
-            <div className="bg-[var(--brand-navy)] text-white px-4 py-2 font-bold text-sm flex justify-between">
-              <span>{group} Kategorisi</span>
-              <span>{items.length} Oyuncu</span>
+            <div className="k-sahne text-white px-4 py-2.5 font-extrabold text-xs sm:text-sm flex justify-between items-center">
+              <span className="k-posta text-base font-medium">
+                {group} Kategorisi
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full k-cam--marka text-[11px] font-black">
+                {items.length} Oyuncu
+              </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left text-[var(--text-primary)]">
-                <thead className="bg-[var(--bg-subtle)] text-[var(--brand-ink)] text-xs font-extrabold border-b border-[var(--border-subtle)]">
+                <thead className="bg-[var(--bg-subtle)] text-[var(--brand-ink)] text-[11px] uppercase tracking-wider font-extrabold border-b border-[var(--border-subtle)]">
                   <tr>
-                    <th className="p-2.5">Ad Soyad</th>
-                    <th className="p-2.5">Doğum Tarihi</th>
-                    <th className="p-2.5">Kategoriler</th>
-                    <th className="p-2.5">Mevki / Forma</th>
-                    <th className="p-2.5">Puan</th>
-                    {role === "admin" && <th className="p-2.5">ID / Şifre</th>}
-                    {canManageCategories && <th className="p-2.5">İşlem</th>}
+                    <th className="p-3">Ad Soyad</th>
+                    <th className="p-3">Doğum Tarihi</th>
+                    <th className="p-3">Kategoriler</th>
+                    <th className="p-3">Mevki / Forma</th>
+                    <th className="p-3">Puan</th>
+                    {role === "admin" && <th className="p-3">ID / Şifre</th>}
+                    {canManageCategories && <th className="p-3">İşlem</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border-subtle)]">
@@ -615,36 +754,37 @@ export function PlayersTab({
                       canManageCategories && editingPlayer?.id === p.id;
 
                     return (
-                      <>
+                      <React.Fragment key={p.id}>
                         <tr
-                          key={p.id}
                           className={
                             warnings.length > 0
-                              ? "bg-[var(--status-warning-bg)]/35"
-                              : "bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]/70"
+                              ? "bg-[var(--status-warning-bg)]/35 transition-colors"
+                              : "bg-[var(--bg-surface)] hover:bg-[var(--bg-subtle)]/70 transition-colors"
                           }
                         >
-                          <td className="p-2.5 font-bold text-[var(--text-primary)]">
+                          <td className="p-3 font-extrabold text-[var(--text-primary)]">
                             {p.full_name}
                             {p.is_representative && (
-                              <span className="ml-2 text-[11px] bg-[var(--status-info-bg)] text-[var(--status-info-text)] font-bold px-2 py-0.5 rounded-full">
+                              <span className="ml-2 k-etiket k-etiket--bilgi">
                                 Temsilci ({p.representative_group || "Tüm Takım"})
                               </span>
                             )}
                             {warnings.map((w) => (
                               <span
                                 key={w}
-                                className="inline-block ml-1 text-[11px] bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] font-bold px-2 py-0.5 rounded"
+                                className="ml-1.5 k-etiket k-etiket--tehlike"
                               >
                                 {w}
                               </span>
                             ))}
                           </td>
-                          <td className="p-2.5 text-xs font-medium text-[var(--text-secondary)]">
-                            {p.birth_date || "Eksik"}
+                          <td className="p-3 text-xs font-semibold text-[var(--text-secondary)] whitespace-nowrap">
+                            {p.birth_date
+                              ? p.birth_date.split("-").reverse().join(".")
+                              : "Eksik"}
                           </td>
-                          <td className="p-2.5 text-xs space-y-1">
-                            <div className="font-bold text-[var(--text-primary)]">
+                          <td className="p-3 text-xs space-y-1.5">
+                            <div className="font-extrabold text-[var(--text-primary)]">
                               Ana: {p.age_group}
                             </div>
                             <select
@@ -653,7 +793,7 @@ export function PlayersTab({
                                 updatePlayerSecondaryGroup(p, e.target.value)
                               }
                               aria-label={`${p.full_name} ikinci kategori`}
-                              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                              className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-[var(--text-primary)] min-h-[34px]"
                             >
                               <option value="">+ 2. Kategori Yok</option>
                               {AGE_GROUPS.filter((g) => g !== p.age_group).map(
@@ -671,7 +811,7 @@ export function PlayersTab({
                                   onChange={(e) =>
                                     updateRepresentativeGroup(p, e.target.value)
                                   }
-                                  className="border border-[var(--border-strong)] bg-[var(--status-info-bg)]/40 rounded-lg px-2 py-1 text-[11px] font-bold text-[var(--text-primary)]"
+                                  className="border border-[var(--border-strong)] bg-[var(--status-info-bg)]/40 rounded-xl px-2.5 py-1.5 text-[11px] font-bold text-[var(--text-primary)] min-h-[34px]"
                                 >
                                   <option value="Tümü">Temsil: Tüm Takım</option>
                                   {AGE_GROUPS.map((g) => (
@@ -683,14 +823,14 @@ export function PlayersTab({
                               </div>
                             )}
                           </td>
-                          <td className="p-2.5 text-xs text-[var(--text-primary)]">
-                            <div className="flex items-center gap-1.5">
+                          <td className="p-3 text-xs text-[var(--text-primary)]">
+                            <div className="flex items-center gap-2">
                               <select
                                 value={p.position || "Orta Saha"}
                                 onChange={(e) =>
                                   updatePlayerPosition(p, e.target.value)
                                 }
-                                className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-lg px-2 py-1 text-xs font-bold text-[var(--text-primary)]"
+                                className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[var(--text-primary)] min-h-[34px]"
                               >
                                 {POSITIONS.map((pos) => (
                                   <option key={pos} value={pos}>
@@ -699,92 +839,100 @@ export function PlayersTab({
                                 ))}
                               </select>
                               {p.jersey_number ? (
-                                <span className="font-bold text-[var(--text-secondary)]">
+                                <span className="k-etiket k-etiket--lacivert shrink-0">
                                   #{p.jersey_number}
                                 </span>
                               ) : null}
                             </div>
                           </td>
-                          <td className="p-2.5 text-xs font-extrabold text-[var(--text-primary)]">
+                          <td className="p-3 text-xs font-black text-[var(--brand-ink)] whitespace-nowrap">
                             {p.skill_points ?? 20}p
                           </td>
                           {role === "admin" && (
-                            <td className="p-2.5 font-mono text-xs font-semibold text-[var(--text-secondary)]">
+                            <td className="p-3 font-mono text-xs font-semibold text-[var(--text-secondary)] whitespace-nowrap">
                               {p.player_code} / {p.player_pin || "1234"}
                             </td>
                           )}
                           {canManageCategories && (
-                            <td className="p-2.5 flex flex-wrap gap-1.5">
-                              {role === "admin" && (
-                                <>
-                                  <button
-                                    type="button"
-                                    title={`+${pointStep} Puan`}
-                                    onClick={() =>
-                                      adjustPlayerPoints(p, pointStep)
-                                    }
-                                    className="w-8 h-8 rounded-full border-2 border-emerald-600/70 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-base font-black cursor-pointer transition"
-                                  >
-                                    +
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title={`-${pointStep} Puan`}
-                                    onClick={() =>
-                                      adjustPlayerPoints(p, -pointStep)
-                                    }
-                                    className="w-8 h-8 rounded-full border-2 border-red-600/70 bg-red-500/10 hover:bg-red-600 hover:text-white text-red-700 dark:text-red-300 flex items-center justify-center text-base font-black cursor-pointer transition"
-                                  >
-                                    -
-                                  </button>
-                                </>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => openPlayerEditor(p)}
-                                className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
-                              >
-                                {isEditingThisRow ? "Kapat" : "Düzenle"}
-                              </button>
-                              {role === "admin" && (
+                            <td className="p-3">
+                              <div className="flex flex-wrap items-center gap-1.5 min-w-[140px]">
+                                {role === "admin" && (
+                                  <>
+                                    <motion.button
+                                      whileTap={{ scale: 0.9 }}
+                                      type="button"
+                                      title={`+${pointStep} Puan`}
+                                      onClick={() =>
+                                        adjustPlayerPoints(p, pointStep)
+                                      }
+                                      className="w-9 h-9 rounded-full border-2 border-emerald-600/70 bg-emerald-500/10 hover:bg-emerald-600 hover:text-white text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-base font-black cursor-pointer transition shrink-0"
+                                    >
+                                      +
+                                    </motion.button>
+                                    <motion.button
+                                      whileTap={{ scale: 0.9 }}
+                                      type="button"
+                                      title={`-${pointStep} Puan`}
+                                      onClick={() =>
+                                        adjustPlayerPoints(p, -pointStep)
+                                      }
+                                      className="w-9 h-9 rounded-full border-2 border-red-600/70 bg-red-500/10 hover:bg-red-600 hover:text-white text-red-700 dark:text-red-300 flex items-center justify-center text-base font-black cursor-pointer transition shrink-0"
+                                    >
+                                      -
+                                    </motion.button>
+                                  </>
+                                )}
                                 <button
                                   type="button"
-                                  onClick={() => deletePlayer(p.id, p.full_name)}
-                                  className="bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer"
+                                  onClick={() => openPlayerEditor(p)}
+                                  className="k-buton k-buton--lacivert min-h-[36px] !py-1.5 !px-3 !text-xs shrink-0"
                                 >
-                                  Sil
+                                  {isEditingThisRow ? "Kapat" : "Düzenle"}
                                 </button>
-                              )}
+                                {role === "admin" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => deletePlayer(p.id, p.full_name)}
+                                    className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer transition shrink-0"
+                                  >
+                                    Sil
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           )}
                         </tr>
 
                         {isEditingThisRow && editingPlayer && (
-                          <tr
-                            key={`${p.id}-editor`}
-                            className="bg-[var(--bg-subtle)]"
-                          >
+                          <tr className="bg-[var(--bg-subtle)]">
                             <td colSpan={tableColSpan} className="p-4">
-                              <form
+                              <motion.form
+                                initial={azaltilmis ? false : { opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={SPRING.yumusak}
                                 onSubmit={savePlayerEdit}
-                                className="bg-[var(--bg-surface)] p-4 rounded-2xl shadow-md border-2 border-[var(--brand-red)] space-y-4 text-[var(--text-primary)]"
+                                className="k-artik p-5 border-2 border-[var(--brand-red)] space-y-4 text-[var(--text-primary)]"
                               >
                                 <div className="flex justify-between items-center">
-                                  <h3 className="text-base font-black text-[var(--text-primary)]">
-                                    {editingPlayer.full_name} — Bilgilerini &amp;
-                                    Kategorilerini Düzenle
-                                  </h3>
+                                  <div>
+                                    <span className="k-koz text-[10px] block">
+                                      SPORCU KARTI DÜZENLEME
+                                    </span>
+                                    <h3 className="k-posta text-lg text-[var(--text-primary)]">
+                                      {editingPlayer.full_name}
+                                    </h3>
+                                  </div>
                                   <button
                                     type="button"
                                     onClick={() => setEditingPlayer(null)}
-                                    className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] underline cursor-pointer"
+                                    className="k-buton k-buton--hayalet !py-1.5 !px-3 !text-xs"
                                   >
                                     Vazgeç
                                   </button>
                                 </div>
 
                                 {role === "admin" && (
-                                  <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-3.5 flex flex-wrap items-center justify-between gap-4">
+                                  <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 flex flex-wrap items-center justify-between gap-4">
                                     <div>
                                       <div className="text-xs font-black text-[var(--text-primary)]">
                                         Oyuncu Puan Düzenle (Mevcut:{" "}
@@ -800,7 +948,11 @@ export function PlayersTab({
                                       <div className="flex items-center gap-2">
                                         <button
                                           type="button"
-                                          onClick={() => setEditPointSign((prev) => (prev === "+" ? null : "+"))}
+                                          onClick={() =>
+                                            setEditPointSign((prev) =>
+                                              prev === "+" ? null : "+"
+                                            )
+                                          }
                                           aria-label="Puan Ekle (+)"
                                           className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-xl font-black transition cursor-pointer ${
                                             editPointSign === "+"
@@ -813,7 +965,11 @@ export function PlayersTab({
 
                                         <button
                                           type="button"
-                                          onClick={() => setEditPointSign((prev) => (prev === "-" ? null : "-"))}
+                                          onClick={() =>
+                                            setEditPointSign((prev) =>
+                                              prev === "-" ? null : "-"
+                                            )
+                                          }
                                           aria-label="Puan Düş (-)"
                                           className={`w-11 h-11 rounded-full border-2 flex items-center justify-center text-2xl font-black transition cursor-pointer ${
                                             editPointSign === "-"
@@ -847,7 +1003,7 @@ export function PlayersTab({
                                           setEditPointAmount(String(n));
                                         }}
                                         aria-label="Puan Miktarı"
-                                        className="w-20 border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-center text-sm font-black"
+                                        className="w-20 k-alan text-center font-black"
                                       />
                                     </div>
                                   </div>
@@ -855,7 +1011,7 @@ export function PlayersTab({
 
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Ad Soyad
                                     </label>
                                     <input
@@ -868,11 +1024,11 @@ export function PlayersTab({
                                           full_name: e.target.value,
                                         })
                                       }
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Doğum Tarihi (Kadro Yaş Kuralı)
                                     </label>
                                     <input
@@ -885,11 +1041,11 @@ export function PlayersTab({
                                           birth_date: e.target.value,
                                         })
                                       }
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Ana Kategori
                                     </label>
                                     <select
@@ -900,7 +1056,7 @@ export function PlayersTab({
                                           age_group: e.target.value,
                                         })
                                       }
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     >
                                       {AGE_GROUPS.map((g) => (
                                         <option key={g} value={g}>
@@ -910,7 +1066,7 @@ export function PlayersTab({
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       İkinci Kategori (Bildirim İçin)
                                     </label>
                                     <select
@@ -924,7 +1080,7 @@ export function PlayersTab({
                                             e.target.value || null,
                                         })
                                       }
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     >
                                       <option value="">Yok (Tek Kategori)</option>
                                       {AGE_GROUPS.filter(
@@ -937,7 +1093,7 @@ export function PlayersTab({
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Telefon
                                     </label>
                                     <input
@@ -950,11 +1106,11 @@ export function PlayersTab({
                                         })
                                       }
                                       placeholder="Telefon"
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Mevki
                                     </label>
                                     <select
@@ -965,7 +1121,7 @@ export function PlayersTab({
                                           position: e.target.value,
                                         })
                                       }
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     >
                                       {POSITIONS.map((pos) => (
                                         <option key={pos} value={pos}>
@@ -975,7 +1131,7 @@ export function PlayersTab({
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Forma No
                                     </label>
                                     <input
@@ -991,11 +1147,11 @@ export function PlayersTab({
                                             : null,
                                         })
                                       }
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                    <label className="k-koz text-[10px] block mb-1">
                                       Lisans No
                                     </label>
                                     <input
@@ -1008,7 +1164,7 @@ export function PlayersTab({
                                         })
                                       }
                                       placeholder="Lisans Numarası"
-                                      className={`w-full ${fieldClass}`}
+                                      className="k-alan font-bold"
                                     />
                                   </div>
                                 </div>
@@ -1016,7 +1172,7 @@ export function PlayersTab({
                                 {role === "admin" && (
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <div>
-                                      <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      <label className="k-koz text-[10px] block mb-1">
                                         Oyuncu ID
                                       </label>
                                       <input
@@ -1028,11 +1184,11 @@ export function PlayersTab({
                                           })
                                         }
                                         placeholder="Oyuncu ID"
-                                        className={`w-full uppercase ${fieldClass}`}
+                                        className="k-alan uppercase font-mono font-bold"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      <label className="k-koz text-[10px] block mb-1">
                                         Şifre
                                       </label>
                                       <input
@@ -1044,11 +1200,11 @@ export function PlayersTab({
                                           })
                                         }
                                         placeholder="Şifre"
-                                        className={`w-full ${fieldClass}`}
+                                        className="k-alan font-bold"
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                                      <label className="k-koz text-[10px] block mb-1">
                                         Temsilci Grubu (Varsayılan: Tüm Takım)
                                       </label>
                                       <select
@@ -1064,7 +1220,7 @@ export function PlayersTab({
                                               e.target.value,
                                           })
                                         }
-                                        className={`w-full ${fieldClass} disabled:opacity-50`}
+                                        className="k-alan font-bold disabled:opacity-50"
                                       >
                                         <option value="Tümü">Tüm Takım</option>
                                         {AGE_GROUPS.map((g) => (
@@ -1089,13 +1245,13 @@ export function PlayersTab({
                                               bound_device_id: null,
                                             })
                                           }
-                                          className="border border-amber-400 bg-[var(--status-warning-bg)]/50 text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-bold cursor-pointer"
+                                          className="k-buton k-buton--hayalet !py-2 !px-3 !text-xs"
                                         >
                                           {editingPlayer.bound_device_id
                                             ? "Cihaz Kilidini Sıfırla"
                                             : "Cihaz Bağlı Değil"}
                                         </button>
-                                        <label className="flex items-center gap-2 text-sm font-bold text-[var(--text-primary)] cursor-pointer">
+                                        <label className="flex items-center gap-2 text-xs sm:text-sm font-bold text-[var(--text-primary)] cursor-pointer">
                                           <input
                                             type="checkbox"
                                             checked={Boolean(
@@ -1112,6 +1268,7 @@ export function PlayersTab({
                                                   : "Tümü",
                                               });
                                             }}
+                                            className="accent-[var(--brand-red)]"
                                           />
                                           Temsilci Yetkisi Ver (Önyüklü: Tüm
                                           Takım)
@@ -1119,18 +1276,20 @@ export function PlayersTab({
                                       </>
                                     )}
                                   </div>
-                                  <button
+                                  <motion.button
+                                    whileTap={{ scale: 0.97 }}
                                     type="submit"
-                                    className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold px-6 py-2.5 rounded-xl text-sm cursor-pointer"
+                                    disabled={savingEdit}
+                                    className="k-buton k-buton--lacivert !px-6 !py-2.5"
                                   >
                                     Değişiklikleri Kaydet
-                                  </button>
+                                  </motion.button>
                                 </div>
-                              </form>
+                              </motion.form>
                             </td>
                           </tr>
                         )}
-                      </>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>

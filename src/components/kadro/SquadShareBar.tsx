@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { EASE, SPRING } from "@/lib/motion";
 
 export interface ShareSlotItem {
   slotKey: string;
@@ -88,7 +90,11 @@ async function renderRosterCardPng(props: SquadShareBarProps): Promise<string> {
   ctx.fillText("ÇORUM İKBAL SPOR KULÜBÜ", 198, 108);
   ctx.fillStyle = "#fbbf24";
   ctx.font = "800 28px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`${props.categoryLabel} • Diziliş: ${props.formationLabel}`, 198, 150);
+  ctx.fillText(
+    `${props.categoryLabel} • Diziliş: ${props.formationLabel}`,
+    198,
+    150
+  );
 
   ctx.fillStyle = "rgba(255,255,255,0.10)";
   ctx.strokeStyle = "rgba(255,255,255,0.18)";
@@ -136,15 +142,25 @@ async function renderRosterCardPng(props: SquadShareBarProps): Promise<string> {
     ctx.fill();
 
     ctx.fillStyle = "#fda4af";
-    ctx.font = `900 ${maxRows > 14 ? 20 : 23}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText(item.num ? `#${item.num}` : `#${i + 1}`, 112, y + rowH * 0.68);
+    ctx.font = `900 ${
+      maxRows > 14 ? 20 : 23
+    }px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(
+      item.num ? `#${item.num}` : `#${i + 1}`,
+      112,
+      y + rowH * 0.68
+    );
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = `800 ${maxRows > 14 ? 21 : 24}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `800 ${
+      maxRows > 14 ? 21 : 24
+    }px system-ui, -apple-system, sans-serif`;
     ctx.fillText(item.name, 195, y + rowH * 0.68);
 
     ctx.fillStyle = "#cbd5e1";
-    ctx.font = `700 ${maxRows > 14 ? 18 : 21}px system-ui, -apple-system, sans-serif`;
+    ctx.font = `700 ${
+      maxRows > 14 ? 18 : 21
+    }px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = "right";
     ctx.fillText(item.pos, W - 114, y + rowH * 0.68);
     ctx.textAlign = "left";
@@ -152,7 +168,11 @@ async function renderRosterCardPng(props: SquadShareBarProps): Promise<string> {
 
   ctx.fillStyle = "#e2e8f0";
   ctx.font = "700 21px system-ui, -apple-system, sans-serif";
-  ctx.fillText("ikbalspor.com • Çorum İkbal Spor Kulübü Resmi Kadro Kartı", 64, H - 40);
+  ctx.fillText(
+    "ikbalspor.com • Çorum İkbal Spor Kulübü Resmi Kadro Kartı",
+    64,
+    H - 40
+  );
 
   return canvas.toDataURL("image/png");
 }
@@ -188,7 +208,11 @@ async function renderPitchCardPng(props: SquadShareBarProps): Promise<string> {
   ctx.fillText("ÇORUM İKBAL SPOR KULÜBÜ", 168, 76);
   ctx.fillStyle = "#fde68a";
   ctx.font = "800 24px system-ui, -apple-system, sans-serif";
-  ctx.fillText(`${props.categoryLabel} • ${props.formationLabel} • ${props.tacticPlan}`, 168, 114);
+  ctx.fillText(
+    `${props.categoryLabel} • ${props.formationLabel} • ${props.tacticPlan}`,
+    168,
+    114
+  );
 
   const pitchTop = 170;
   const pitchH = 1060;
@@ -230,7 +254,9 @@ async function renderPitchCardPng(props: SquadShareBarProps): Promise<string> {
       const y = cy - cardH / 2;
 
       const assigned = slot?.player;
-      ctx.fillStyle = assigned ? "rgba(11, 37, 69, 0.94)" : "rgba(15, 23, 42, 0.45)";
+      ctx.fillStyle = assigned
+        ? "rgba(11, 37, 69, 0.94)"
+        : "rgba(15, 23, 42, 0.45)";
       ctx.strokeStyle = assigned ? "#fbbf24" : "rgba(255,255,255,0.45)";
       ctx.lineWidth = assigned ? 3 : 2;
       drawRoundedRect(ctx, x, y, cardW, cardH, 18);
@@ -245,14 +271,18 @@ async function renderPitchCardPng(props: SquadShareBarProps): Promise<string> {
       ctx.textAlign = "center";
       ctx.font = "900 17px system-ui, -apple-system, sans-serif";
       ctx.fillText(
-        assigned?.jersey_number ? `#${assigned.jersey_number}` : row.role.slice(0, 3).toUpperCase(),
+        assigned?.jersey_number
+          ? `#${assigned.jersey_number}`
+          : row.role.slice(0, 3).toUpperCase(),
         cx,
         y + 30
       );
 
       ctx.fillStyle = "#ffffff";
       ctx.font = "800 20px system-ui, -apple-system, sans-serif";
-      const label = assigned ? assigned.full_name.split(" ").slice(0, 2).join(" ") : "Boş";
+      const label = assigned
+        ? assigned.full_name.split(" ").slice(0, 2).join(" ")
+        : "Boş";
       ctx.fillText(label.slice(0, 14), cx, y + 68);
 
       ctx.fillStyle = "#cbd5e1";
@@ -269,7 +299,10 @@ async function renderPitchCardPng(props: SquadShareBarProps): Promise<string> {
   const benchText =
     props.benchPlayers.length > 0
       ? props.benchPlayers
-          .map((b) => `${b.jersey_number ? `#${b.jersey_number} ` : ""}${b.full_name}`)
+          .map(
+            (b) =>
+              `${b.jersey_number ? `#${b.jersey_number} ` : ""}${b.full_name}`
+          )
           .join("  •  ")
       : "Yedek kulübesi boş";
   ctx.fillText("YEDEKLER:", 48, pitchTop + pitchH + 56);
@@ -279,7 +312,11 @@ async function renderPitchCardPng(props: SquadShareBarProps): Promise<string> {
 
   ctx.fillStyle = "#94a3b8";
   ctx.font = "700 19px system-ui, -apple-system, sans-serif";
-  ctx.fillText("ikbalspor.com • Çorum İkbal Spor Kulübü Taktik Kadro", 48, H - 36);
+  ctx.fillText(
+    "ikbalspor.com • Çorum İkbal Spor Kulübü Taktik Kadro",
+    48,
+    H - 36
+  );
 
   return canvas.toDataURL("image/png");
 }
@@ -288,6 +325,7 @@ export function SquadShareBar(props: SquadShareBarProps) {
   const [busyMode, setBusyMode] = useState<"roster" | "pitch" | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewTitle, setPreviewTitle] = useState<string>("");
+  const azaltilmis = useReducedMotion();
 
   async function generateAndShare(mode: "roster" | "pitch") {
     setBusyMode(mode);
@@ -298,10 +336,16 @@ export function SquadShareBar(props: SquadShareBarProps) {
           : await renderPitchCardPng(props);
       setPreviewUrl(dataUrl);
       setPreviewTitle(
-        mode === "roster" ? "Resmi Kadro Listesi Kartı" : "Çim Saha Taktik Dizilişi"
+        mode === "roster"
+          ? "Resmi Kadro Listesi Kartı"
+          : "Çim Saha Taktik Dizilişi"
       );
 
-      if (typeof navigator !== "undefined" && navigator.share && navigator.canShare) {
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.share &&
+        navigator.canShare
+      ) {
         const res = await fetch(dataUrl);
         const blob = await res.blob();
         const file = new File([blob], `ikbal-spor-kadro-${mode}.png`, {
@@ -322,65 +366,89 @@ export function SquadShareBar(props: SquadShareBarProps) {
   }
 
   return (
-    <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs">
-      <div>
-        <div className="text-xs font-black text-[var(--text-primary)]">
+    <div className="k-artik p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-0.5">
+        <span className="k-koz text-[10px] block">PAYLAŞIM MERKEZİ</span>
+        <div className="text-xs sm:text-sm font-black text-[var(--text-primary)]">
           Görsel Kadro Paylaşımı
         </div>
         <div className="text-[11px] text-[var(--text-secondary)]">
-          Liste kartı veya çim saha dizilişi olarak PNG indirip paylaşabilirsiniz.
+          Liste kartı veya çim saha dizilişi olarak PNG indirip
+          paylaşabilirsiniz.
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button
+        <motion.button
+          whileTap={{ scale: 0.97 }}
           type="button"
           disabled={busyMode !== null}
           onClick={() => void generateAndShare("roster")}
-          className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-black transition cursor-pointer disabled:opacity-50"
+          className="k-buton k-buton--lacivert !py-2 !px-4 !text-xs"
         >
-          {busyMode === "roster" ? "Hazırlanıyor..." : "Paylaş: Kadro Listesi"}
-        </button>
-        <button
+          {busyMode === "roster"
+            ? "Hazırlanıyor..."
+            : "Paylaş: Kadro Listesi"}
+        </motion.button>
+        <motion.button
+          whileTap={{ scale: 0.97 }}
           type="button"
           disabled={busyMode !== null}
           onClick={() => void generateAndShare("pitch")}
-          className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-black transition cursor-pointer disabled:opacity-50"
+          className="k-buton !bg-emerald-700 hover:!bg-emerald-800 !text-white !py-2 !px-4 !text-xs"
         >
-          {busyMode === "pitch" ? "Hazırlanıyor..." : "Paylaş: Çim Saha Dizilişi"}
-        </button>
+          {busyMode === "pitch"
+            ? "Hazırlanıyor..."
+            : "Paylaş: Çim Saha Dizilişi"}
+        </motion.button>
       </div>
 
-      {previewUrl && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] max-w-md w-full p-4 space-y-3 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-black text-[var(--text-primary)]">
-                {previewTitle}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreviewUrl(null)}
-                className="text-xs font-black text-[var(--brand-red)] cursor-pointer"
-              >
-                Kapat
-              </button>
-            </div>
-            <img
-              src={previewUrl}
-              alt={previewTitle}
-              className="w-full rounded-2xl border border-[var(--border-subtle)]"
-            />
-            <a
-              href={previewUrl}
-              download={`ikbal-spor-${previewTitle.toLowerCase().replace(/\s+/g, "-")}.png`}
-              className="block w-full text-center py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-black"
+      <AnimatePresence>
+        {previewUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: EASE.yumusak }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={azaltilmis ? false : { opacity: 0, scale: 0.94, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={SPRING.keskin}
+              className="k-artik max-w-md w-full p-4 space-y-3 shadow-2xl"
             >
-              PNG Olarak İndir
-            </a>
-          </div>
-        </div>
-      )}
+              <div className="flex items-center justify-between">
+                <span className="k-posta text-base text-[var(--text-primary)]">
+                  {previewTitle}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewUrl(null)}
+                  className="k-buton k-buton--hayalet !py-1 !px-2.5 !text-xs"
+                >
+                  Kapat
+                </button>
+              </div>
+              <img
+                src={previewUrl}
+                alt={previewTitle}
+                className="w-full rounded-2xl border border-[var(--border-subtle)]"
+              />
+              <a
+                href={previewUrl}
+                download={`ikbal-spor-${previewTitle
+                  .toLowerCase()
+                  .replace(/\s+/g, "-")}.png`}
+                className="k-buton k-buton--kirmizi w-full !py-2.5 !text-xs"
+              >
+                PNG Olarak İndir
+              </a>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

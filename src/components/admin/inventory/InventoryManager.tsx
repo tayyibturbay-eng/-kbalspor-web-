@@ -251,7 +251,10 @@ export function InventoryManager({
         .in("key", ["ikbal_jersey_units_v1", "ikbal_stock_units_v1"]);
 
       const byKey = new Map<string, string>();
-      for (const row of (data || []) as Array<{ key?: string; value?: string | null }>) {
+      for (const row of (data || []) as Array<{
+        key?: string;
+        value?: string | null;
+      }>) {
         if (row.key && row.value) byKey.set(row.key, row.value);
       }
 
@@ -265,7 +268,10 @@ export function InventoryManager({
           setJerseyUnitsMap(JSON.parse(rawJ) as Record<string, UnitDetail[]>);
           await supabase
             .from("club_settings")
-            .upsert({ key: "ikbal_jersey_units_v1", value: rawJ }, { onConflict: "key" });
+            .upsert(
+              { key: "ikbal_jersey_units_v1", value: rawJ },
+              { onConflict: "key" }
+            );
         }
       }
 
@@ -279,7 +285,10 @@ export function InventoryManager({
           setStockUnitsMap(JSON.parse(rawS) as Record<string, UnitDetail[]>);
           await supabase
             .from("club_settings")
-            .upsert({ key: "ikbal_stock_units_v1", value: rawS }, { onConflict: "key" });
+            .upsert(
+              { key: "ikbal_stock_units_v1", value: rawS },
+              { onConflict: "key" }
+            );
         }
       }
     } catch {
@@ -309,10 +318,6 @@ export function InventoryManager({
   }, [fetchInventoryData, syncUnitMapsFromDb]);
 
   function saveJerseyUnitsMap(next: Record<string, UnitDetail[]>) {
-    void supabase.from("club_settings").upsert({
-      key: "ikbal_jersey_units_v1",
-      value: JSON.stringify(next),
-    });
     setJerseyUnitsMap(next);
     const serialized = JSON.stringify(next);
     try {
@@ -322,14 +327,13 @@ export function InventoryManager({
     }
     void supabase
       .from("club_settings")
-      .upsert({ key: "ikbal_jersey_units_v1", value: serialized }, { onConflict: "key" });
+      .upsert(
+        { key: "ikbal_jersey_units_v1", value: serialized },
+        { onConflict: "key" }
+      );
   }
 
   function saveStockUnitsMap(next: Record<string, UnitDetail[]>) {
-    void supabase.from("club_settings").upsert({
-      key: "ikbal_stock_units_v1",
-      value: JSON.stringify(next),
-    });
     setStockUnitsMap(next);
     const serialized = JSON.stringify(next);
     try {
@@ -339,7 +343,10 @@ export function InventoryManager({
     }
     void supabase
       .from("club_settings")
-      .upsert({ key: "ikbal_stock_units_v1", value: serialized }, { onConflict: "key" });
+      .upsert(
+        { key: "ikbal_stock_units_v1", value: serialized },
+        { onConflict: "key" }
+      );
   }
 
   const activeJerseySet = useMemo(
@@ -399,9 +406,7 @@ export function InventoryManager({
 
     await supabase
       .from("jersey_sets")
-      .update({
-        available_count: nextAvail,
-      })
+      .update({ available_count: nextAvail })
       .eq("id", setRow.id);
 
     await insertEquipmentLogSafe({
@@ -446,9 +451,7 @@ export function InventoryManager({
 
     await supabase
       .from("equipment_stock")
-      .update({
-        available_count: nextAvail,
-      })
+      .update({ available_count: nextAvail })
       .eq("id", stockRow.id);
 
     await insertEquipmentLogSafe({
@@ -551,10 +554,7 @@ export function InventoryManager({
       status: "Müsait",
     });
 
-    saveJerseyUnitsMap({
-      ...jerseyUnitsMap,
-      [activeJerseySet.id]: baseList,
-    });
+    saveJerseyUnitsMap({ ...jerseyUnitsMap, [activeJerseySet.id]: baseList });
     setCustomJerseyNumber("");
     notify(true, `#${num} numaralı forma (${customJerseySize}) eklendi.`);
   }
@@ -592,10 +592,7 @@ export function InventoryManager({
       status: "Müsait",
     });
 
-    saveStockUnitsMap({
-      ...stockUnitsMap,
-      [activeOtherItem.id]: baseList,
-    });
+    saveStockUnitsMap({ ...stockUnitsMap, [activeOtherItem.id]: baseList });
     setCustomStockNumber("");
     notify(true, `#${num} numaralı malzeme (${customStockSize}) eklendi.`);
   }
@@ -900,10 +897,7 @@ export function InventoryManager({
         otherSize,
         parsedNum && !Number.isNaN(parsedNum) ? parsedNum : null
       );
-      saveStockUnitsMap({
-        ...stockUnitsMap,
-        [createdRow.id]: autoStockUnits,
-      });
+      saveStockUnitsMap({ ...stockUnitsMap, [createdRow.id]: autoStockUnits });
       setStockItems((prev) =>
         prev.some((x) => x.id === createdRow.id)
           ? prev.map((x) => (x.id === createdRow.id ? createdRow : x))
@@ -995,10 +989,7 @@ export function InventoryManager({
 
       await supabase
         .from("jersey_sets")
-        .update({
-          available_count: nextAvail,
-          size_label: sizeLabel,
-        })
+        .update({ available_count: nextAvail, size_label: sizeLabel })
         .eq("id", chosenSet.id);
 
       const baseUnits =
@@ -1099,10 +1090,7 @@ export function InventoryManager({
 
     await supabase
       .from("equipment_stock")
-      .update({
-        available_count: nextStockAvail,
-        size_label: sizeLabel,
-      })
+      .update({ available_count: nextStockAvail, size_label: sizeLabel })
       .eq("id", chosenStock.id);
 
     if (parsedNum !== null) {
@@ -1143,10 +1131,7 @@ export function InventoryManager({
               : undefined,
         });
       }
-      saveStockUnitsMap({
-        ...stockUnitsMap,
-        [chosenStock.id]: baseStockUnits,
-      });
+      saveStockUnitsMap({ ...stockUnitsMap, [chosenStock.id]: baseStockUnits });
     }
 
     setSubmitting(false);
@@ -1210,724 +1195,56 @@ export function InventoryManager({
   }
 
   return (
-    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
-      <div className="bg-[var(--bg-surface)] p-4 rounded-2xl border border-[var(--border-subtle)] shadow-xs flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-[var(--text-primary)]">
-            Ortak Forma &amp; Malzeme Yönetim Paneli
-          </h2>
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-            Formalar ve diğer malzemeler tek ortak panelde; kapak görseli,
-            1&apos;den otomatik numara, özel numara ekleme, beden/numara/durum
-            üzerinden kayıp stok düşümü ve geçmiş yönetimi birlikte çalışır.
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setPanelTab("forma")}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
-              panelTab === "forma"
-                ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-            }`}
-          >
-            Formalar ({jerseySets.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setPanelTab("ekipman")}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
-              panelTab === "ekipman"
-                ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]"
-                : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-            }`}
-          >
-            Diğer Malzemeler ({stockItems.length})
-          </button>
-        </div>
+    <div className="space-y-6 text-[var(--text-primary)] tabular-nums min-w-0">
+      {/* 1. Ortak Panel: Sadece Formalar ve Diğer Malzemeler Butonları */}
+      <div className="bg-[var(--bg-surface)] p-3.5 sm:p-4 rounded-2xl border border-[var(--border-subtle)] shadow-xs flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setPanelTab("forma")}
+          className={`flex-1 sm:flex-initial min-h-[40px] px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
+            panelTab === "forma"
+              ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
+              : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+          }`}
+        >
+          Formalar ({jerseySets.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setPanelTab("ekipman")}
+          className={`flex-1 sm:flex-initial min-h-[40px] px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
+            panelTab === "ekipman"
+              ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]"
+              : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+          }`}
+        >
+          Diğer Malzemeler ({stockItems.length})
+        </button>
       </div>
 
-      {panelTab === "forma" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <form
-            onSubmit={handleCreateJersey}
-            className="lg:col-span-5 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5"
-          >
-            <h3 className="text-base font-black">
-              Yeni Forma Ekle (Otomatik 1&apos;den Numaralandır)
-            </h3>
-
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Forma Seti Adı
-              </label>
-              <input
-                type="text"
-                value={jerseyName}
-                onChange={(e) => setJerseyName(e.target.value)}
-                placeholder="Örn: U11 İç Saha Çubuklu"
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Tür
-                </label>
-                <select
-                  value={kitType}
-                  onChange={(e) => setKitType(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
-                >
-                  <option value="İç Saha">İç Saha</option>
-                  <option value="Deplasman">Deplasman</option>
-                  <option value="Alternatif">Alternatif</option>
-                  <option value="Kaleci">Kaleci</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Adet *
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={200}
-                  required
-                  value={jerseyQty}
-                  onChange={(e) => setJerseyQty(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-black"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Beden
-                </label>
-                <select
-                  value={jerseyDefaultSize}
-                  onChange={(e) => setJerseyDefaultSize(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold"
-                >
-                  {SIZE_OPTIONS.map((sz) => (
-                    <option key={sz} value={sz}>
-                      {sz}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label className="text-xs font-bold text-[var(--text-secondary)]">
-                  Kapak Fotoğrafı
-                </label>
-                <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
-                  Görsel Yükle
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleUploadCover(f, setJerseyPhotoUrl);
-                    }}
-                  />
-                </label>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <img
-                  src={jerseyPhotoUrl || "/logo.png"}
-                  alt="Forma kapak önizleme"
-                  className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
-                />
-                <input
-                  type="text"
-                  value={jerseyPhotoUrl}
-                  onChange={(e) => setJerseyPhotoUrl(e.target.value)}
-                  placeholder="/logo.png veya görsel URL"
-                  className="flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={creatingJersey}
-              className="w-full py-2.5 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-xs font-black cursor-pointer"
-            >
-              {creatingJersey
-                ? "Ekleniyor..."
-                : "Formayı Adetle Ekle (1'den Numaralandır)"}
-            </button>
-          </form>
-
-          <div className="lg:col-span-7 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-black">
-                Forma Setleri &amp; Beden / Numara / Durum Paneli
-              </h3>
-              <select
-                value={activeJerseySet?.id || ""}
-                onChange={(e) => setSelectedJerseySetId(e.target.value)}
-                className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold"
-              >
-                {jerseySets.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.set_name} ({j.available_count}/{j.total_count})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-[var(--text-secondary)]">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
-                Teslim Edildi
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
-                Kayıp (Müsait Stoktan -1 Düşer)
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
-                Müsait
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {jerseySets.map((j) => (
-                <div
-                  key={j.id}
-                  className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
-                    activeJerseySet?.id === j.id
-                      ? "border-[var(--brand-navy)] bg-[var(--brand-navy-soft)]"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedJerseySetId(j.id)}
-                    className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
-                  >
-                    <img
-                      src={j.photo_url || "/logo.png"}
-                      alt={j.set_name}
-                      className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-black truncate">
-                        {j.set_name}
-                      </div>
-                      <div className="text-[11px] text-[var(--text-secondary)]">
-                        {j.kit_type} • Beden: {j.size_label || "M"} • Stok:{" "}
-                        {j.available_count}/{j.total_count}
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={deletingSetId === j.id}
-                    onClick={() => void handleDeleteJerseySet(j)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-[11px] font-extrabold cursor-pointer shrink-0 disabled:opacity-50"
-                  >
-                    {deletingSetId === j.id ? "..." : "Sil"}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {activeJerseySet && (
-              <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-black">
-                    {activeJerseySet.set_name} — Tekil Forma Beden / Numara /
-                    Durum ({currentJerseyUnits.length} adet)
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min={1}
-                      max={999}
-                      value={customJerseyNumber}
-                      onChange={(e) => setCustomJerseyNumber(e.target.value)}
-                      placeholder="No (örn: 95)"
-                      className="w-24 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
-                    />
-                    <select
-                      value={customJerseySize}
-                      onChange={(e) => setCustomJerseySize(e.target.value)}
-                      className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
-                    >
-                      {SIZE_OPTIONS.map((sz) => (
-                        <option key={sz} value={sz}>
-                          {sz}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleAddCustomJerseyUnit}
-                      className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer"
-                    >
-                      + Numara Ekle
-                    </button>
-                  </div>
-                </div>
-
-                <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {currentJerseyUnits.map((unit) => (
-                    <div
-                      key={unit.id}
-                      className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
-                        unit.status
-                      )}`}
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded-md font-black text-[11px] ${getUnitBadgeStyle(
-                            unit.status
-                          )}`}
-                        >
-                          #{unit.number} • {unit.status}
-                        </span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={999}
-                          value={unit.number}
-                          onChange={(e) => {
-                            const nextNum = parseInt(e.target.value, 10);
-                            if (!Number.isNaN(nextNum) && nextNum > 0) {
-                              void handleUpdateJerseyUnit(unit.id, {
-                                number: nextNum,
-                              });
-                            }
-                          }}
-                          className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)]"
-                        />
-                      </div>
-
-                      {unit.assigned_to && unit.status === "Teslim Edildi" && (
-                        <div className="text-[10px] font-bold text-amber-200 truncate">
-                          Sporcu: {unit.assigned_to}
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-1">
-                        <select
-                          value={unit.size}
-                          onChange={(e) =>
-                            void handleUpdateJerseyUnit(unit.id, {
-                              size: e.target.value,
-                            })
-                          }
-                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
-                        >
-                          {SIZE_OPTIONS.map((sz) => (
-                            <option key={sz} value={sz}>
-                              {sz}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={
-                            unit.status === "Teslim Edildi"
-                              ? "Müsait"
-                              : unit.status
-                          }
-                          onChange={(e) =>
-                            void handleUpdateJerseyUnit(unit.id, {
-                              status: e.target.value as UnitDetail["status"],
-                            })
-                          }
-                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
-                        >
-                          {UNIT_SELECTABLE_STATUSES.map((st) => (
-                            <option key={st} value={st}>
-                              {st}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {panelTab === "ekipman" && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <form
-            onSubmit={handleCreateOtherItem}
-            className="lg:col-span-5 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5"
-          >
-            <h3 className="text-base font-black">
-              Yeni Malzeme Ekle (Yağmurluk, Eşofman Takımı vb.)
-            </h3>
-
-            <div>
-              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                Malzeme Adı *
-              </label>
-              <input
-                type="text"
-                required
-                value={productName}
-                onChange={(e) => setProductName(e.target.value)}
-                placeholder="Örn: Kulüp Yağmurluğu veya Eşofman Takımı"
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Kategori
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold"
-                >
-                  <option value="Eşofman Takımı">Eşofman Takımı</option>
-                  <option value="Yağmurluk">Yağmurluk</option>
-                  <option value="Antrenman Yeleği">Antrenman Yeleği</option>
-                  <option value="Top">Top</option>
-                  <option value="Çanta">Çanta</option>
-                  <option value="Diğer">Diğer</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Adet
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={500}
-                  value={otherQty}
-                  onChange={(e) => setOtherQty(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-black"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Beden
-                </label>
-                <select
-                  value={otherSize}
-                  onChange={(e) => setOtherSize(e.target.value)}
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold"
-                >
-                  {SIZE_OPTIONS.map((sz) => (
-                    <option key={sz} value={sz}>
-                      {sz}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-                  Numara (Ops.)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={999}
-                  value={otherNumber}
-                  onChange={(e) => setOtherNumber(e.target.value)}
-                  placeholder="No"
-                  className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <label className="text-xs font-bold text-[var(--text-secondary)]">
-                  Kapak Fotoğrafı
-                </label>
-                <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
-                  Görsel Yükle
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) void handleUploadCover(f, setOtherPhotoUrl);
-                    }}
-                  />
-                </label>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <img
-                  src={otherPhotoUrl || "/logo.png"}
-                  alt="Malzeme kapak önizleme"
-                  className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
-                />
-                <input
-                  type="text"
-                  value={otherPhotoUrl}
-                  onChange={(e) => setOtherPhotoUrl(e.target.value)}
-                  placeholder="/logo.png veya görsel URL"
-                  className="flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={creatingOther}
-              className="w-full py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-black cursor-pointer"
-            >
-              {creatingOther ? "Ekleniyor..." : "Malzemeyi Envantere Ekle"}
-            </button>
-          </form>
-
-          <div className="lg:col-span-7 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-black">
-                Diğer Malzemeler &amp; Beden / Numara / Durum Paneli
-              </h3>
-              <select
-                value={activeOtherItem?.id || ""}
-                onChange={(e) => setSelectedStockId(e.target.value)}
-                className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold"
-              >
-                {stockItems.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.product_name} ({s.available_count}/{s.total_count})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-[var(--text-secondary)]">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
-                Teslim Edildi
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
-                Kayıp (Müsait Stoktan -1 Düşer)
-              </span>
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
-                Müsait
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {stockItems.map((s) => (
-                <div
-                  key={s.id}
-                  className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
-                    activeOtherItem?.id === s.id
-                      ? "border-[var(--brand-red)] bg-[var(--status-warning-bg)]/20"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSelectedStockId(s.id)}
-                    className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
-                  >
-                    <img
-                      src={s.photo_url || "/logo.png"}
-                      alt={s.product_name}
-                      className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-xs font-black truncate">
-                        {s.product_name}
-                      </div>
-                      <div className="text-[11px] text-[var(--text-secondary)]">
-                        {s.category} • Beden: {s.size_label || "M"} • Stok:{" "}
-                        {s.available_count}/{s.total_count}
-                      </div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={deletingStockId === s.id}
-                    onClick={() => void handleDeleteStockItem(s)}
-                    className="px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-[11px] font-extrabold cursor-pointer shrink-0 disabled:opacity-50"
-                  >
-                    {deletingStockId === s.id ? "..." : "Sil"}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {activeOtherItem && (
-              <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-black">
-                    {activeOtherItem.product_name} — Tekil Malzeme Beden /
-                    Numara / Durum ({currentStockUnits.length} adet)
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="number"
-                      min={1}
-                      max={999}
-                      value={customStockNumber}
-                      onChange={(e) => setCustomStockNumber(e.target.value)}
-                      placeholder="No (örn: 12)"
-                      className="w-24 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
-                    />
-                    <select
-                      value={customStockSize}
-                      onChange={(e) => setCustomStockSize(e.target.value)}
-                      className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold"
-                    >
-                      {SIZE_OPTIONS.map((sz) => (
-                        <option key={sz} value={sz}>
-                          {sz}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={handleAddCustomStockUnit}
-                      className="px-2.5 py-1 rounded-lg bg-[var(--brand-red)] text-white text-xs font-extrabold cursor-pointer"
-                    >
-                      + Numara Ekle
-                    </button>
-                  </div>
-                </div>
-
-                <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {currentStockUnits.map((unit) => (
-                    <div
-                      key={unit.id}
-                      className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
-                        unit.status
-                      )}`}
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded-md font-black text-[11px] ${getUnitBadgeStyle(
-                            unit.status
-                          )}`}
-                        >
-                          #{unit.number} • {unit.status}
-                        </span>
-                        <input
-                          type="number"
-                          min={1}
-                          max={999}
-                          value={unit.number}
-                          onChange={(e) => {
-                            const nextNum = parseInt(e.target.value, 10);
-                            if (!Number.isNaN(nextNum) && nextNum > 0) {
-                              void handleUpdateStockUnit(unit.id, {
-                                number: nextNum,
-                              });
-                            }
-                          }}
-                          className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)]"
-                        />
-                      </div>
-
-                      {unit.assigned_to && unit.status === "Teslim Edildi" && (
-                        <div className="text-[10px] font-bold text-amber-200 truncate">
-                          Sporcu: {unit.assigned_to}
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-1">
-                        <select
-                          value={unit.size}
-                          onChange={(e) =>
-                            void handleUpdateStockUnit(unit.id, {
-                              size: e.target.value,
-                            })
-                          }
-                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
-                        >
-                          {SIZE_OPTIONS.map((sz) => (
-                            <option key={sz} value={sz}>
-                              {sz}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={
-                            unit.status === "Teslim Edildi"
-                              ? "Müsait"
-                              : unit.status
-                          }
-                          onChange={(e) =>
-                            void handleUpdateStockUnit(unit.id, {
-                              status: e.target.value as UnitDetail["status"],
-                            })
-                          }
-                          className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)]"
-                        >
-                          {UNIT_SELECTABLE_STATUSES.map((st) => (
-                            <option key={st} value={st}>
-                              {st}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
+      {/* 2. Forma & Ekipman Emanet / İade İşlemi */}
       <form
         onSubmit={handleAssignOrReturn}
-        className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs"
+        className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 sm:p-6 space-y-4 shadow-xs min-w-0"
       >
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
           <div>
-            <h3 className="text-lg font-black text-[var(--text-primary)]">
+            <h3 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
               Forma &amp; Ekipman Emanet / İade İşlemi
             </h3>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Bu alan yalnızca emanet teslim ve iade işlemleri içindir. Kayıp
-              veya hasarlı ürünleri yukarıdaki Beden / Numara / Durum panelinden
-              Kayıp seçerek müsait stoktan düşebilirsiniz.
-            </p>
           </div>
-
-          <div className="flex items-center gap-2">
-            <select
-              value={ageFilter}
-              onChange={(e) => setAgeFilter(e.target.value)}
-              className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold"
-            >
-              <option value="Tümü">Tüm Yaş Grupları</option>
-              {AGE_GROUPS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-          </div>
+          <select
+            value={ageFilter}
+            onChange={(e) => setAgeFilter(e.target.value)}
+            className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold min-h-[38px]"
+          >
+            <option value="Tümü">Tüm Yaş Grupları</option>
+            {AGE_GROUPS.map((g) => (
+              <option key={g} value={g}>
+                {g}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1938,7 +1255,7 @@ export function InventoryManager({
             <select
               value={selectedPlayerId}
               onChange={(e) => setSelectedPlayerId(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)] min-h-[42px]"
             >
               {filteredPlayers.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -1956,7 +1273,7 @@ export function InventoryManager({
               <select
                 value={selectedJerseySetId}
                 onChange={(e) => setSelectedJerseySetId(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)] min-h-[42px]"
               >
                 {jerseySets.map((j) => (
                   <option key={j.id} value={j.id}>
@@ -1973,7 +1290,7 @@ export function InventoryManager({
               <select
                 value={selectedStockId}
                 onChange={(e) => setSelectedStockId(e.target.value)}
-                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)] min-h-[42px]"
               >
                 {stockItems.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -2000,11 +1317,7 @@ export function InventoryManager({
               placeholder={
                 panelTab === "forma" ? "Örn: 10 (Zorunlu)" : "İsteğe bağlı"
               }
-              className={`w-full rounded-xl border px-3 py-2.5 text-xs sm:text-sm font-black text-[var(--text-primary)] ${
-                panelTab === "forma" && !jerseyNumber.trim()
-                  ? "border-amber-400 bg-[var(--status-warning-bg)]/35"
-                  : "border-[var(--border-strong)] bg-[var(--bg-subtle)]"
-              }`}
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-black text-[var(--text-primary)] min-h-[42px]"
             />
           </div>
 
@@ -2015,7 +1328,7 @@ export function InventoryManager({
             <select
               value={sizeLabel}
               onChange={(e) => setSizeLabel(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)] min-h-[42px]"
             >
               {SIZE_OPTIONS.map((sz) => (
                 <option key={sz} value={sz}>
@@ -2038,7 +1351,7 @@ export function InventoryManager({
                   e.target.value as "teslim_edildi" | "iade_alindi"
                 )
               }
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)] min-h-[42px]"
             >
               <option value="teslim_edildi">Emanet / Teslim Et</option>
               <option value="iade_alindi">İade Alındı</option>
@@ -2052,7 +1365,7 @@ export function InventoryManager({
             <select
               value={conditionStatus}
               onChange={(e) => setConditionStatus(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)] min-h-[42px]"
             >
               {CONDITION_OPTIONS.map((c) => (
                 <option key={c} value={c}>
@@ -2071,7 +1384,7 @@ export function InventoryManager({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="İsteğe bağlı not..."
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm text-[var(--text-primary)]"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2.5 text-xs sm:text-sm text-[var(--text-primary)] min-h-[42px]"
             />
           </div>
         </div>
@@ -2091,29 +1404,587 @@ export function InventoryManager({
         <button
           type="submit"
           disabled={submitting}
-          className="px-6 py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black cursor-pointer disabled:opacity-50"
+          className="w-full sm:w-auto min-h-[42px] px-6 py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs sm:text-sm font-black cursor-pointer disabled:opacity-50"
         >
           {submitting ? "Kaydediliyor..." : "Emanet / İade İşlemini Kaydet"}
         </button>
       </form>
 
-      <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
+      {/* 3. Forma Setleri / Diğer Malzemeler Beden / Numara / Durum Paneli */}
+      {panelTab === "forma" ? (
+        <div className="bg-[var(--bg-surface)] p-4 sm:p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4 min-w-0">
+          <h3 className="text-base font-black">
+            Forma Setleri &amp; Beden / Numara / Durum Paneli
+          </h3>
+
+          <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-[var(--text-secondary)]">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-amber-400 inline-block" />
+              Teslim Edildi
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-rose-600 inline-block" />
+              Kayıp (-1 Stok)
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
+              Müsait
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {jerseySets.map((j) => (
+              <div
+                key={j.id}
+                className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
+                  activeJerseySet?.id === j.id
+                    ? "border-[var(--brand-navy)] bg-[var(--brand-navy-soft)]"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedJerseySetId(j.id)}
+                  className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
+                >
+                  <img
+                    src={j.photo_url || "/logo.png"}
+                    alt={j.set_name}
+                    className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black truncate">
+                      {j.set_name}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      {j.kit_type} • Beden: {j.size_label || "M"} • Stok:{" "}
+                      {j.available_count}/{j.total_count}
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingSetId === j.id}
+                  onClick={() => void handleDeleteJerseySet(j)}
+                  className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-[11px] font-extrabold cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {deletingSetId === j.id ? "..." : "Sil"}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {activeJerseySet && (
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-3.5 sm:p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-black">
+                  {activeJerseySet.set_name} ({currentJerseyUnits.length} adet)
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={customJerseyNumber}
+                    onChange={(e) => setCustomJerseyNumber(e.target.value)}
+                    placeholder="No"
+                    className="w-20 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold min-h-[36px]"
+                  />
+                  <select
+                    value={customJerseySize}
+                    onChange={(e) => setCustomJerseySize(e.target.value)}
+                    className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold min-h-[36px]"
+                  >
+                    {SIZE_OPTIONS.map((sz) => (
+                      <option key={sz} value={sz}>
+                        {sz}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomJerseyUnit}
+                    className="min-h-[36px] px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer"
+                  >
+                    + Numara
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {currentJerseyUnits.map((unit) => (
+                  <div
+                    key={unit.id}
+                    className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
+                      unit.status
+                    )}`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className={`px-2 py-0.5 rounded-md font-black text-[11px] ${getUnitBadgeStyle(
+                          unit.status
+                        )}`}
+                      >
+                        #{unit.number} • {unit.status}
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={999}
+                        value={unit.number}
+                        onChange={(e) => {
+                          const nextNum = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(nextNum) && nextNum > 0) {
+                            void handleUpdateJerseyUnit(unit.id, {
+                              number: nextNum,
+                            });
+                          }
+                        }}
+                        className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)] min-h-[34px]"
+                      />
+                    </div>
+
+                    {unit.assigned_to && unit.status === "Teslim Edildi" && (
+                      <div className="text-[10px] font-bold text-amber-200 truncate">
+                        Sporcu: {unit.assigned_to}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-1">
+                      <select
+                        value={unit.size}
+                        onChange={(e) =>
+                          void handleUpdateJerseyUnit(unit.id, {
+                            size: e.target.value,
+                          })
+                        }
+                        className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)] min-h-[36px]"
+                      >
+                        {SIZE_OPTIONS.map((sz) => (
+                          <option key={sz} value={sz}>
+                            {sz}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={
+                          unit.status === "Teslim Edildi"
+                            ? "Müsait"
+                            : unit.status
+                        }
+                        onChange={(e) =>
+                          void handleUpdateJerseyUnit(unit.id, {
+                            status: e.target.value as UnitDetail["status"],
+                          })
+                        }
+                        className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)] min-h-[36px]"
+                      >
+                        {UNIT_SELECTABLE_STATUSES.map((st) => (
+                          <option key={st} value={st}>
+                            {st}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-[var(--bg-surface)] p-4 sm:p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-4 min-w-0">
+          <h3 className="text-base font-black">
+            Diğer Malzemeler &amp; Beden / Numara / Durum Paneli
+          </h3>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {stockItems.map((s) => (
+              <div
+                key={s.id}
+                className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition ${
+                  activeOtherItem?.id === s.id
+                    ? "border-[var(--brand-red)] bg-[var(--status-warning-bg)]/20"
+                    : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedStockId(s.id)}
+                  className="flex items-center gap-3 text-left cursor-pointer min-w-0 flex-1"
+                >
+                  <img
+                    src={s.photo_url || "/logo.png"}
+                    alt={s.product_name}
+                    className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-black truncate">
+                      {s.product_name}
+                    </div>
+                    <div className="text-[11px] text-[var(--text-secondary)]">
+                      {s.category} • Beden: {s.size_label || "M"} • Stok:{" "}
+                      {s.available_count}/{s.total_count}
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingStockId === s.id}
+                  onClick={() => void handleDeleteStockItem(s)}
+                  className="min-h-[36px] px-2.5 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-[11px] font-extrabold cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {deletingStockId === s.id ? "..." : "Sil"}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {activeOtherItem && (
+            <div className="rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] p-3.5 sm:p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-black">
+                  {activeOtherItem.product_name} ({currentStockUnits.length}{" "}
+                  adet)
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={customStockNumber}
+                    onChange={(e) => setCustomStockNumber(e.target.value)}
+                    placeholder="No"
+                    className="w-20 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold min-h-[36px]"
+                  />
+                  <select
+                    value={customStockSize}
+                    onChange={(e) => setCustomStockSize(e.target.value)}
+                    className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-2 py-1 text-xs font-bold min-h-[36px]"
+                  >
+                    {SIZE_OPTIONS.map((sz) => (
+                      <option key={sz} value={sz}>
+                        {sz}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomStockUnit}
+                    className="min-h-[36px] px-2.5 py-1 rounded-lg bg-[var(--brand-red)] text-white text-xs font-extrabold cursor-pointer"
+                  >
+                    + Numara
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-64 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                {currentStockUnits.map((unit) => (
+                  <div
+                    key={unit.id}
+                    className={`rounded-xl border p-2.5 space-y-1.5 text-xs transition ${getUnitCardStyle(
+                      unit.status
+                    )}`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span
+                        className={`px-2 py-0.5 rounded-md font-black text-[11px] ${getUnitBadgeStyle(
+                          unit.status
+                        )}`}
+                      >
+                        #{unit.number} • {unit.status}
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={999}
+                        value={unit.number}
+                        onChange={(e) => {
+                          const nextNum = parseInt(e.target.value, 10);
+                          if (!Number.isNaN(nextNum) && nextNum > 0) {
+                            void handleUpdateStockUnit(unit.id, {
+                              number: nextNum,
+                            });
+                          }
+                        }}
+                        className="w-16 rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--text-primary)] min-h-[34px]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1">
+                      <select
+                        value={unit.size}
+                        onChange={(e) =>
+                          void handleUpdateStockUnit(unit.id, {
+                            size: e.target.value,
+                          })
+                        }
+                        className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)] min-h-[36px]"
+                      >
+                        {SIZE_OPTIONS.map((sz) => (
+                          <option key={sz} value={sz}>
+                            {sz}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={
+                          unit.status === "Teslim Edildi"
+                            ? "Müsait"
+                            : unit.status
+                        }
+                        onChange={(e) =>
+                          void handleUpdateStockUnit(unit.id, {
+                            status: e.target.value as UnitDetail["status"],
+                          })
+                        }
+                        className="rounded border border-[var(--border-strong)] bg-[var(--bg-surface)] px-1.5 py-1 text-[11px] font-bold text-[var(--text-primary)] min-h-[36px]"
+                      >
+                        {UNIT_SELECTABLE_STATUSES.map((st) => (
+                          <option key={st} value={st}>
+                            {st}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. Yeni Forma Ekle / Yeni Malzeme Ekle */}
+      {panelTab === "forma" ? (
+        <form
+          onSubmit={handleCreateJersey}
+          className="bg-[var(--bg-surface)] p-4 sm:p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5 min-w-0"
+        >
+          <h3 className="text-base font-black">
+            Yeni Forma Ekle (Otomatik 1&apos;den Numaralandır)
+          </h3>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Forma Seti Adı
+            </label>
+            <input
+              type="text"
+              value={jerseyName}
+              onChange={(e) => setJerseyName(e.target.value)}
+              placeholder="Örn: U11 İç Saha Çubuklu"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold min-h-[40px]"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Tür
+              </label>
+              <select
+                value={kitType}
+                onChange={(e) => setKitType(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold min-h-[40px]"
+              >
+                <option value="İç Saha">İç Saha</option>
+                <option value="Deplasman">Deplasman</option>
+                <option value="Alternatif">Alternatif</option>
+                <option value="Kaleci">Kaleci</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Adet *
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                required
+                value={jerseyQty}
+                onChange={(e) => setJerseyQty(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-black min-h-[40px]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Beden
+              </label>
+              <select
+                value={jerseyDefaultSize}
+                onChange={(e) => setJerseyDefaultSize(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2.5 py-2 text-xs font-bold min-h-[40px]"
+              >
+                {SIZE_OPTIONS.map((sz) => (
+                  <option key={sz} value={sz}>
+                    {sz}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs font-bold text-[var(--text-secondary)]">
+                Kapak Fotoğrafı
+              </label>
+              <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+                Görsel Yükle
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleUploadCover(f, setJerseyPhotoUrl);
+                  }}
+                />
+              </label>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <img
+                src={jerseyPhotoUrl || "/logo.png"}
+                alt="Forma kapak önizleme"
+                className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
+              />
+              <input
+                type="text"
+                value={jerseyPhotoUrl}
+                onChange={(e) => setJerseyPhotoUrl(e.target.value)}
+                placeholder="/logo.png veya görsel URL"
+                className="flex-1 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs min-h-[40px]"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={creatingJersey}
+            className="w-full min-h-[42px] py-2.5 rounded-xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-xs font-black cursor-pointer"
+          >
+            {creatingJersey
+              ? "Ekleniyor..."
+              : "Formayı Adetle Ekle (1'den Numaralandır)"}
+          </button>
+        </form>
+      ) : (
+        <form
+          onSubmit={handleCreateOtherItem}
+          className="bg-[var(--bg-surface)] p-4 sm:p-5 rounded-2xl border border-[var(--border-subtle)] shadow-xs space-y-3.5 min-w-0"
+        >
+          <h3 className="text-base font-black">Yeni Malzeme Ekle</h3>
+
+          <div>
+            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+              Malzeme Adı *
+            </label>
+            <input
+              type="text"
+              required
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              placeholder="Örn: Kulüp Yağmurluğu veya Eşofman Takımı"
+              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-2 text-xs font-bold min-h-[40px]"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Kategori
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold min-h-[40px]"
+              >
+                <option value="Eşofman Takımı">Eşofman Takımı</option>
+                <option value="Yağmurluk">Yağmurluk</option>
+                <option value="Antrenman Yeleği">Antrenman Yeleği</option>
+                <option value="Top">Top</option>
+                <option value="Çanta">Çanta</option>
+                <option value="Diğer">Diğer</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Adet
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={500}
+                value={otherQty}
+                onChange={(e) => setOtherQty(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-black min-h-[40px]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Beden
+              </label>
+              <select
+                value={otherSize}
+                onChange={(e) => setOtherSize(e.target.value)}
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold min-h-[40px]"
+              >
+                {SIZE_OPTIONS.map((sz) => (
+                  <option key={sz} value={sz}>
+                    {sz}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+                Numara (Ops.)
+              </label>
+              <input
+                type="number"
+                min={1}
+                max={999}
+                value={otherNumber}
+                onChange={(e) => setOtherNumber(e.target.value)}
+                placeholder="No"
+                className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-2 py-2 text-xs font-bold min-h-[40px]"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={creatingOther}
+            className="w-full min-h-[42px] py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-black cursor-pointer"
+          >
+            {creatingOther ? "Ekleniyor..." : "Malzemeyi Envantere Ekle"}
+          </button>
+        </form>
+      )}
+
+      {/* 5. Sporcu Malzeme Geçmişi */}
+      <section className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] p-4 sm:p-6 space-y-4 shadow-xs min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-black text-[var(--text-primary)]">
               Sporcu Malzeme Geçmişi ({filteredLogs.length})
             </h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Tekil kayıt silebilir, seçili kayıtları veya filtrelenen
-              geçmişi temizleyebilirsiniz.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={historyFilterPlayerId}
               onChange={(e) => setHistoryFilterPlayerId(e.target.value)}
-              className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold text-[var(--text-primary)]"
+              className="rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3 py-1.5 text-xs font-bold text-[var(--text-primary)] min-h-[38px]"
             >
               <option value="all">Tüm Sporcular</option>
               {players.map((p) => (
@@ -2127,7 +1998,7 @@ export function InventoryManager({
               <button
                 type="button"
                 onClick={toggleSelectAllFiltered}
-                className="px-3 py-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-xs font-bold text-[var(--text-primary)] cursor-pointer"
+                className="min-h-[38px] px-3 py-1.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-xs font-bold text-[var(--text-primary)] cursor-pointer"
               >
                 {filteredLogs.every((l) => selectedLogIds.includes(l.id))
                   ? "Seçimi Kaldır"
@@ -2145,7 +2016,7 @@ export function InventoryManager({
                     "Seçili Kayıtlar"
                   )
                 }
-                className="px-3.5 py-1.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer disabled:opacity-50"
+                className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer disabled:opacity-50"
               >
                 Seçilenleri Sil ({selectedLogIds.length})
               </button>
@@ -2162,7 +2033,7 @@ export function InventoryManager({
                     : "Seçili Sporcu"
                 )
               }
-              className="px-3.5 py-1.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer disabled:opacity-40"
+              className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold cursor-pointer disabled:opacity-40"
             >
               {clearingHistory ? "Temizleniyor..." : "Geçmişi Temizle"}
             </button>
@@ -2182,9 +2053,9 @@ export function InventoryManager({
               return (
                 <div
                   key={item.id}
-                  className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm"
+                  className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm min-w-0"
                 >
-                  <div className="flex items-start gap-2.5 min-w-0">
+                  <div className="flex items-start gap-2.5 min-w-0 flex-1">
                     <input
                       type="checkbox"
                       checked={isChecked}
@@ -2192,7 +2063,7 @@ export function InventoryManager({
                       className="mt-1 accent-[var(--brand-red)] cursor-pointer"
                     />
                     <div className="min-w-0">
-                      <div className="font-extrabold text-[var(--text-primary)]">
+                      <div className="font-extrabold text-[var(--text-primary)] truncate">
                         {pName} • {item.item_name}
                         {item.jersey_number ? ` (#${item.jersey_number})` : ""}
                         {item.size_label ? ` • Beden: ${item.size_label}` : ""}
@@ -2209,7 +2080,7 @@ export function InventoryManager({
                     type="button"
                     disabled={deletingId === item.id}
                     onClick={() => void handleDeleteSingleLog(item.id)}
-                    className="px-3 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer disabled:opacity-50"
+                    className="min-h-[36px] px-3 py-1.5 rounded-lg bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer disabled:opacity-50 shrink-0"
                   >
                     {deletingId === item.id ? "Siliniyor..." : "Sil"}
                   </button>

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Player } from "@/types/club";
+import { EASE, SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 
@@ -133,6 +135,7 @@ export function PlayerCardSection({
   onPlayerUpdated,
   onFeedback,
 }: PlayerCardSectionProps) {
+  const azaltilmis = useReducedMotion();
   const playerExt = player as Player & {
     skill_points?: number | null;
     pace?: number | null;
@@ -148,7 +151,6 @@ export function PlayerCardSection({
   const [availablePoints, setAvailablePoints] = useState<number>(
     Number(playerExt.skill_points ?? 0)
   );
-  // Sunucudan gelen puan değiştiğinde durumu eşitle (render sırasında ayarlama deseni).
   const [oncekiPuan, setOncekiPuan] = useState(playerExt.skill_points);
   if (oncekiPuan !== playerExt.skill_points) {
     setOncekiPuan(playerExt.skill_points);
@@ -277,6 +279,11 @@ export function PlayerCardSection({
       // yoksay
     }
 
+    onPlayerUpdated?.({
+      ...player,
+      ...(payload as Partial<Player>),
+    });
+
     const { error } = await supabase
       .from("players")
       .update(payload)
@@ -295,10 +302,6 @@ export function PlayerCardSection({
           "Kartınız cihazınızda kaydedildi (Supabase players tablosuna yetenek/kart sütunları eklendiğinde bulutla da eşitlenecek).";
         setStatusMsg({ ok: true, text: fallbackMsg });
         onFeedback?.(fallbackMsg);
-        onPlayerUpdated?.({
-          ...player,
-          ...(payload as Partial<Player>),
-        });
         return;
       }
 
@@ -311,10 +314,6 @@ export function PlayerCardSection({
     const okMsg = "Futbolcu kartınız ve yetenek puanlarınız kaydedildi.";
     setStatusMsg({ ok: true, text: okMsg });
     onFeedback?.(okMsg);
-    onPlayerUpdated?.({
-      ...player,
-      ...(payload as Partial<Player>),
-    });
   }
 
   async function buildCardPngBlob(): Promise<Blob | null> {
@@ -633,8 +632,20 @@ export function PlayerCardSection({
     { label: "FİZ", val: physical },
   ];
 
+  const statButtons: Array<{
+    key: "pace" | "shooting" | "passing" | "dribbling" | "defending" | "physical";
+    label: string;
+  }> = [
+    { key: "pace", label: "+1 Hız" },
+    { key: "shooting", label: "+1 Şut" },
+    { key: "passing", label: "+1 Pas" },
+    { key: "dribbling", label: "+1 Dripling" },
+    { key: "defending", label: "+1 Defans" },
+    { key: "physical", label: "+1 Fizik" },
+  ];
+
   return (
-    <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-5 sm:p-6 shadow-xs space-y-5 text-[var(--text-primary)] tabular-nums">
+    <section className="k-artik p-5 sm:p-6 space-y-5 text-[var(--text-primary)] tabular-nums">
       <style>{`
         @keyframes goleySweep {
           0% { transform: translateX(-160%) skewX(-24deg); opacity: 0.1; }
@@ -662,25 +673,30 @@ export function PlayerCardSection({
       `}</style>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
-            Futbolcu Kartım &amp; Yetenekler
-          </h2>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div>
+            <span className="k-koz text-[10px] block">GOLEY SERİSİ</span>
+            <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+              Futbolcu Kartım &amp; Yetenekler
+            </h2>
+          </div>
           <span
-            className={`px-3 py-0.5 rounded-full text-[11px] font-black ${
+            className={`px-3 py-1 rounded-full text-[11px] font-black ${
               tier.key === "diamond"
                 ? "bg-gradient-to-r from-cyan-300 via-sky-400 to-fuchsia-400 text-slate-950 shadow-sm"
                 : tier.key === "gold"
                 ? "bg-gradient-to-r from-amber-300 to-yellow-500 text-slate-950"
                 : tier.key === "silver"
                 ? "bg-gradient-to-r from-slate-200 to-slate-400 text-slate-950"
-                : tier.key === "bronze" ? "bg-amber-800 text-amber-100" : "bg-zinc-700 text-zinc-100"
+                : tier.key === "bronze"
+                ? "bg-amber-800 text-amber-100"
+                : "bg-zinc-700 text-zinc-100"
             }`}
           >
             {tier.label}
           </span>
         </div>
-        <span className="px-3.5 py-1 rounded-full bg-[var(--brand-navy)] text-white text-xs font-black">
+        <span className="px-4 py-1.5 rounded-full bg-[var(--brand-navy)] text-amber-300 text-xs font-black shadow-2xs">
           Puan: {availablePoints}
         </span>
       </div>
@@ -690,8 +706,10 @@ export function PlayerCardSection({
         kart ışığı ve efekti güçlenir)
       </p>
 
-      <div className="flex justify-center">
-        <div
+      <div className="flex justify-center py-2">
+        <motion.div
+          whileHover={azaltilmis ? undefined : { y: -4, scale: 1.01 }}
+          transition={SPRING.yumusak}
           ref={cardRef}
           className={`relative overflow-hidden w-full max-w-[360px] rounded-[28px] bg-gradient-to-b ${
             tier.cardBg
@@ -805,7 +823,7 @@ export function PlayerCardSection({
             </span>
 
             <div className="bg-slate-950/45 rounded-2xl px-3.5 py-2 w-full border border-white/15">
-              <div className="text-lg font-black tracking-tight leading-snug">
+              <div className="k-posta text-xl tracking-tight leading-snug">
                 {player.full_name}
               </div>
               <p className={`text-[11px] italic mt-0.5 ${tier.accentText}`}>
@@ -825,7 +843,7 @@ export function PlayerCardSection({
                   </div>
                   <div className="h-1.5 w-full rounded-full bg-white/15 overflow-hidden">
                     <div
-                      className={`h-full rounded-full bg-gradient-to-r ${tier.statBarColor}`}
+                      className={`h-full rounded-full bg-gradient-to-r ${tier.statBarColor} transition-all duration-300`}
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -833,165 +851,162 @@ export function PlayerCardSection({
               );
             })}
           </div>
-        </div>
+        </motion.div>
       </div>
 
       <div className="space-y-2.5">
-        <div className="text-xs font-black text-[var(--text-primary)]">
+        <div className="k-koz text-[10px]">
           Puan Harca (Kalan Puan: {availablePoints})
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => handleSpendPoint("pace")}
-            className="px-3.5 py-2 rounded-xl bg-[var(--bg-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
-          >
-            +1 Hız
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSpendPoint("shooting")}
-            className="px-3.5 py-2 rounded-xl bg-[var(--bg-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
-          >
-            +1 Şut
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSpendPoint("passing")}
-            className="px-3.5 py-2 rounded-xl bg-[var(--bg-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
-          >
-            +1 Pas
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSpendPoint("dribbling")}
-            className="px-3.5 py-2 rounded-xl bg-[var(--bg-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
-          >
-            +1 Dripling
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSpendPoint("defending")}
-            className="px-3.5 py-2 rounded-xl bg-[var(--bg-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
-          >
-            +1 Defans
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSpendPoint("physical")}
-            className="px-3.5 py-2 rounded-xl bg-[var(--bg-subtle)] hover:opacity-90 border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
-          >
-            +1 Fizik
-          </button>
+          {statButtons.map((btn) => (
+            <motion.button
+              whileTap={{ scale: 0.94 }}
+              key={btn.key}
+              type="button"
+              disabled={availablePoints <= 0}
+              onClick={() => handleSpendPoint(btn.key)}
+              className="k-buton k-buton--hayalet !py-2 !px-3.5 !text-xs"
+            >
+              {btn.label}
+            </motion.button>
+          ))}
         </div>
       </div>
-
-      <div className="space-y-3">
-        <input
-          type="text"
-          value={cardTitle}
-          onChange={(e) => setCardTitle(e.target.value)}
-          placeholder="Kart başlığı (Örn: Gol Makinesi)"
-          className="w-full rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-4 py-3 text-sm font-bold text-[var(--text-primary)]"
-        />
-
-        <input
-          type="text"
-          value={cardMotto}
-          onChange={(e) => setCardMotto(e.target.value)}
-          placeholder="Kart mottosu (Örn: Her maç final!)"
-          className="w-full rounded-2xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-4 py-3 text-sm font-semibold text-[var(--text-primary)]"
-        />
-      </div>
-
-      {statusMsg && (
-        <div
-          className={`p-3 rounded-xl text-xs font-bold ${
-            statusMsg.ok
-              ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-              : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
-          }`}
-        >
-          {statusMsg.text}
-        </div>
-      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <button
+        <div>
+          <label className="k-koz text-[10px] block mb-1">Kart Unvanı</label>
+          <input
+            type="text"
+            value={cardTitle}
+            onChange={(e) => setCardTitle(e.target.value)}
+            placeholder="Kart başlığı (Örn: Gol Makinesi)"
+            className="k-alan font-bold"
+          />
+        </div>
+
+        <div>
+          <label className="k-koz text-[10px] block mb-1">Kart Mottosu</label>
+          <input
+            type="text"
+            value={cardMotto}
+            onChange={(e) => setCardMotto(e.target.value)}
+            placeholder="Kart mottosu (Örn: Her maç final!)"
+            className="k-alan font-semibold"
+          />
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {statusMsg && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: EASE.yumusak }}
+            className={`p-3.5 rounded-2xl text-xs font-extrabold ${
+              statusMsg.ok
+                ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
+            }`}
+          >
+            {statusMsg.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <motion.button
+          whileTap={{ scale: 0.98 }}
           type="button"
           disabled={saving}
           onClick={() => void handleSaveCard()}
-          className="w-full py-3.5 rounded-2xl bg-[var(--brand-navy)] hover:opacity-95 text-white text-sm font-black cursor-pointer disabled:opacity-50 transition"
+          className="k-buton k-buton--lacivert w-full !py-3.5 !text-sm"
         >
           {saving ? "Kaydediliyor..." : "Kartımı Kaydet"}
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.98 }}
           type="button"
           disabled={sharing}
           onClick={() => void handleShareCard()}
-          className="w-full py-3.5 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-black cursor-pointer disabled:opacity-50 transition"
+          className="k-buton k-buton--kirmizi w-full !py-3.5 !text-sm"
         >
           {sharing ? "Görsel Hazırlanıyor..." : "Kartı Görsel Olarak Paylaş"}
-        </button>
+        </motion.button>
       </div>
 
-      {shareModalOpen && previewDataUrl && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 shadow-xl space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-black text-[var(--text-primary)]">
-                Kartı Paylaş
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShareModalOpen(false)}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-subtle)] text-xs font-extrabold cursor-pointer"
-              >
-                Kapat
-              </button>
-            </div>
+      <AnimatePresence>
+        {shareModalOpen && previewDataUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={azaltilmis ? false : { opacity: 0, scale: 0.94, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={SPRING.keskin}
+              className="k-artik w-full max-w-md p-5 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="k-posta text-lg text-[var(--text-primary)]">
+                  Kartı Paylaş
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShareModalOpen(false)}
+                  className="k-buton k-buton--hayalet !py-1 !px-3 !text-xs"
+                >
+                  Kapat
+                </button>
+              </div>
 
-            <img
-              src={previewDataUrl}
-              alt="Paylaşılacak futbolcu kartı"
-              className="w-full max-h-72 object-contain rounded-2xl border border-[var(--border-subtle)] bg-slate-950"
-            />
+              <img
+                src={previewDataUrl}
+                alt="Paylaşılacak futbolcu kartı"
+                className="w-full max-h-72 object-contain rounded-2xl border border-[var(--border-subtle)] bg-slate-950"
+              />
 
-            <p className="text-xs text-[var(--text-secondary)]">
-              Kart PNG görseli indirildi. WhatsApp veya Instagram&apos;a inen
-              görseli seçip doğrudan gönderebilirsin.
-            </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Kart PNG görseli indirildi. WhatsApp veya Instagram&apos;a inen
+                görseli seçip doğrudan gönderebilirsin.
+              </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <a
-                href={`https://wa.me/?text=${shareText}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black text-center"
-              >
-                WhatsApp&apos;ta Aç
-              </a>
-              <a
-                href="https://www.instagram.com/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-pink-600 to-purple-700 text-white text-xs font-black text-center"
-              >
-                Instagram&apos;a Git
-              </a>
-              <button
-                type="button"
-                onClick={() => triggerDownload(previewDataUrl, downloadFileName)}
-                className="py-2.5 px-3 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-black cursor-pointer"
-              >
-                PNG İndir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <a
+                  href={`https://wa.me/?text=${shareText}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="k-buton !bg-emerald-600 hover:!bg-emerald-700 !text-white !py-2.5 !px-3 !text-xs"
+                >
+                  WhatsApp&apos;ta Aç
+                </a>
+                <a
+                  href="https://www.instagram.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="k-buton !bg-gradient-to-r from-amber-500 via-pink-600 to-purple-700 !text-white !py-2.5 !px-3 !text-xs"
+                >
+                  Instagram&apos;a Git
+                </a>
+                <button
+                  type="button"
+                  onClick={() => triggerDownload(previewDataUrl, downloadFileName)}
+                  className="k-buton k-buton--lacivert !py-2.5 !px-3 !text-xs"
+                >
+                  PNG İndir
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

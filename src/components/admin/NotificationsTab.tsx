@@ -1,9 +1,11 @@
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, Coach, UserRole } from "@/types/club";
 import { sendPushViaApi } from "@/lib/club-utils";
+import { SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 const DEFAULT_IMAGE_URL = "https://ikbalspor.com/logo.png";
@@ -71,7 +73,6 @@ export function NotificationsTab({
 
   const [historyMessages, setHistoryMessages] = useState<ClubMessageRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [clearingAll, setClearingAll] = useState(false);
 
   const fetchHistory = useCallback(async () => {
@@ -159,7 +160,10 @@ export function NotificationsTab({
       for (const bucket of ["club-media", "avatars"]) {
         const { error } = await supabase.storage
           .from(bucket)
-          .upload(path, file, { upsert: true, contentType: file.type || undefined });
+          .upload(path, file, {
+            upsert: true,
+            contentType: file.type || undefined,
+          });
         if (!error) {
           const { data } = supabase.storage.from(bucket).getPublicUrl(path);
           if (data?.publicUrl) {
@@ -175,7 +179,9 @@ export function NotificationsTab({
         }
       }
 
-      onFeedback("Medya yüklenemedi: Lütfen Supabase Storage 'avatars' bucket izinlerini kontrol edin veya doğrudan https:// görsel bağlantısı girin.");
+      onFeedback(
+        "Medya yüklenemedi: Lütfen Supabase Storage bucket izinlerini kontrol edin veya doğrudan https:// görsel bağlantısı girin."
+      );
     } finally {
       setUploadingMedia(false);
     }
@@ -245,35 +251,44 @@ export function NotificationsTab({
     }
   }
 
+  // Optimistic tekil silme + rollback
   async function handleDeleteMessage(id: string) {
-    setDeletingId(id);
+    const snapshot = historyMessages;
+    setHistoryMessages((prev) => prev.filter((m) => m.id !== id));
+    onFeedback("Bildirim silindi.");
+
     const { error } = await supabase.from("club_messages").delete().eq("id", id);
-    setDeletingId(null);
     if (error) {
-      onFeedback("Bildirim silinemedi: " + error.message);
+      setHistoryMessages(snapshot);
+      onFeedback("Bildirim silinemedi, geri alındı: " + error.message);
       return;
     }
-    setHistoryMessages((prev) => prev.filter((m) => m.id !== id));
     await onLogActivity("Bildirim Silme", `Geçmiş bildirim silindi (#${id})`);
-    onFeedback("Bildirim silindi.");
   }
 
+  // Optimistic toplu temizleme + rollback
   async function handleClearAllMessages() {
     if (historyMessages.length === 0) return;
-    setClearingAll(true);
+    const snapshot = historyMessages;
     const ids = historyMessages.map((m) => m.id);
+
+    setClearingAll(true);
+    setHistoryMessages([]);
+    onFeedback("Tüm geçmiş bildirimler temizlendi.");
+
     const { error } = await supabase.from("club_messages").delete().in("id", ids);
     setClearingAll(false);
+
     if (error) {
-      onFeedback("Geçmiş bildirimler temizlenemedi: " + error.message);
+      setHistoryMessages(snapshot);
+      onFeedback("Geçmiş bildirimler temizlenemedi, geri alındı: " + error.message);
       return;
     }
-    setHistoryMessages([]);
+
     await onLogActivity(
       "Bildirimleri Temizle",
       `${ids.length} geçmiş bildirim/duyuru temizlendi.`
     );
-    onFeedback("Tüm geçmiş bildirimler temizlendi.");
   }
 
   const activeSoundLabel =
@@ -285,32 +300,32 @@ export function NotificationsTab({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <form
           onSubmit={handleSendCustomPush}
-          className="lg:col-span-7 bg-[var(--bg-surface)] p-6 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4"
+          className="lg:col-span-7 k-artik p-6 space-y-4"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-lg font-black text-[var(--text-primary)]">
+            <div className="space-y-0.5">
+              <span className="k-koz text-[10px] block">ANLIK İLETİŞİM</span>
+              <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
                 İsteğe Bağlı Anlık Bildirim Gönder
               </h2>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              <p className="text-xs text-[var(--text-secondary)]">
                 Varsayılan kulüp logosu ve bildirim sesi ile gönderilir;
-                isterseniz görsel/ses yükleyip link oluşturabilirsiniz.
+                isterseniz görsel/ses yükleyebilirsiniz.
               </p>
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-[11px] font-extrabold">
+            <span className="k-etiket k-etiket--lacivert">
               Hedef: {notifTargetGroups.join(", ")}
             </span>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-2">
-              Hedef Kitle:
-            </label>
+            <label className="k-koz text-[10px] block mb-2">Hedef Kitle:</label>
             <div className="flex flex-wrap gap-1.5">
               {["Tümü", ...AGE_GROUPS].map((g) => {
                 const selected = notifTargetGroups.includes(g);
                 return (
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
                     type="button"
                     key={g}
                     onClick={() => {
@@ -326,21 +341,21 @@ export function NotificationsTab({
                         setNotifTargetGroups(next.length === 0 ? ["Tümü"] : next);
                       }
                     }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition cursor-pointer ${
                       selected
-                        ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                        : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
+                        ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)] shadow-2xs"
+                        : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)] hover:text-[var(--text-primary)]"
                     }`}
                   >
                     {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+            <label className="k-koz text-[10px] block mb-1.5">
               Bildirim Başlığı *
             </label>
             <input
@@ -349,12 +364,12 @@ export function NotificationsTab({
               placeholder="Örn: Antrenman Saati Değişikliği"
               value={notifTitle}
               onChange={(e) => setNotifTitle(e.target.value)}
-              className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2.5 text-sm"
+              className="k-alan font-bold"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+            <label className="k-koz text-[10px] block mb-1.5">
               Bildirim Mesajı *
             </label>
             <textarea
@@ -363,25 +378,24 @@ export function NotificationsTab({
               placeholder="Sporculara iletmek istediğiniz mesajı yazın..."
               value={notifBody}
               onChange={(e) => setNotifBody(e.target.value)}
-              className="w-full border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3.5 py-2.5 text-sm"
+              className="k-alan"
             />
           </div>
 
-          {/* Görsel Yükle & Bağlantı */}
-          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-2">
+          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-4 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-xs font-bold text-[var(--text-secondary)]">
+              <label className="k-koz text-[10px]">
                 Bildirim Görseli (Varsayılan: Kulüp Logosu)
               </label>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setNotifImageUrl(DEFAULT_IMAGE_URL)}
-                  className="px-2.5 py-1 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] text-[11px] font-extrabold cursor-pointer"
+                  className="k-buton k-buton--hayalet !py-1 !px-2.5 !text-[11px]"
                 >
                   Varsayılan Logo
                 </button>
-                <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+                <label className="k-buton k-buton--lacivert !py-1 !px-2.5 !text-[11px]">
                   {uploadingMedia ? "Yükleniyor..." : "Görsel Yükle & Link Al"}
                   <input
                     type="file"
@@ -400,17 +414,16 @@ export function NotificationsTab({
               value={notifImageUrl}
               onChange={(e) => setNotifImageUrl(e.target.value)}
               placeholder="https://ikbalspor.com/logo.png"
-              className="w-full border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-semibold"
+              className="k-alan !py-2 text-xs font-semibold"
             />
           </div>
 
-          {/* Ses Seçimi, Ses Yükleme & Bağlantı */}
-          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 space-y-2.5">
+          <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-4 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <label className="text-xs font-bold text-[var(--text-secondary)]">
+              <label className="k-koz text-[10px]">
                 Bildirim Sesi (Varsayılan: Telefon Bildirim Sesi)
               </label>
-              <label className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white text-[11px] font-extrabold cursor-pointer">
+              <label className="k-buton k-buton--lacivert !py-1 !px-2.5 !text-[11px]">
                 {uploadingMedia ? "Yükleniyor..." : "Ses Yükle & Link Al"}
                 <input
                   type="file"
@@ -428,7 +441,7 @@ export function NotificationsTab({
               <select
                 value={notifSound}
                 onChange={(e) => setNotifSound(e.target.value)}
-                className="flex-1 border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-bold"
+                className="flex-1 k-alan !py-2 text-xs font-bold"
               >
                 {SOUND_OPTIONS.map((snd) => (
                   <option key={snd.value} value={snd.value}>
@@ -436,13 +449,14 @@ export function NotificationsTab({
                   </option>
                 ))}
               </select>
-              <button
+              <motion.button
+                whileTap={{ scale: 0.96 }}
                 type="button"
                 onClick={handlePreviewSound}
-                className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] text-white text-xs font-extrabold cursor-pointer shrink-0"
+                className="k-buton k-buton--lacivert !py-2 !px-4 !text-xs shrink-0"
               >
                 Sesi Dinle
-              </button>
+              </motion.button>
             </div>
 
             <input
@@ -450,7 +464,7 @@ export function NotificationsTab({
               value={customAudioUrl}
               onChange={(e) => setCustomAudioUrl(e.target.value)}
               placeholder="İsteğe bağlı özel ses dosyası linki (yükleyince otomatik oluşur)"
-              className="w-full border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-xs font-semibold"
+              className="k-alan !py-2 text-xs font-semibold"
             />
           </div>
 
@@ -459,22 +473,24 @@ export function NotificationsTab({
               type="checkbox"
               checked={notifSaveAnnouncement}
               onChange={(e) => setNotifSaveAnnouncement(e.target.checked)}
+              className="accent-[var(--brand-red)]"
             />
             Uygulama ve web sitesindeki Duyurular bölümüne de kaydet
           </label>
 
-          <button
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={notifSending}
-            className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white font-extrabold px-6 py-3 rounded-xl text-sm cursor-pointer disabled:opacity-60 transition"
+            className="k-buton k-buton--kirmizi !px-6 !py-3 !text-sm"
           >
             {notifSending ? "Gönderiliyor..." : "Bildirimi Gönder"}
-          </button>
+          </motion.button>
         </form>
 
-        <aside className="lg:col-span-5 bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3">
+        <aside className="lg:col-span-5 k-artik p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
+            <span className="k-koz text-[10px] text-[var(--brand-red)]">
               Canlı Bildirim Önizleme
             </span>
             <span className="text-[11px] font-bold text-[var(--text-muted)]">
@@ -518,23 +534,21 @@ export function NotificationsTab({
         </aside>
       </div>
 
-      <div className="bg-[var(--bg-surface)] p-6 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
+      <div className="k-artik p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="text-base font-black text-[var(--text-primary)]">
+            <span className="k-koz text-[10px] block">KAYIT ARŞİVİ</span>
+            <h3 className="k-posta text-lg text-[var(--text-primary)]">
               Geçmiş Bildirimler, Duyurular &amp; Gelen Mesajlar (
               {historyMessages.length})
             </h3>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              Kulübe gönderilen iletişim mesajları ve geçmiş bildirimleri yönetin.
-            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={fetchHistory}
               disabled={historyLoading}
-              className="px-3 py-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-xs font-bold text-[var(--text-primary)] hover:opacity-85 cursor-pointer"
+              className="k-buton k-buton--hayalet !py-1.5 !px-3 !text-xs"
             >
               {historyLoading ? "Yenileniyor..." : "Yenile"}
             </button>
@@ -542,7 +556,7 @@ export function NotificationsTab({
               type="button"
               onClick={handleClearAllMessages}
               disabled={clearingAll || historyMessages.length === 0}
-              className="px-3.5 py-1.5 rounded-lg bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold disabled:opacity-40 cursor-pointer"
+              className="k-buton k-buton--kirmizi !py-1.5 !px-3.5 !text-xs"
             >
               {clearingAll ? "Temizleniyor..." : "Tamamını Temizle"}
             </button>
@@ -555,55 +569,59 @@ export function NotificationsTab({
           </p>
         ) : (
           <div className="space-y-2.5">
-            {historyMessages.map((msg) => {
-              const text = (msg.body || msg.message_text || "").trim();
-              const isContactMsg =
-                msg.age_group === "Admin" ||
-                text.startsWith("İletişim Mesajı");
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex items-start justify-between gap-3 p-3.5 rounded-xl border ${
-                    isContactMsg
-                      ? "border-amber-400/60 bg-[var(--status-warning-bg)]/30"
-                      : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--text-muted)] mb-1">
-                      <span
-                        className={`px-2 py-0.5 rounded text-white ${
-                          isContactMsg
-                            ? "bg-[var(--brand-red)]"
-                            : "bg-[var(--brand-navy)]"
-                        }`}
-                      >
-                        {isContactMsg
-                          ? "Gelen Mesaj"
-                          : msg.age_group || "Tümü"}
-                      </span>
-                      <span>{msg.sender_name || "Yönetici"}</span>
-                      {msg.created_at && (
-                        <span>
-                          {new Date(msg.created_at).toLocaleString("tr-TR")}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs font-semibold text-[var(--text-primary)] whitespace-pre-line break-words">
-                      {text || "(İçerik yok)"}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMessage(msg.id)}
-                    disabled={deletingId === msg.id}
-                    className="shrink-0 px-3 py-1.5 rounded-lg bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer disabled:opacity-50"
+            <AnimatePresence initial={false}>
+              {historyMessages.map((msg) => {
+                const text = (msg.body || msg.message_text || "").trim();
+                const isContactMsg =
+                  msg.age_group === "Admin" ||
+                  text.startsWith("İletişim Mesajı");
+                return (
+                  <motion.div
+                    layout
+                    key={msg.id}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={SPRING.yumusak}
+                    className={`flex items-start justify-between gap-3 p-4 rounded-2xl border ${
+                      isContactMsg
+                        ? "border-amber-400/60 bg-[var(--status-warning-bg)]/30"
+                        : "border-[var(--border-subtle)] bg-[var(--bg-subtle)]"
+                    }`}
                   >
-                    {deletingId === msg.id ? "Siliniyor..." : "Sil"}
-                  </button>
-                </div>
-              );
-            })}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--text-muted)] mb-1">
+                        <span
+                          className={`k-etiket ${
+                            isContactMsg
+                              ? "k-etiket--tehlike"
+                              : "k-etiket--lacivert"
+                          }`}
+                        >
+                          {isContactMsg
+                            ? "Gelen Mesaj"
+                            : msg.age_group || "Tümü"}
+                        </span>
+                        <span>{msg.sender_name || "Yönetici"}</span>
+                        {msg.created_at && (
+                          <span>
+                            {new Date(msg.created_at).toLocaleString("tr-TR")}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold text-[var(--text-primary)] whitespace-pre-line break-words">
+                        {text || "(İçerik yok)"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      className="shrink-0 px-3 py-1.5 rounded-xl bg-[var(--status-danger-bg)] hover:opacity-85 text-[var(--status-danger-text)] text-xs font-extrabold cursor-pointer transition"
+                    >
+                      Sil
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
       </div>

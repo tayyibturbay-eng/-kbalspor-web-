@@ -1,9 +1,10 @@
-// MatchResultsTab.tsx
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Player, TaskAssignment } from "@/types/club";
+import { EASE, SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 
@@ -45,6 +46,8 @@ export function MatchResultsTab({
   onFeedback,
   onLogActivity,
 }: MatchResultsTabProps) {
+  const azaltilmis = useReducedMotion();
+
   const matchList = useMemo(() => {
     const onlyMatches = tasks.filter(
       (t) => String(t.task_type || "").toLowerCase() === "mac"
@@ -61,6 +64,9 @@ export function MatchResultsTab({
   const [selectedScorerId, setSelectedScorerId] = useState<string>("");
   const [scorerGoalCount, setScorerGoalCount] = useState<number>(1);
   const [goalEvents, setGoalEvents] = useState<GoalEntry[]>([]);
+  const [previousGoalEvents, setPreviousGoalEvents] = useState<GoalEntry[]>([]);
+  const [alreadyRecorded, setAlreadyRecorded] = useState<boolean>(false);
+  const [editConfirmed, setEditConfirmed] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
 
   const [showExtraSearch, setShowExtraSearch] = useState(false);
@@ -68,6 +74,46 @@ export function MatchResultsTab({
 
   const activeMatch =
     matchList.find((m) => m.id === selectedMatchId) || matchList[0] || null;
+
+  const hydrateMatchResult = useCallback(async (matchId: string) => {
+    if (!matchId) {
+      setAlreadyRecorded(false);
+      setEditConfirmed(false);
+      return;
+    }
+    const { data } = await supabase
+      .from("match_results")
+      .select("home_goals, away_goals, goal_events, is_finalized")
+      .eq("match_id", matchId)
+      .maybeSingle();
+
+    if (data && (data.is_finalized || Array.isArray(data.goal_events))) {
+      const loadedGoals = Array.isArray(data.goal_events)
+        ? (data.goal_events as GoalEntry[])
+        : [];
+      setHomeGoals(Number(data.home_goals ?? 0));
+      setAwayGoals(Number(data.away_goals ?? 0));
+      setGoalEvents(loadedGoals);
+      setPreviousGoalEvents(loadedGoals);
+      setAlreadyRecorded(true);
+      setEditConfirmed(false);
+    } else {
+      setHomeGoals(0);
+      setAwayGoals(0);
+      setGoalEvents([]);
+      setPreviousGoalEvents([]);
+      setAlreadyRecorded(false);
+      setEditConfirmed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const targetId = activeMatch?.id || "";
+    const timer = window.setTimeout(() => {
+      void hydrateMatchResult(targetId);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [activeMatch?.id, hydrateMatchResult]);
 
   const matchPlayers = useMemo(() => {
     if (!activeMatch) return players;
@@ -113,37 +159,21 @@ export function MatchResultsTab({
     const currentIds = new Set(matchPlayers.map((p) => p.id));
     const candidates = players.filter((p) => !currentIds.has(p.id));
 
-    if (!q) return candidates.slice(0, 8);
+    if (!q) return candidates.slice(0, 6);
     return candidates
       .filter(
         (p) =>
           p.full_name.toLocaleLowerCase("tr-TR").includes(q) ||
           (p.age_group || "").toLocaleLowerCase("tr-TR").includes(q)
       )
-      .slice(0, 8);
+      .slice(0, 6);
   }, [players, matchPlayers, extraSearchQuery]);
 
-  async function handleSelectMatch(matchId: string) {
+  function handleSelectMatch(matchId: string) {
     setSelectedMatchId(matchId);
     setExtraSquadIds([]);
     setShowExtraSearch(false);
     setExtraSearchQuery("");
-
-    const { data } = await supabase
-      .from("match_results")
-      .select("home_goals, away_goals, goal_events")
-      .eq("match_id", matchId)
-      .maybeSingle();
-
-    if (data) {
-      setHomeGoals(Number(data.home_goals ?? 0));
-      setAwayGoals(Number(data.away_goals ?? 0));
-      setGoalEvents(Array.isArray(data.goal_events) ? data.goal_events : []);
-    } else {
-      setHomeGoals(0);
-      setAwayGoals(0);
-      setGoalEvents([]);
-    }
   }
 
   function handlePickExtraPlayer(p: Player) {
@@ -191,6 +221,13 @@ export function MatchResultsTab({
       return;
     }
 
+    if (alreadyRecorded && !editConfirmed) {
+      onFeedback(
+        "Bu maç için zaten skor ve golcü kaydı bulunuyor! Düzenlemek için 'Kaydı Düzenle' butonuna basın."
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const scorerIds = goalEvents.map((g) => g.player_id);
@@ -215,19 +252,43 @@ export function MatchResultsTab({
         return;
       }
 
-      for (const gEvent of goalEvents) {
-        if (!gEvent.player_id || gEvent.goals <= 0) continue;
+      const prevMap = new Map<string, number>();
+      for (const pg of previousGoalEvents) {
+        if (pg.player_id) {
+          prevMap.set(
+            pg.player_id,
+            (prevMap.get(pg.player_id) || 0) + Number(pg.goals || 0)
+          );
+        }
+      }
+      const nextMap = new Map<string, number>();
+      for (const ng of goalEvents) {
+        if (ng.player_id) {
+          nextMap.set(
+            ng.player_id,
+            (nextMap.get(ng.player_id) || 0) + Number(ng.goals || 0)
+          );
+        }
+      }
+      const allGoalPlayerIds = new Set<string>([
+        ...prevMap.keys(),
+        ...nextMap.keys(),
+      ]);
+
+      for (const pid of allGoalPlayerIds) {
+        const deltaGoals = (nextMap.get(pid) || 0) - (prevMap.get(pid) || 0);
+        if (deltaGoals === 0) continue;
         const { data: scorerRow } = await supabase
           .from("players")
           .select("goals_scored")
-          .eq("id", gEvent.player_id)
+          .eq("id", pid)
           .maybeSingle();
         if (scorerRow && "goals_scored" in scorerRow) {
           const prevGoals = Number(scorerRow.goals_scored ?? 0);
           await supabase
             .from("players")
-            .update({ goals_scored: prevGoals + gEvent.goals })
-            .eq("id", gEvent.player_id);
+            .update({ goals_scored: Math.max(0, prevGoals + deltaGoals) })
+            .eq("id", pid);
         }
       }
 
@@ -249,12 +310,10 @@ export function MatchResultsTab({
         }
       }
       const preds = Array.from(mergedPredsMap.values());
-
       const addedPointsByPlayer = new Map<string, number>();
 
       for (const pred of preds) {
         let earned = 0;
-
         const predHome = Number(
           pred.home_score ?? pred.predicted_home_goals ?? -1
         );
@@ -347,8 +406,12 @@ export function MatchResultsTab({
         await supabase.from("players").update(updatePayload).eq("id", playerId);
       }
 
+      setPreviousGoalEvents(goalEvents);
+      setAlreadyRecorded(true);
+      setEditConfirmed(false);
+
       await onLogActivity(
-        "Maç Sonucu & Golcüler",
+        alreadyRecorded ? "Maç Sonucu Düzenleme" : "Maç Sonucu & Golcüler",
         `${activeMatch.title}: ${homeGoals} - ${awayGoals} | Gol atanlar: ${
           goalEvents.map((g) => `${g.player_name} (${g.goals})`).join(", ") ||
           "Yok"
@@ -363,85 +426,94 @@ export function MatchResultsTab({
     }
   }
 
+  const formLocked = alreadyRecorded && !editConfirmed;
+
   return (
     <form
       onSubmit={handleSaveResult}
-      className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-2xl border border-[var(--border-subtle)] p-5 shadow-xs space-y-5 tabular-nums"
+      className="k-artik p-4 sm:p-6 space-y-4 tabular-nums min-w-0"
     >
-      <div>
-        <h2 className="text-lg font-black text-[var(--text-primary)]">
-          Maç Skoru ve Gol Atan Oyuncular
-        </h2>
-        <p className="text-xs text-[var(--text-secondary)]">
-          Maç kadrosundaki/kategorisindeki oyuncuları seçebilir veya alttaki +
-          butonundan başka oyuncu arayarak ekleyebilirsin.
-        </p>
+      <div className="k-sahne text-white rounded-2xl p-4 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <span className="k-koz text-[10px] text-amber-200 block">
+            SKOR &amp; GOLCÜLER
+          </span>
+          <h2 className="k-posta text-lg sm:text-xl text-white truncate">
+            Maç Skoru &amp; Golcüler
+          </h2>
+        </div>
+
+        <div className="px-3.5 py-2 rounded-xl k-cam--marka flex items-center gap-2.5 shrink-0">
+          <span className="text-xl sm:text-2xl font-black text-amber-300">
+            {homeGoals}
+          </span>
+          <span className="text-sm font-black text-white/60">:</span>
+          <span className="text-xl sm:text-2xl font-black text-white">
+            {awayGoals}
+          </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-1">
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-            Maç Seçin
-          </label>
-          <select
-            value={selectedMatchId}
-            onChange={(e) => handleSelectMatch(e.target.value)}
-            className="w-full rounded-xl border border-[var(--border-strong)] px-3 py-2.5 text-sm font-semibold bg-[var(--bg-subtle)] text-[var(--text-primary)]"
+      {alreadyRecorded && (
+        <div className="rounded-2xl border border-amber-400/70 bg-[var(--status-warning-bg)]/55 p-3 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-extrabold text-[var(--text-primary)]">
+            ⚠️ Bu maç için kayıt mevcut ({homeGoals} - {awayGoals}).
+          </span>
+          <button
+            type="button"
+            onClick={() => setEditConfirmed((prev) => !prev)}
+            className="k-buton k-buton--lacivert min-h-[34px] !py-1 !px-3 !text-xs"
           >
-            {matchList.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.age_group} — {m.title} ({m.event_date?.slice(0, 10)})
-              </option>
-            ))}
-          </select>
+            {editConfirmed ? "Kilitle" : "Kaydı Düzenle"}
+          </button>
         </div>
+      )}
 
-        <div>
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-            İkbal Spor / Ev Sahibi Gol
-          </label>
-          <input
-            type="number"
-            min={0}
-            value={homeGoals}
-            onChange={(e) =>
-              setHomeGoals(Math.max(0, Number(e.target.value) || 0))
-            }
-            className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3 py-2.5 text-sm font-bold"
-          />
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <select
+          value={selectedMatchId}
+          onChange={(e) => handleSelectMatch(e.target.value)}
+          className="col-span-2 k-alan font-bold min-h-[42px] text-xs sm:text-sm"
+        >
+          {matchList.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.age_group} — {m.title} ({m.event_date?.slice(0, 10)})
+            </option>
+          ))}
+        </select>
 
-        <div>
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
-            Rakip / Deplasman Gol
-          </label>
-          <input
-            type="number"
-            min={0}
-            value={awayGoals}
-            onChange={(e) =>
-              setAwayGoals(Math.max(0, Number(e.target.value) || 0))
-            }
-            className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3 py-2.5 text-sm font-bold"
-          />
-        </div>
+        <input
+          type="number"
+          min={0}
+          disabled={formLocked}
+          value={homeGoals}
+          onChange={(e) =>
+            setHomeGoals(Math.max(0, Number(e.target.value) || 0))
+          }
+          aria-label="İkbal Spor Gol"
+          className="k-alan font-black text-center text-base min-h-[42px] disabled:opacity-60"
+        />
+
+        <input
+          type="number"
+          min={0}
+          disabled={formLocked}
+          value={awayGoals}
+          onChange={(e) =>
+            setAwayGoals(Math.max(0, Number(e.target.value) || 0))
+          }
+          aria-label="Rakip Gol"
+          className="k-alan font-black text-center text-base min-h-[42px] disabled:opacity-60"
+        />
       </div>
 
-      <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-extrabold text-[var(--text-primary)] uppercase tracking-wider">
-            Maçta Oynayanlar — Golcü Ekle
-          </span>
-          <span className="text-[11px] font-semibold text-[var(--text-muted)]">
-            {matchPlayers.length} oyuncu listeleniyor
-          </span>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-2.5">
+      <div className="rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3.5 sm:p-4 space-y-3">
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
+            disabled={formLocked}
             value={effectiveScorerId}
             onChange={(e) => setSelectedScorerId(e.target.value)}
-            className="flex-1 rounded-xl border border-[var(--border-strong)] px-3 py-2 text-sm bg-[var(--bg-surface)] text-[var(--text-primary)]"
+            className="flex-1 k-alan font-bold min-h-[40px] text-xs sm:text-sm disabled:opacity-60"
           >
             {matchPlayers.map((p) => (
               <option key={p.id} value={p.id}>
@@ -450,120 +522,135 @@ export function MatchResultsTab({
             ))}
           </select>
 
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={scorerGoalCount}
-            onChange={(e) =>
-              setScorerGoalCount(Math.max(1, Number(e.target.value) || 1))
-            }
-            className="w-24 rounded-xl border border-[var(--border-strong)] px-3 py-2 text-sm font-bold bg-[var(--bg-surface)] text-[var(--text-primary)]"
-            placeholder="Gol"
-          />
-
-          <button
-            type="button"
-            onClick={addScorerToList}
-            className="px-4 py-2 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer"
-          >
-            Golcü Ekle
-          </button>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={1}
+              max={20}
+              disabled={formLocked}
+              value={scorerGoalCount}
+              onChange={(e) =>
+                setScorerGoalCount(Math.max(1, Number(e.target.value) || 1))
+              }
+              className="w-20 k-alan font-black text-center min-h-[40px] disabled:opacity-60"
+              aria-label="Gol sayısı"
+            />
+            <motion.button
+              whileTap={{ scale: 0.96 }}
+              type="button"
+              disabled={formLocked}
+              onClick={addScorerToList}
+              className="k-buton k-buton--lacivert flex-1 sm:flex-initial min-h-[40px] !px-4 !text-xs disabled:opacity-50"
+            >
+              + Golcü Ekle
+            </motion.button>
+          </div>
         </div>
 
-        <div className="pt-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
+            disabled={formLocked}
             onClick={() => setShowExtraSearch((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--bg-surface)] hover:opacity-90 border border-dashed border-[var(--border-strong)] text-xs font-extrabold text-[var(--text-primary)] cursor-pointer"
+            className="k-buton k-buton--hayalet min-h-[34px] !py-1 !px-2.5 !text-[11px] disabled:opacity-50"
           >
-            <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-[var(--brand-red)] text-white text-[11px] font-black leading-none">
-              +
-            </span>
             <span>
-              {showExtraSearch
-                ? "Arama Alanını Kapat"
-                : "Listede Olmayan Oyuncu Ekle"}
+              {showExtraSearch ? "Aramayı Kapat" : "+ Listede Olmayan Oyuncu"}
             </span>
           </button>
+          <span className="text-[11px] font-bold text-[var(--text-muted)]">
+            {matchPlayers.length} kadro oyuncusu
+          </span>
+        </div>
 
+        <AnimatePresence initial={false}>
           {showExtraSearch && (
-            <div className="mt-2.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-3 space-y-2.5">
+            <motion.div
+              initial={azaltilmis ? false : { opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: EASE.yumusak }}
+              className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-2.5 space-y-2"
+            >
               <input
                 type="text"
                 value={extraSearchQuery}
                 onChange={(e) => setExtraSearchQuery(e.target.value)}
-                placeholder="Oyuncu adı veya kategori ara (örn. U13, Ahmet)..."
-                className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] px-3 py-2 text-xs sm:text-sm"
-                autoFocus
+                placeholder="Oyuncu veya yaş grubu ara..."
+                className="k-alan min-h-[38px] text-xs"
               />
-
-              <div className="max-h-44 overflow-y-auto divide-y divide-[var(--border-subtle)]">
-                {searchedOutsidePlayers.length === 0 ? (
-                  <div className="py-2 text-xs text-[var(--text-muted)]">
-                    Eşleşen başka oyuncu bulunamadı.
-                  </div>
-                ) : (
-                  searchedOutsidePlayers.map((p) => (
-                    <div
-                      key={p.id}
-                      className="py-2 flex items-center justify-between gap-2 text-xs sm:text-sm"
+              <div className="max-h-36 overflow-y-auto divide-y divide-[var(--border-subtle)]">
+                {searchedOutsidePlayers.map((p) => (
+                  <div
+                    key={p.id}
+                    className="py-1.5 flex items-center justify-between gap-2 text-xs"
+                  >
+                    <span className="font-bold truncate">
+                      {p.full_name}{" "}
+                      <span className="text-[var(--text-muted)]">
+                        ({p.age_group})
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handlePickExtraPlayer(p)}
+                      className="k-buton k-buton--kirmizi min-h-[30px] !py-0.5 !px-2.5 !text-[11px] shrink-0"
                     >
-                      <div className="truncate">
-                        <span className="font-bold text-[var(--text-primary)]">
-                          {p.full_name}
-                        </span>{" "}
-                        <span className="text-xs text-[var(--text-muted)]">
-                          ({p.age_group})
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handlePickExtraPlayer(p)}
-                        className="px-2.5 py-1 rounded-lg bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold shrink-0 cursor-pointer"
-                      >
-                        + Seç
-                      </button>
-                    </div>
-                  ))
-                )}
+                      Seç
+                    </button>
+                  </div>
+                ))}
               </div>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
 
-        {goalEvents.length > 0 && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {goalEvents.map((g) => (
-              <span
-                key={g.player_id}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--bg-surface)] border border-[var(--border-strong)] text-xs font-extrabold text-[var(--text-primary)]"
-              >
-                <span>
-                  {g.player_name} ({g.goals} gol)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeScorer(g.player_id)}
-                  className="text-[var(--brand-red)] font-black cursor-pointer"
+        <AnimatePresence initial={false}>
+          {goalEvents.length > 0 && (
+            <motion.div layout className="flex flex-wrap gap-1.5">
+              {goalEvents.map((g) => (
+                <motion.span
+                  layout
+                  initial={azaltilmis ? false : { opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.85 }}
+                  transition={SPRING.keskin}
+                  key={g.player_id}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--bg-surface)] border border-[var(--border-strong)] text-xs font-extrabold"
                 >
-                  x
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+                  <span>
+                    ⚽ {g.player_name} ({g.goals})
+                  </span>
+                  {!formLocked && (
+                    <button
+                      type="button"
+                      onClick={() => removeScorer(g.player_id)}
+                      className="text-[var(--brand-red)] font-black cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </motion.span>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-6 py-3 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] disabled:opacity-60 text-white text-sm font-extrabold cursor-pointer"
-        >
-          {saving ? "Kaydediliyor..." : "Skor ve Golcüleri Kaydet"}
-        </button>
-      </div>
+      <motion.button
+        whileTap={{ scale: 0.98 }}
+        type="submit"
+        disabled={saving || formLocked}
+        className="k-buton k-buton--kirmizi w-full min-h-[44px] !py-3 !text-xs sm:!text-sm disabled:opacity-50"
+      >
+        {saving
+          ? "Kaydediliyor..."
+          : formLocked
+          ? "Kayıt Mevcut — Düzenlemek İçin 'Kaydı Düzenle' Seçin"
+          : alreadyRecorded
+          ? "Düzenlemeyi Kaydet"
+          : "Skor ve Golcüleri Kaydet"}
+      </motion.button>
     </form>
   );
 }

@@ -12,7 +12,6 @@ const THEME_STORAGE_KEY = "ikbalspor_theme";
 const NAV_LINKS = [
   { href: "/", label: "Ana Sayfa" },
   { href: "/kadro-kur", label: "Kadro Kur" },
-  { href: "/gorevler", label: "Maç & Görevler" },
   { href: "/bildirimler", label: "Duyurular" },
   { href: "/kayit", label: "Üyelik Başvurusu" },
   { href: "/iletisim", label: "İletişim" },
@@ -77,22 +76,22 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[var(--brand-navy)] text-white border-b border-white/10 shadow-sm transition-colors">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 min-h-16 py-2 flex items-center justify-between gap-2">
         <Link
           href="/"
-          className="flex items-center gap-2.5 shrink-0 min-w-0"
+          className="flex items-center gap-2 shrink min-w-0"
           onClick={() => setMobileOpen(false)}
         >
           <img
             src="/logo.png"
             alt="Çorum İkbal Spor Kulübü"
-            className="w-9 h-9 rounded-xl object-cover bg-white border border-white/25 shrink-0"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover bg-white border border-white/25 shrink-0"
           />
-          <div className="leading-tight">
-            <div className="text-sm font-black tracking-tight whitespace-nowrap">
-              ÇORUM İKBAL SPOR KULÜBÜ
+          <div className="leading-tight min-w-0">
+            <div className="text-xs sm:text-sm font-black tracking-tight truncate">
+              ÇORUM İKBAL SPOR
             </div>
-            <div className="text-[10px] font-bold text-amber-200 tracking-wider uppercase whitespace-nowrap">
+            <div className="hidden sm:block text-[10px] font-bold text-amber-200 tracking-wider uppercase whitespace-nowrap">
               2026–2027 Kulüp Platformu
             </div>
           </div>
@@ -143,14 +142,14 @@ export function Navbar() {
           </Link>
         </div>
 
-        <div className="flex md:hidden items-center gap-2">
-          <ThemeSwitch theme={theme} onToggle={handleToggleTheme} />
+        <div className="flex md:hidden items-center gap-1.5 shrink-0">
+          <ThemeSwitch theme={theme} onToggle={handleToggleTheme} compact />
           <button
             type="button"
             onClick={() => setMobileOpen((prev) => !prev)}
             aria-label="Menüyü Aç/Kapat"
             aria-expanded={mobileOpen}
-            className="px-3 py-2 rounded-xl bg-white/12 border border-white/20 text-xs font-black cursor-pointer transition hover:bg-white/20"
+            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/12 border border-white/20 text-xs font-black cursor-pointer transition hover:bg-white/20 shrink-0"
           >
             {mobileOpen ? "Kapat" : "Menü"}
           </button>
@@ -158,53 +157,53 @@ export function Navbar() {
       </div>
 
       <AnimatePresence initial={false}>
-      {mobileOpen && (
-        <motion.div
-          initial={azaltilmis ? false : { opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={azaltilmis ? undefined : { opacity: 0, y: -10 }}
-          transition={{ duration: 0.26, ease: EASE.yumusak }}
-          className="md:hidden overflow-hidden bg-[var(--brand-navy)] border-t border-white/10 px-4 py-3 space-y-1.5"
-        >
-          {NAV_LINKS.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname?.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={`block px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition ${
-                  active
-                    ? "bg-white text-[var(--brand-navy)]"
-                    : "text-slate-100 hover:bg-white/10"
-                }`}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        {mobileOpen && (
+          <motion.div
+            initial={azaltilmis ? false : { opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={azaltilmis ? undefined : { opacity: 0, y: -10 }}
+            transition={{ duration: 0.26, ease: EASE.yumusak }}
+            className="md:hidden overflow-hidden bg-[var(--brand-navy)] border-t border-white/10 px-3 sm:px-4 py-3 space-y-1.5"
+          >
+            {NAV_LINKS.map((item) => {
+              const active =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname?.startsWith(item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`block min-h-[42px] flex items-center px-3.5 py-2.5 rounded-xl text-xs font-extrabold transition ${
+                    active
+                      ? "bg-white text-[var(--brand-navy)]"
+                      : "text-slate-100 hover:bg-white/10"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
 
-          <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-2">
-            <Link
-              href="/admin"
-              onClick={() => setMobileOpen(false)}
-              className="py-2.5 px-3 rounded-xl bg-white/12 border border-white/20 text-white text-center text-xs font-extrabold"
-            >
-              Yönetim Paneli
-            </Link>
-            <Link
-              href="/sporcu"
-              onClick={() => setMobileOpen(false)}
-              className="py-2.5 px-3 rounded-xl bg-amber-400 text-slate-950 text-center text-xs font-black"
-            >
-              {playerLoggedIn ? "Sporcu Paneli" : "Sporcu Girişi"}
-            </Link>
-          </div>
-        </motion.div>
-      )}
+            <div className="pt-2 border-t border-white/15 grid grid-cols-2 gap-2">
+              <Link
+                href="/admin"
+                onClick={() => setMobileOpen(false)}
+                className="min-h-[42px] flex items-center justify-center py-2.5 px-3 rounded-xl bg-white/12 border border-white/20 text-white text-center text-xs font-extrabold"
+              >
+                Yönetim Paneli
+              </Link>
+              <Link
+                href="/sporcu"
+                onClick={() => setMobileOpen(false)}
+                className="min-h-[42px] flex items-center justify-center py-2.5 px-3 rounded-xl bg-amber-400 text-slate-950 text-center text-xs font-black"
+              >
+                {playerLoggedIn ? "Sporcu Paneli" : "Sporcu Girişi"}
+              </Link>
+            </div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </header>
   );

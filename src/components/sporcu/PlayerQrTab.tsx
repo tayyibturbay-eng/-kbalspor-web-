@@ -1,7 +1,7 @@
-// PlayerQrTab.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Player, PrayerAttendance, PrayerSession } from "@/types/club";
 import { QRCodeSVG } from "qrcode.react";
@@ -146,6 +146,23 @@ export function PlayerQrTab({
       return;
     }
 
+    // Optimistic ekleme + hata durumunda rollback
+    const snapshot = attendances;
+    const tempId = `temp-att-${Date.now()}`;
+    const optimisticAtt = {
+      id: tempId,
+      session_id: sess.id,
+      player_id: player.id,
+      checked_in_at: new Date().toISOString(),
+    } as PrayerAttendance;
+
+    setAttendances((prev) => [...prev, optimisticAtt]);
+    setManualToken("");
+    setQrStatus({
+      ok: true,
+      text: `Harika! "${sess.title}" yoklamanız başarıyla alındı.`,
+    });
+
     const { data: inserted, error } = await supabase
       .from("prayer_attendance")
       .insert([{ session_id: sess.id, player_id: player.id }])
@@ -153,28 +170,38 @@ export function PlayerQrTab({
       .single();
 
     if (error) {
+      setAttendances(snapshot);
       setQrStatus({
         ok: false,
-        text: "Yoklama kaydedilemedi: " + error.message,
+        text: "Yoklama kaydedilemedi, geri alındı: " + error.message,
       });
       return;
     }
 
     if (inserted) {
-      setAttendances((prev) => [...prev, inserted as PrayerAttendance]);
+      setAttendances((prev) =>
+        prev.map((a) => (a.id === tempId ? (inserted as PrayerAttendance) : a))
+      );
     }
-    setManualToken("");
-    setQrStatus({
-      ok: true,
-      text: `Harika! "${sess.title}" yoklamanız başarıyla alındı.`,
-    });
   }
 
+  // Optimistic takım arkadaşı yoklama işaretleme + rollback
   async function markTeammatePresent(sessionId: string, targetPlayerId: string) {
     const exists = attendances.some(
       (a) => a.session_id === sessionId && a.player_id === targetPlayerId
     );
     if (exists) return;
+
+    const snapshot = attendances;
+    const tempId = `temp-rep-${Date.now()}-${targetPlayerId}`;
+    const optimisticAtt = {
+      id: tempId,
+      session_id: sessionId,
+      player_id: targetPlayerId,
+      checked_in_at: new Date().toISOString(),
+    } as PrayerAttendance;
+
+    setAttendances((prev) => [...prev, optimisticAtt]);
 
     const { data: inserted, error } = await supabase
       .from("prayer_attendance")
@@ -183,6 +210,7 @@ export function PlayerQrTab({
       .single();
 
     if (error) {
+      setAttendances(snapshot);
       setQrStatus({
         ok: false,
         text: "Oyuncu yoklaması kaydedilemedi: " + error.message,
@@ -191,28 +219,34 @@ export function PlayerQrTab({
     }
 
     if (inserted) {
-      setAttendances((prev) => [...prev, inserted as PrayerAttendance]);
+      setAttendances((prev) =>
+        prev.map((a) => (a.id === tempId ? (inserted as PrayerAttendance) : a))
+      );
     }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
-        <h2 className="text-lg font-black text-[var(--text-primary)]">
-          Tarayıcıdan QR Yoklama Okut
-        </h2>
-        <p className="text-sm text-[var(--text-secondary)]">
+    <div className="space-y-6 tabular-nums">
+      <div className="k-artik p-6 space-y-4">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">ANTRENMAN &amp; KATILIM</span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Tarayıcıdan QR Yoklama Okut
+          </h2>
+        </div>
+        <p className="text-xs sm:text-sm text-[var(--text-secondary)]">
           Kamerayı açıp hocanızın veya temsilcinin gösterdiği QR kodu okutun.
         </p>
 
         {!scanning ? (
-          <button
+          <motion.button
+            whileTap={{ scale: 0.97 }}
             type="button"
             onClick={startScanner}
-            className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white font-extrabold cursor-pointer transition shadow-sm"
+            className="k-buton k-buton--lacivert w-full sm:w-auto !px-6 !py-3.5 !text-sm"
           >
             Kamerayı Aç ve QR Okut
-          </button>
+          </motion.button>
         ) : (
           <div className="space-y-3">
             <div
@@ -222,15 +256,15 @@ export function PlayerQrTab({
             <button
               type="button"
               onClick={stopScanner}
-              className="px-5 py-2.5 rounded-xl bg-[var(--bg-subtle)] hover:opacity-85 border border-[var(--border-strong)] text-[var(--text-primary)] text-sm font-bold cursor-pointer"
+              className="k-buton k-buton--hayalet"
             >
               Kamerayı Kapat
             </button>
           </div>
         )}
 
-        <div className="pt-4 border-t border-[var(--border-subtle)]">
-          <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1.5">
+        <div className="pt-4 border-t border-[var(--border-subtle)] space-y-2">
+          <label className="k-koz text-[10px] block">
             Kamera açılmazsa QR kod metnini buraya yazabilirsiniz:
           </label>
           <div className="flex gap-2">
@@ -239,21 +273,22 @@ export function PlayerQrTab({
               value={manualToken}
               onChange={(e) => setManualToken(e.target.value)}
               placeholder="QR kod metni..."
-              className="flex-1 px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+              className="k-alan flex-1"
             />
-            <button
+            <motion.button
+              whileTap={{ scale: 0.96 }}
               type="button"
               onClick={() => submitQrCheckIn(manualToken)}
-              className="px-4 py-2.5 rounded-xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-sm font-extrabold cursor-pointer"
+              className="k-buton k-buton--kirmizi !px-5"
             >
               Onayla
-            </button>
+            </motion.button>
           </div>
         </div>
 
         {qrStatus && (
           <div
-            className={`p-3.5 rounded-xl text-sm font-bold ${
+            className={`p-3.5 rounded-2xl text-xs sm:text-sm font-extrabold ${
               qrStatus.ok
                 ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
                 : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
@@ -264,12 +299,15 @@ export function PlayerQrTab({
         )}
       </div>
 
-      <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
+      <div className="k-artik p-6 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-black text-[var(--text-primary)]">
-            Geçmiş Etkinlik Katılım Durumum
-          </h3>
-          <span className="px-3 py-1 rounded-full bg-[var(--bg-subtle)] border border-[var(--border-subtle)] text-xs font-extrabold text-[var(--text-primary)] tabular-nums">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] block">KATILIM GEÇMİŞİM</span>
+            <h3 className="k-posta text-lg text-[var(--text-primary)]">
+              Geçmiş Etkinlik Katılım Durumum
+            </h3>
+          </div>
+          <span className="k-etiket k-etiket--lacivert">
             Katılım: {playerAttendedCount} / {allSessions.length} Etkinlik
           </span>
         </div>
@@ -302,19 +340,17 @@ export function PlayerQrTab({
                     <div className="font-extrabold text-sm text-[var(--text-primary)]">
                       {sess.title}
                     </div>
-                    <div className="text-xs text-[var(--text-secondary)] tabular-nums">
+                    <div className="text-xs text-[var(--text-secondary)]">
                       Tarih: {sess.session_date}{" "}
                       {sess.is_active ? "• (Aktif)" : ""}
                     </div>
                   </div>
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-extrabold ${
-                      attended
-                        ? "bg-[var(--status-success-text)] text-white"
-                        : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
+                    className={`k-etiket ${
+                      attended ? "k-etiket--basari" : "k-etiket--tehlike"
                     }`}
                   >
-                    {attended ? "Katıldı" : "Katılmadı"}
+                    {attended ? "✓ Katıldı" : "Katılmadı"}
                   </span>
                 </div>
               );
@@ -324,11 +360,16 @@ export function PlayerQrTab({
       </div>
 
       {player.is_representative && (
-        <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
-          <h3 className="text-lg font-black text-[var(--brand-red)]">
-            Temsilci Yoklama Paneli (
-            {player.representative_group || "Tüm Takım"})
-          </h3>
+        <div className="k-artik p-6 space-y-4">
+          <div className="space-y-0.5">
+            <span className="k-koz text-[10px] text-[var(--brand-red)] block">
+              SAHA GÖREVLİSİ YETKİSİ
+            </span>
+            <h3 className="k-posta text-lg text-[var(--brand-red)]">
+              Temsilci Yoklama Paneli (
+              {player.representative_group || "Tüm Takım"})
+            </h3>
+          </div>
           {activeSessions.length === 0 ? (
             <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center">
               <p className="text-sm font-bold text-[var(--text-secondary)]">
@@ -350,17 +391,17 @@ export function PlayerQrTab({
                       <div className="font-extrabold text-[var(--text-primary)]">
                         {sess.title}
                       </div>
-                      <div className="text-xs text-[var(--text-secondary)] tabular-nums">
+                      <div className="text-xs text-[var(--text-secondary)]">
                         Tarih: {sess.session_date} • Gelen: {sessAtt.length} kişi
                       </div>
                     </div>
-                    <div className="bg-white p-3 rounded-2xl border border-slate-200 self-start">
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200 self-start shadow-2xs">
                       <QRCodeSVG value={sess.qr_token} size={140} />
                     </div>
                   </div>
 
                   <div>
-                    <div className="text-xs font-extrabold text-[var(--text-secondary)] mb-2">
+                    <div className="k-koz text-[10px] mb-2">
                       Manuel Geldi İşaretle (
                       {player.representative_group || "Tüm Takım"}):
                     </div>
@@ -376,19 +417,20 @@ export function PlayerQrTab({
                               {tp.full_name} ({tp.age_group})
                             </span>
                             {ok ? (
-                              <span className="text-[var(--status-success-text)] font-extrabold">
-                                Geldi
+                              <span className="k-etiket k-etiket--basari">
+                                ✓ Geldi
                               </span>
                             ) : (
-                              <button
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
                                 type="button"
                                 onClick={() =>
                                   markTeammatePresent(sess.id, tp.id)
                                 }
-                                className="px-2.5 py-1 rounded-lg bg-[var(--brand-navy)] text-white font-bold cursor-pointer"
+                                className="k-buton k-buton--lacivert !py-1 !px-2.5 !text-xs"
                               >
                                 Geldi İşaretle
-                              </button>
+                              </motion.button>
                             )}
                           </div>
                         );

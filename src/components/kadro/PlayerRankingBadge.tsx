@@ -39,7 +39,9 @@ export function PlayerRankingBadge({
     (async () => {
       const { data } = await supabase
         .from("players")
-        .select("id, full_name, age_group, photo_url, skill_points, pace, shooting, passing, dribbling, defending, physical");
+        .select(
+          "id, full_name, age_group, photo_url, skill_points, pace, shooting, passing, dribbling, defending, physical"
+        );
       if (active && data) setPlayers(data as PlayerRow[]);
     })();
 
@@ -73,21 +75,22 @@ export function PlayerRankingBadge({
   return (
     <div className="space-y-4 tabular-nums">
       {!showFullLeaderboard && (
-        <div className="rounded-2xl bg-gradient-to-r from-[var(--brand-navy)] to-[var(--brand-red)] text-white p-4 flex items-center justify-between gap-4 shadow-xs">
+        <div className="k-sahne text-white rounded-3xl p-5 flex items-center justify-between gap-4 shadow-md">
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-amber-200 font-extrabold">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-amber-200 font-black">
               Kulüp Ortak Sıralaması
             </div>
-            <div className="text-xl font-black mt-0.5">
+            <div className="k-posta text-2xl text-white mt-0.5">
               #{myRankInfo.rank}{" "}
-              <span className="text-xs font-semibold text-slate-200">
+              <span className="text-xs font-sans font-semibold text-slate-200">
                 / {myRankInfo.totalPlayers} sporcu
               </span>
             </div>
           </div>
           <div className="text-right">
             <div className="text-base font-black text-amber-300">
-              {myRankInfo.overall_points} OVR • Toplam: {myRankInfo.total_earned_points ?? 0}p
+              {myRankInfo.overall_points} OVR • Toplam:{" "}
+              {myRankInfo.total_earned_points ?? 0}p
             </div>
             <div className="text-[11px] font-bold text-slate-200">
               {myRankInfo.age_group}

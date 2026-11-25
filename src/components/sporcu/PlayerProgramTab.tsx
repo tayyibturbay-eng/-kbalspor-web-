@@ -1,4 +1,3 @@
-// PlayerProgramTab.tsx
 import { TaskAssignment, Training } from "@/types/club";
 
 interface PlayerProgramTabProps {
@@ -15,11 +14,15 @@ function buildMapsUrl(location?: string | null): string {
 
 export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
   return (
-    <div className="grid md:grid-cols-2 gap-6">
-      <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-3 shadow-xs">
-        <h2 className="text-lg font-black text-[var(--text-primary)]">
-          Antrenman Programım
-        </h2>
+    <div className="grid md:grid-cols-2 gap-6 tabular-nums">
+      <div className="k-artik p-6 space-y-3.5">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">HAFTALIK İDMAN</span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Antrenman Programım
+          </h2>
+        </div>
+
         {trainings.length === 0 ? (
           <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center space-y-1">
             <p className="text-sm font-extrabold text-[var(--text-primary)]">
@@ -33,31 +36,33 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
           trainings.map((t) => (
             <div
               key={t.id}
-              className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-1"
+              className="k-kart p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-1.5"
             >
-              <div className="font-extrabold text-[var(--text-primary)]">
+              <div className="font-extrabold text-sm text-[var(--text-primary)]">
                 {t.title}
               </div>
-              <div className="text-xs text-[var(--text-secondary)] tabular-nums">
+              <div className="text-xs font-semibold text-[var(--text-secondary)]">
                 {t.training_type === "duzenli" ? t.day_of_week : t.training_date}{" "}
                 • {t.start_time}
                 {t.end_time ? ` - ${t.end_time}` : ""}
               </div>
               {t.coach_name && (
-                <div className="text-xs font-bold text-[var(--brand-ink)]">
-                  Antrenör: {t.coach_name}
+                <div>
+                  <span className="k-etiket k-etiket--lacivert">
+                    Antrenör: {t.coach_name}
+                  </span>
                 </div>
               )}
               {t.location && (
-                <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center justify-between gap-2">
+                <div className="text-xs text-[var(--text-secondary)] flex flex-wrap items-center justify-between gap-2 pt-0.5">
                   <span>Saha: {t.location}</span>
                   <a
                     href={buildMapsUrl(t.location)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[var(--brand-ink)] font-bold underline"
+                    className="k-altcizgi text-[var(--brand-ink)] font-extrabold"
                   >
-                    Haritada Aç
+                    Haritada Aç →
                   </a>
                 </div>
               )}
@@ -66,10 +71,16 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
         )}
       </div>
 
-      <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-3 shadow-xs">
-        <h2 className="text-lg font-black text-[var(--brand-red)]">
-          Maç &amp; Görev Takvimi
-        </h2>
+      <div className="k-artik p-6 space-y-3.5">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] text-[var(--brand-red)] block">
+            FİKSTÜR &amp; GÖREVLER
+          </span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--brand-red)]">
+            Maç &amp; Görev Takvimi
+          </h2>
+        </div>
+
         {tasks.length === 0 ? (
           <div className="rounded-2xl bg-[var(--bg-subtle)] border border-dashed border-[var(--border-strong)] p-6 text-center space-y-1">
             <p className="text-sm font-extrabold text-[var(--text-primary)]">
@@ -83,12 +94,12 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
           tasks.map((task) => (
             <div
               key={task.id}
-              className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-1"
+              className="k-kart p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-1.5"
             >
-              <div className="font-extrabold text-[var(--text-primary)]">
+              <div className="font-extrabold text-sm text-[var(--text-primary)]">
                 {task.title}
               </div>
-              <div className="text-xs text-[var(--text-secondary)] tabular-nums">
+              <div className="text-xs font-semibold text-[var(--text-secondary)]">
                 {task.event_date}{" "}
                 {task.match_time ? `• ${task.match_time}` : ""}
               </div>
@@ -99,16 +110,16 @@ export function PlayerProgramTab({ trainings, tasks }: PlayerProgramTabProps) {
                     href={buildMapsUrl(task.location)}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[var(--brand-ink)] font-bold underline"
+                    className="k-altcizgi text-[var(--brand-ink)] font-extrabold"
                   >
-                    Haritada Aç
+                    Haritada Aç →
                   </a>
                 )}
               </div>
               {task.has_shuttle && (
-                <span className="inline-block px-2 py-0.5 rounded-full bg-[var(--status-info-bg)] text-[var(--status-info-text)] text-[11px] font-bold">
-                  Servis Var
-                </span>
+                <div className="pt-0.5">
+                  <span className="k-etiket k-etiket--bilgi">Servis Var</span>
+                </div>
               )}
             </div>
           ))

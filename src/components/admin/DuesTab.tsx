@@ -1,592 +1,393 @@
-// DuesTab.tsx
 "use client";
 
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { AGE_GROUPS, Due, Player } from "@/types/club";
-import { DUE_MONTHS, cleanWaPhone, sendPushViaApi } from "@/lib/club-utils";
+import { EASE, SPRING } from "@/lib/motion";
 
 const supabase = createClient();
 
 interface DuesTabProps {
-  adminName: string;
+  adminName?: string;
   players: Player[];
-  dues: Due[];
-  setDues: React.Dispatch<React.SetStateAction<Due[]>>;
-  monthlyFee: string;
-  setMonthlyFee: (val: string) => void;
-  onFeedback: (msg: string) => void;
-  onLogActivity: (action: string, details: string) => Promise<void>;
+  dues?: Due[];
+  setDues?: React.Dispatch<React.SetStateAction<Due[]>>;
+  monthlyFee?: string;
+  setMonthlyFee?: React.Dispatch<React.SetStateAction<string>>;
+  onAddPayment?: (payload: {
+    player_id: string;
+    amount: number;
+    payment_date: string;
+    note?: string;
+  }) => Promise<void> | void;
+  onSendReminder?: (
+    targetGroup: string,
+    message: string
+  ) => Promise<void> | void;
+  onFeedback?: (msg: string) => void;
+  onLogActivity?: (action: string, details: string) => Promise<void> | void;
+  onRefreshDues?: () => Promise<void> | void;
 }
 
 export function DuesTab({
   adminName,
   players,
-  dues,
+  dues = [],
   setDues,
   monthlyFee,
-  setMonthlyFee,
+  onAddPayment,
+  onSendReminder,
   onFeedback,
   onLogActivity,
+  onRefreshDues,
 }: DuesTabProps) {
-  const defaultMonth = DUE_MONTHS[0] || "Kasım 2026";
-  const [selectedDueMonth, setSelectedDueMonth] = useState(defaultMonth);
-  const [dueGroupFilter, setDueGroupFilter] = useState("Tümü");
-  const [feeWaMsg, setFeeWaMsg] = useState<string | null>(null);
-  const [manualPayGroup, setManualPayGroup] = useState("Tümü");
-  const [manualPayPlayerId, setManualPayPlayerId] = useState("");
-  const [manualPayMonth, setManualPayMonth] = useState(defaultMonth);
-  const [manualPayAmount, setManualPayAmount] = useState(monthlyFee);
-  const [pastDueMonth, setPastDueMonth] = useState(defaultMonth);
-  const [pastDueCustomNote, setPastDueCustomNote] = useState("");
+  const azaltilmis = useReducedMotion();
 
-  const playersByGroupForSelect = useMemo(() => {
-    const groups =
-      manualPayGroup === "Tümü"
-        ? AGE_GROUPS
-        : AGE_GROUPS.filter((g) => g === manualPayGroup);
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>(
+    players[0]?.id || ""
+  );
+  const [amount, setAmount] = useState<string>(monthlyFee || "500");
+  const [paymentDate, setPaymentDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10)
+  );
+  const [note, setNote] = useState<string>("");
+  const [savingPayment, setSavingPayment] = useState<boolean>(false);
 
-    const grouped: Array<{ group: string; items: Player[] }> = groups
-      .map((g) => ({
-        group: String(g),
-        items: players.filter((p) => p.age_group === g),
-      }))
-      .filter((x) => x.items.length > 0);
+  const [reminderGroup, setReminderGroup] = useState<string>("Tümü");
+  const [reminderText, setReminderText] = useState<string>(
+    "Değerli velimiz/sporcunun bilgisine; aylık aidat ödemelerinizi en kısa sürede güncelleyebilirsiniz."
+  );
+  const [sendingReminder, setSendingReminder] = useState<boolean>(false);
 
-    const knownGroups = new Set<string>(AGE_GROUPS as unknown as string[]);
-    const otherPlayers = players.filter((p) => !knownGroups.has(p.age_group));
-    if (manualPayGroup === "Tümü" && otherPlayers.length > 0) {
-      grouped.push({ group: "Diğer", items: otherPlayers });
+  const groupedPlayers = useMemo(() => {
+    const map = new Map<string, Player[]>();
+    for (const g of AGE_GROUPS) map.set(g, []);
+    for (const p of players) {
+      const grp = p.age_group || "Diğer";
+      const list = map.get(grp) || [];
+      list.push(p);
+      map.set(grp, list);
     }
+    return Array.from(map.entries()).filter(([, list]) => list.length > 0);
+  }, [players]);
 
-    return grouped;
-  }, [players, manualPayGroup]);
-
-  const groupedMonthlyDues = useMemo(() => {
-    const monthDuesMap = new Map<string, Due>();
-    dues
-      .filter((d) => d.month_label === selectedDueMonth)
-      .forEach((d) => monthDuesMap.set(d.player_id, d));
-
-    return AGE_GROUPS.filter(
-      (g) => dueGroupFilter === "Tümü" || dueGroupFilter === g
-    )
-      .map((g) => {
-        const groupPlayers = players.filter((p) => p.age_group === g);
-        const rows = groupPlayers
-          .map((p) => {
-            const due = monthDuesMap.get(p.id);
-            const isPaid = Boolean(
-              due && (due.status === "Ödendi" || due.status === "paid")
-            );
-            return { player: p, due, isPaid };
-          })
-          .sort((a, b) => Number(a.isPaid) - Number(b.isPaid));
-        const paidCount = rows.filter((r) => r.isPaid).length;
-        const paidTotal = rows.reduce(
-          (sum, r) =>
-            sum + (r.isPaid ? Number(r.due?.amount || monthlyFee) : 0),
-          0
-        );
-        return { group: g, rows, paidCount, paidTotal };
-      })
-      .filter((x) => x.rows.length > 0);
-  }, [dues, players, selectedDueMonth, dueGroupFilter, monthlyFee]);
-
-  const pastUnpaidPlayers = useMemo(() => {
-    const pastDuePaidIds = new Set(
-      dues
-        .filter(
-          (d) =>
-            d.month_label === pastDueMonth &&
-            (d.status === "Ödendi" || d.status === "paid")
-        )
-        .map((d) => d.player_id)
-    );
-    return players.filter((p) => !pastDuePaidIds.has(p.id));
-  }, [dues, players, pastDueMonth]);
-
-  async function updateMonthlyFee() {
-    const feeNum = Number(monthlyFee);
-    if (isNaN(feeNum) || feeNum <= 0) {
-      onFeedback("Geçerli bir aidat tutarı girin.");
-      return;
+  const paidPlayerIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of dues) {
+      const record = d as Due & { player_id?: string; status?: string };
+      if (
+        record.player_id &&
+        (String(record.status || "").toLowerCase() === "ödendi" ||
+          String(record.status || "").toLowerCase() === "paid" ||
+          String(record.status || "").toLowerCase() === "güncel")
+      ) {
+        set.add(record.player_id);
+      }
     }
-    const { error: setErr } = await supabase
-      .from("club_settings")
-      .upsert(
-        { key: "monthly_fee", value: String(feeNum) },
-        { onConflict: "key" }
+    return set;
+  }, [dues]);
+
+  const summaryStats = useMemo(() => {
+    const totalCount = players.length;
+    const paidCount = players.filter((p) => {
+      const pDue = p as Player & { due_status?: string | null };
+      return (
+        paidPlayerIds.has(p.id) ||
+        String(pDue.due_status || "").toLowerCase() === "ödendi" ||
+        String(pDue.due_status || "").toLowerCase() === "güncel"
       );
-
-    if (setErr) {
-      onFeedback("Aidat ücreti kaydedilemedi: " + setErr.message);
-      return;
-    }
-
-    const msg = `AİDAT ÜCRETİ GÜNCELLEMESİ\nDeğerli velilerimiz ve sporcularımız, Çorum İkbal Spor Kulübü aylık kulüp aidat ücreti ${feeNum} TL olarak güncellenmiştir.`;
-    await supabase.from("club_messages").insert({
-      body: msg,
-      message_text: msg,
-      age_group: "Tüm Kulüp",
-      sender_name: adminName || "Yönetici",
-      created_at: new Date().toISOString(),
-    });
-
-    await onLogActivity(
-      "Aidat Ücreti Güncelleme",
-      `Aylık aidat ücreti ${feeNum} TL yapıldı ve duyuru gönderildi.`
+    }).length;
+    const pendingCount = Math.max(0, totalCount - paidCount);
+    const totalCollected = dues.reduce(
+      (sum, d) => sum + Number((d as Due & { amount?: number }).amount || 0),
+      0
     );
-    setFeeWaMsg(msg);
-    setManualPayAmount(String(feeNum));
-    onFeedback(
-      `Aidat ücreti ${feeNum} TL olarak güncellendi ve bildirim yayınlandı.`
-    );
-  }
+    return { totalCount, paidCount, pendingCount, totalCollected };
+  }, [players, dues, paidPlayerIds]);
 
-  async function handleManualDuePayment(e: React.FormEvent) {
+  async function handlePaymentSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const target = players.find((p) => p.id === manualPayPlayerId);
-    if (!target) {
-      onFeedback("Lütfen ödeme yapan oyuncuyu seçin.");
-      return;
-    }
-    const amountNum = Number(manualPayAmount) || Number(monthlyFee) || 500;
-    const existing = dues.find(
-      (d) => d.player_id === target.id && d.month_label === manualPayMonth
-    );
+    const pid = selectedPlayerId || players[0]?.id;
+    const numAmount = Number(amount);
+    if (!pid || !numAmount || numAmount <= 0 || savingPayment) return;
 
-    if (existing) {
-      const { error } = await supabase
-        .from("dues")
-        .update({
-          status: "Ödendi",
-          amount: amountNum,
-          paid_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
+    setSavingPayment(true);
+    try {
+      if (onAddPayment) {
+        await onAddPayment({
+          player_id: pid,
+          amount: numAmount,
+          payment_date: paymentDate,
+          note: note.trim() || undefined,
+        });
+      } else {
+        const { data, error } = await supabase
+          .from("dues")
+          .insert({
+            player_id: pid,
+            amount: numAmount,
+            payment_date: paymentDate,
+            status: "Ödendi",
+            note: note.trim() || null,
+            created_by: adminName || "Yönetici",
+          })
+          .select("*")
+          .single();
 
-      if (error) {
-        onFeedback("Aidat güncellenemedi: " + error.message);
-        return;
+        if (error) {
+          onFeedback?.("Ödeme kaydedilemedi: " + error.message);
+          return;
+        }
+        if (data && setDues) {
+          setDues((prev) => [data as Due, ...prev]);
+        }
+        await onLogActivity?.(
+          "Aidat Ödemesi",
+          `${numAmount} TL ödeme kaydedildi (${paymentDate}).`
+        );
+        onFeedback?.("Aidat ödemesi kaydedildi.");
       }
-      setDues((prev) =>
-        prev.map((d) =>
-          d.id === existing.id
-            ? { ...d, status: "Ödendi", amount: amountNum }
-            : d
-        )
-      );
-    } else {
-      const { data, error } = await supabase
-        .from("dues")
-        .insert({
-          player_id: target.id,
-          month_label: manualPayMonth,
-          amount: amountNum,
-          status: "Ödendi",
-          paid_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
 
-      if (error) {
-        onFeedback("Aidat kaydedilemedi: " + error.message);
-        return;
-      }
-      if (data) setDues((prev) => [data as Due, ...prev]);
-    }
-
-    await onLogActivity(
-      "Aidat Tahsilatı",
-      `${target.full_name} — ${manualPayMonth} (${amountNum} TL) Ödendi`
-    );
-    setSelectedDueMonth(manualPayMonth);
-    onFeedback(
-      `${target.full_name} için ${manualPayMonth} ödemesi (${amountNum} TL) Ödendi olarak kaydedildi.`
-    );
-    setManualPayPlayerId("");
-  }
-
-  async function togglePlayerMonthDue(player: Player, existingDue?: Due) {
-    const feeNum = Number(monthlyFee) || 500;
-    if (!existingDue) {
-      const { data, error } = await supabase
-        .from("dues")
-        .insert({
-          player_id: player.id,
-          month_label: selectedDueMonth,
-          amount: feeNum,
-          status: "Ödendi",
-          paid_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) {
-        onFeedback("Aidat güncellenemedi: " + error.message);
-        return;
-      }
-      if (data) setDues((prev) => [data as Due, ...prev]);
-      await onLogActivity(
-        "Aidat Tahsilatı",
-        `${player.full_name} — ${selectedDueMonth} (${feeNum} TL) Ödendi`
-      );
-      onFeedback(
-        `${player.full_name} (${selectedDueMonth}) Ödendi olarak işaretlendi.`
-      );
-    } else {
-      const isPaid =
-        existingDue.status === "Ödendi" || existingDue.status === "paid";
-      const nextStatus = isPaid ? "Bekleniyor" : "Ödendi";
-      const nextAmount = existingDue.amount || feeNum;
-
-      const { error } = await supabase
-        .from("dues")
-        .update({
-          status: nextStatus,
-          amount: nextAmount,
-          paid_at: nextStatus === "Ödendi" ? new Date().toISOString() : null,
-        })
-        .eq("id", existingDue.id);
-
-      if (error) {
-        onFeedback("Aidat güncellenemedi: " + error.message);
-        return;
-      }
-      setDues((prev) =>
-        prev.map((d) =>
-          d.id === existingDue.id
-            ? { ...d, status: nextStatus, amount: nextAmount }
-            : d
-        )
-      );
-      await onLogActivity(
-        "Aidat Güncelleme",
-        `${player.full_name} — ${selectedDueMonth} -> ${nextStatus}`
-      );
-      onFeedback(
-        `${player.full_name} (${selectedDueMonth}) durumu: ${nextStatus}`
-      );
+      setNote("");
+      await onRefreshDues?.();
+    } finally {
+      setSavingPayment(false);
     }
   }
 
-  async function sendBulkPastDueNotification() {
-    if (pastUnpaidPlayers.length === 0) {
-      onFeedback(`${pastDueMonth} için ödemesi kalan oyuncu bulunmuyor.`);
-      return;
+  async function handleReminderSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!reminderText.trim() || sendingReminder) return;
+    setSendingReminder(true);
+    try {
+      if (onSendReminder) {
+        await onSendReminder(reminderGroup, reminderText.trim());
+      } else {
+        await supabase.from("club_messages").insert({
+          body: `AİDAT HATIRLATMA (${reminderGroup})\n${reminderText.trim()}`,
+          message_text: `AİDAT HATIRLATMA (${reminderGroup})\n${reminderText.trim()}`,
+          age_group: reminderGroup,
+          sender_name: adminName || "Yönetici",
+          created_at: new Date().toISOString(),
+        });
+        await onLogActivity?.(
+          "Aidat Hatırlatması",
+          `${reminderGroup} grubuna hatırlatma gönderildi.`
+        );
+        onFeedback?.("Aidat hatırlatması gönderildi.");
+      }
+    } finally {
+      setSendingReminder(false);
     }
-    const bodyText =
-      pastDueCustomNote.trim() ||
-      `AİDAT HATIRLATMA (${pastDueMonth})\nSayın velilerimiz ve sporcularımız, ${pastDueMonth} dönemine ait kulüp aidat ödemesini henüz gerçekleştirmeyen sporcularımızın ödemelerini en kısa sürede tamamlamalarını rica ederiz.`;
-
-    const { error } = await supabase.from("club_messages").insert({
-      body: bodyText,
-      message_text: bodyText,
-      age_group: "Tümü",
-      sender_name: adminName || "Yönetici",
-      created_at: new Date().toISOString(),
-    });
-
-    if (error) {
-      onFeedback("Bildirim gönderilemedi: " + error.message);
-      return;
-    }
-
-    const pushRes = await sendPushViaApi(
-      ["Tümü"],
-      `${pastDueMonth} Aidat Hatırlatması`,
-      bodyText
-    );
-    await onLogActivity(
-      "Toplu Aidat Hatırlatma",
-      `${pastDueMonth} dönemi için ödemesi kalan ${pastUnpaidPlayers.length} sporcuya kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz).`
-    );
-    onFeedback(
-      `${pastDueMonth} ödemesi kalan ${pastUnpaidPlayers.length} sporcu için toplu kulüp bildirimi gönderildi (${pushRes.sentCount} cihaz).`
-    );
   }
+
+  const statCards = [
+    {
+      label: "Güncel / Ödeyen",
+      value: `${summaryStats.paidCount} Sporcu`,
+      tone: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    },
+    {
+      label: "Bekleyen Aidat",
+      value: `${summaryStats.pendingCount} Sporcu`,
+      tone: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    },
+    {
+      label: "Toplam Kayıtlı Tahsilat",
+      value: `${summaryStats.totalCollected.toLocaleString("tr-TR")} TL`,
+      tone: "border-[var(--brand-navy)]/30 bg-[var(--brand-navy-soft)] text-[var(--brand-ink)]",
+    },
+  ];
 
   return (
-    <div className="space-y-6 text-[var(--text-primary)] tabular-nums">
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="font-black text-[var(--text-primary)]">
-            Aylık Aidat Ücreti &amp; Dönem Seçimi
+    <div className="flex flex-col space-y-6 text-[var(--text-primary)] tabular-nums min-w-0">
+      {/* 1. Ödeme Ekle (Her zaman üstte) */}
+      <form
+        onSubmit={handlePaymentSubmit}
+        className="order-1 k-artik p-4 sm:p-6 space-y-4 min-w-0"
+      >
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">AİDAT TAHSİLATI</span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Ödeme Ekle
           </h2>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Kasım 2026 itibarıyla her yeni ayda 3 ay sonrası otomatik açılır;
-            ödemeyenler her zaman en üstte gösterilir.
-          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-[var(--text-secondary)]">
-            Güncel Ücret (TL):
-          </span>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <select
+            value={selectedPlayerId || players[0]?.id || ""}
+            onChange={(e) => setSelectedPlayerId(e.target.value)}
+            className="k-alan font-bold min-h-[42px]"
+          >
+            {players.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.full_name} ({p.age_group})
+              </option>
+            ))}
+          </select>
+
           <input
             type="number"
-            value={monthlyFee}
-            onChange={(e) => setMonthlyFee(e.target.value)}
-            className="w-24 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm font-bold"
-          />
-          <button
-            type="button"
-            onClick={updateMonthlyFee}
-            className="bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
-          >
-            Ücreti Güncelle &amp; Bildir
-          </button>
-        </div>
-      </div>
-
-      {feeWaMsg && (
-        <div className="bg-[var(--status-success-bg)]/65 border border-[var(--status-success-text)]/30 p-4 rounded-2xl flex flex-wrap justify-between items-center gap-3">
-          <span className="text-xs text-[var(--status-success-text)] font-bold">
-            {feeWaMsg}
-          </span>
-          <a
-            href={`https://wa.me/?text=${encodeURIComponent(feeWaMsg)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2 rounded-xl"
-          >
-            WhatsApp Grubunda Paylaş
-          </a>
-        </div>
-      )}
-
-      <form
-        onSubmit={handleManualDuePayment}
-        className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-3"
-      >
-        <h3 className="font-black text-[var(--text-primary)] text-sm">
-          Ödeme Ekle (Grup, Kişi, Ay ve Verilen Tutarı Seç)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <select
-            value={manualPayGroup}
-            onChange={(e) => {
-              setManualPayGroup(e.target.value);
-              setManualPayPlayerId("");
-            }}
-            className="border border-[var(--border-strong)] rounded-xl px-3 py-2 text-sm font-bold text-[var(--text-primary)] bg-[var(--bg-subtle)]"
-          >
-            <option value="Tümü">Tüm Gruplar</option>
-            {AGE_GROUPS.map((g) => (
-              <option key={g} value={g}>
-                {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
-              </option>
-            ))}
-          </select>
-          <select
+            min={1}
             required
-            value={manualPayPlayerId}
-            onChange={(e) => setManualPayPlayerId(e.target.value)}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm md:col-span-2"
-          >
-            <option value="">-- Ödeme Yapan Oyuncuyu Seç --</option>
-            {playersByGroupForSelect.map(({ group, items }) => (
-              <optgroup
-                key={group}
-                label={group === "Çorum Süper Amatör Ligi" ? "SAL" : group}
-              >
-                {items.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.full_name} ({p.age_group})
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          <select
-            value={manualPayMonth}
-            onChange={(e) => setManualPayMonth(e.target.value)}
-            className="border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-3 py-2 text-sm"
-          >
-            {DUE_MONTHS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <input
-              type="number"
-              required
-              placeholder="Tutar (TL)"
-              value={manualPayAmount}
-              onChange={(e) => setManualPayAmount(e.target.value)}
-              className="w-24 border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-[var(--text-primary)] rounded-xl px-2.5 py-2 text-sm font-bold"
-            />
-            <button
-              type="submit"
-              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl px-3 py-2 text-xs sm:text-sm cursor-pointer"
-            >
-              Kaydet
-            </button>
-          </div>
-        </div>
-      </form>
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="Tutar (TL)"
+            className="k-alan font-black min-h-[42px]"
+          />
 
-      <div className="bg-[var(--status-warning-bg)]/45 border border-amber-400/50 p-5 rounded-2xl space-y-3">
-        <div className="flex flex-wrap justify-between items-center gap-3">
-          <div>
-            <h3 className="font-black text-[var(--text-primary)] text-sm">
-              Geçmiş Aydan Ödemesi Kalanlara Toplu Bildirim &amp; Mesaj
-            </h3>
-            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-              <strong>{pastDueMonth}</strong> döneminde ödemesi henüz alınmamış{" "}
-              <strong>{pastUnpaidPlayers.length} sporcu</strong> bulunuyor.
-            </p>
-          </div>
-          <select
-            value={pastDueMonth}
-            onChange={(e) => setPastDueMonth(e.target.value)}
-            className="border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl px-3 py-1.5 text-xs font-bold"
-          >
-            {DUE_MONTHS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <textarea
-          rows={2}
-          value={pastDueCustomNote}
-          onChange={(e) => setPastDueCustomNote(e.target.value)}
-          placeholder={`Özel mesaj yaz (boş bırakırsan ${pastDueMonth} için otomatik aidat hatırlatma metni gönderilir)`}
-          className="w-full border border-[var(--border-strong)] bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] rounded-xl px-3 py-2 text-xs"
-        />
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={sendBulkPastDueNotification}
-            className="bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold px-4 py-2.5 rounded-xl cursor-pointer transition"
-          >
-            Ödemeyenlere Toplu Kulüp Bildirimi Gönder (
-            {pastUnpaidPlayers.length})
-          </button>
-          <a
-            href={`https://wa.me/?text=${encodeURIComponent(
-              pastDueCustomNote.trim() ||
-                `${pastDueMonth} Aidat Hatırlatması: Henüz ödemesini yapmayan sporcularımızın/velilerimizin aidatlarını tamamlamasını rica ederiz.`
-            )}`}
-            target="_blank"
-            rel="noreferrer"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl"
-          >
-            WhatsApp Grubunda Hatırlat
-          </a>
-        </div>
-      </div>
-
-      <div className="bg-[var(--bg-surface)] p-5 rounded-2xl shadow-xs border border-[var(--border-subtle)] space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {DUE_MONTHS.map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setSelectedDueMonth(m)}
-                className={`px-4 py-2 rounded-xl text-xs font-extrabold border cursor-pointer transition ${
-                  selectedDueMonth === m
-                    ? "bg-[var(--brand-red)] text-white border-[var(--brand-red)]"
-                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {["Tümü", ...AGE_GROUPS].map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => setDueGroupFilter(g)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold border cursor-pointer ${
-                  dueGroupFilter === g
-                    ? "bg-[var(--brand-navy)] text-white border-[var(--brand-navy)]"
-                    : "bg-[var(--bg-subtle)] text-[var(--text-secondary)] border-[var(--border-subtle)]"
-                }`}
-              >
-                {g === "Çorum Süper Amatör Ligi" ? "SAL" : g}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {groupedMonthlyDues.map(({ group, rows, paidCount, paidTotal }) => (
-          <div
-            key={group}
-            className="border border-[var(--border-subtle)] rounded-xl overflow-hidden"
-          >
-            <div className="bg-[var(--brand-navy)] text-white px-4 py-2 text-sm font-bold flex flex-wrap justify-between gap-2">
-              <span>
-                {group} — {selectedDueMonth}
-              </span>
-              <span>
-                Ödeyen: {paidCount} / {rows.length} • Toplanan: {paidTotal} TL
+          <div className="min-w-0">
+            <div className="flex items-center justify-between text-[10px] font-extrabold text-[var(--text-secondary)] mb-1">
+              <span>Ödeme Tarihi</span>
+              <span className="font-mono text-[var(--brand-ink)]">
+                gg.aa.yyyy
               </span>
             </div>
+            <input
+              type="date"
+              required
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              className="k-alan font-bold min-h-[42px]"
+            />
+          </div>
+
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Açıklama / Ay (Ops.)"
+            className="k-alan font-semibold min-h-[42px]"
+          />
+        </div>
+
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          type="submit"
+          disabled={savingPayment}
+          className="k-buton k-buton--lacivert w-full sm:w-auto min-h-[42px] !px-6 !py-2.5 text-xs sm:text-sm"
+        >
+          {savingPayment ? "Kaydediliyor..." : "+ Ödeme Ekle"}
+        </motion.button>
+      </form>
+
+      {/* Animasyonlu Kutucuklar: Masaüstünde üst kısımda (order-2 md:order-2), Mobilde Hatırlatma Merkezinin hemen üstünde (order-3 md:order-2) */}
+      <div className="order-3 md:order-2 grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
+        {statCards.map((card, i) => (
+          <motion.div
+            key={card.label}
+            initial={azaltilmis ? false : { opacity: 0, y: 12, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{
+              ...SPRING.yumusak,
+              delay: azaltilmis ? 0 : i * 0.06,
+              ease: EASE.yumusak,
+            }}
+            whileHover={azaltilmis ? undefined : { y: -2 }}
+            className={`k-artik p-4 border rounded-2xl space-y-1 transition ${card.tone}`}
+          >
+            <div className="k-koz text-[10px] opacity-90">{card.label}</div>
+            <div className="k-posta text-lg sm:text-xl font-black">
+              {card.value}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Kategori Bazlı Sporcular: Masaüstünde ortada (order-3 md:order-3), Mobilde kutucukların altında/üstünde akışa uyumlu */}
+      <div className="order-2 md:order-3 space-y-4 min-w-0">
+        {groupedPlayers.map(([groupName, groupList]) => (
+          <section
+            key={groupName}
+            className="k-artik p-4 sm:p-5 space-y-3 min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="k-posta text-base sm:text-lg text-[var(--text-primary)]">
+                {groupName}
+              </h3>
+              <span className="k-etiket k-etiket--lacivert shrink-0">
+                {groupList.length} Sporcu
+              </span>
+            </div>
+
             <div className="divide-y divide-[var(--border-subtle)]">
-              {rows.map(({ player, due, isPaid }) => {
-                const waPhone = cleanWaPhone(player.parent_phone);
+              {groupList.map((p) => {
+                const pDue = p as Player & { due_status?: string | null };
+                const isPaid =
+                  paidPlayerIds.has(p.id) ||
+                  String(pDue.due_status || "").toLowerCase() === "ödendi" ||
+                  String(pDue.due_status || "").toLowerCase() === "güncel";
+
                 return (
                   <div
-                    key={player.id}
-                    className={`px-4 py-2.5 flex flex-wrap justify-between items-center gap-2 text-sm ${
-                      !isPaid
-                        ? "bg-[var(--status-warning-bg)]/35"
-                        : "bg-[var(--bg-surface)]"
-                    }`}
+                    key={p.id}
+                    className="py-2.5 flex items-center justify-between gap-2 text-xs sm:text-sm min-w-0"
                   >
-                    <div>
-                      <strong className="text-[var(--text-primary)]">
-                        {player.full_name}
-                      </strong>{" "}
-                      <span className="text-xs text-[var(--text-muted)]">
-                        ({due?.amount || monthlyFee} TL)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!isPaid && waPhone && (
-                        <a
-                          href={`https://wa.me/${waPhone}?text=${encodeURIComponent(
-                            `Merhaba, ${player.full_name} için ${selectedDueMonth} kulüp aidatı (${monthlyFee} TL) beklenmektedir. Bilginize sunarız.`
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="bg-[var(--bg-surface)] border border-emerald-500/40 text-[var(--status-success-text)] text-xs font-bold px-2.5 py-1 rounded-lg"
-                        >
-                          WP Hatırlat
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => togglePlayerMonthDue(player, due)}
-                        className={`px-3 py-1 rounded-lg text-xs font-extrabold cursor-pointer ${
-                          isPaid
-                            ? "bg-emerald-600 text-white"
-                            : "bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]"
-                        }`}
-                      >
-                        {isPaid
-                          ? `Ödendi (${due?.amount || monthlyFee} TL)`
-                          : "Bekleniyor (Ödendi Yap)"}
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlayerId(p.id)}
+                      className="font-bold text-left text-[var(--text-primary)] truncate cursor-pointer hover:underline"
+                    >
+                      {p.full_name}
+                    </button>
+                    <span
+                      className={`k-etiket shrink-0 ${
+                        isPaid ? "k-etiket--lacivert" : "k-etiket--uyari"
+                      }`}
+                    >
+                      {isPaid ? "Güncel" : pDue.due_status || "Beklemede"}
+                    </span>
                   </div>
                 );
               })}
             </div>
-          </div>
+          </section>
         ))}
       </div>
+
+      {/* 4. Hatırlatma Merkezi (En altta, mobilde animasyonlu kutucukların hemen altında) */}
+      <form
+        onSubmit={handleReminderSubmit}
+        className="order-4 k-artik p-4 sm:p-6 space-y-3.5 min-w-0"
+      >
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">BİLDİRİM &amp; UYARI</span>
+          <h3 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Hatırlatma Merkezi
+          </h3>
+        </div>
+
+        <select
+          value={reminderGroup}
+          onChange={(e) => setReminderGroup(e.target.value)}
+          className="k-alan font-bold min-h-[42px]"
+        >
+          <option value="Tümü">Tüm Yaş Grupları</option>
+          {AGE_GROUPS.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+
+        <textarea
+          rows={3}
+          value={reminderText}
+          onChange={(e) => setReminderText(e.target.value)}
+          className="k-alan text-xs sm:text-sm font-medium"
+          placeholder="Aidat hatırlatma mesajını yazın..."
+        />
+
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          type="submit"
+          disabled={sendingReminder}
+          className="k-buton k-buton--kirmizi w-full sm:w-auto min-h-[42px] !px-6 !py-2.5 text-xs sm:text-sm"
+        >
+          {sendingReminder ? "Gönderiliyor..." : "Hatırlatma Gönder"}
+        </motion.button>
+      </form>
     </div>
   );
 }

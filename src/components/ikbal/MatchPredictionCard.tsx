@@ -2,8 +2,10 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
+import { EASE } from "@/lib/motion";
 
 const supabase = createClient();
 
@@ -95,6 +97,9 @@ export function MatchPredictionCard({
   const [homeScore, setHomeScore] = useState<string>("1");
   const [awayScore, setAwayScore] = useState<string>("0");
   const [firstScorer, setFirstScorer] = useState<string>("");
+  const [extraScorerIds, setExtraScorerIds] = useState<string[]>([]);
+  const [showExtraSearch, setShowExtraSearch] = useState<boolean>(false);
+  const [extraSearchQuery, setExtraSearchQuery] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(0);
@@ -195,39 +200,45 @@ export function MatchPredictionCard({
     [selectedMatch, nowMs]
   );
 
-  // SSR/client ilk render'ı aynı ("guest") kalmalı, yoksa hydration
-  // uyarısı oluşur. Prop değişimi render sırasında, localStorage okuması
-  // zamanlayıcı içinde yapılır (kod tabanındaki yerleşik desen).
-  const [effectivePlayerId, setEffectivePlayerId] = useState("guest");
-  const [oncekiPropId, setOncekiPropId] = useState<string | null>(
-    playerId ?? null
+  const [effectivePlayerId, setEffectivePlayerId] = useState<string>(
+    playerId && playerId.trim() ? playerId.trim() : "guest"
   );
-  if ((playerId ?? null) !== oncekiPropId) {
-    setOncekiPropId(playerId ?? null);
-    if (playerId) setEffectivePlayerId(playerId);
-  }
+
   useEffect(() => {
-    if (playerId) return;
-    const timer = window.setTimeout(() => {
-      try {
-        const stored = localStorage.getItem("ikbal_logged_player_id");
-        setEffectivePlayerId(stored && stored.trim() ? stored : "guest");
-      } catch {
+    if (playerId && playerId.trim()) {
+      setEffectivePlayerId(playerId.trim());
+      return;
+    }
+    try {
+      const stored =
+        localStorage.getItem("ikbal_logged_player_id") ||
+        localStorage.getItem("ikbal_player_id") ||
+        "";
+      if (stored.trim()) {
+        setEffectivePlayerId(stored.trim());
+      } else {
         setEffectivePlayerId("guest");
       }
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setEffectivePlayerId("guest");
+    }
   }, [playerId]);
+
+  const isPlayerAuthenticated = Boolean(
+    (playerId && playerId.trim()) ||
+      (effectivePlayerId && effectivePlayerId !== "guest")
+  );
 
   const groupScorerOptions = useMemo(() => {
     const targetGroup = selectedMatch?.age_group || playerAgeGroup || "";
-    const filtered =
+    const baseFiltered =
       !targetGroup || targetGroup === "Genel" || targetGroup === "Tümü"
         ? players
         : players.filter(
             (p) =>
               p.age_group === targetGroup ||
-              p.secondary_age_group === targetGroup
+              p.secondary_age_group === targetGroup ||
+              extraScorerIds.includes(p.id)
           );
 
     const scoredMatchSet = new Set<string>();
@@ -250,7 +261,7 @@ export function MatchPredictionCard({
     const isEarlySeason = scoredMatchSet.size < 2;
     const refNow = nowMs;
 
-    return filtered.map((p) => {
+    return baseFiltered.map((p) => {
       if (!refNow || isEarlySeason) {
         return { ...p, multiplier: 1 as 1 | 2 | 3 };
       }
@@ -270,7 +281,35 @@ export function MatchPredictionCard({
       }
       return { ...p, multiplier: mult };
     });
-  }, [players, predictions, selectedMatch, playerAgeGroup, nowMs]);
+  }, [
+    players,
+    predictions,
+    selectedMatch,
+    playerAgeGroup,
+    nowMs,
+    extraScorerIds,
+  ]);
+
+  const searchedOutsidePlayers = useMemo(() => {
+    const q = extraSearchQuery.trim().toLocaleLowerCase("tr-TR");
+    const existingIds = new Set(groupScorerOptions.map((p) => p.id));
+    const candidates = players.filter((p) => !existingIds.has(p.id));
+    if (!q) return candidates.slice(0, 8);
+    return candidates
+      .filter(
+        (p) =>
+          p.full_name.toLocaleLowerCase("tr-TR").includes(q) ||
+          (p.age_group || "").toLocaleLowerCase("tr-TR").includes(q)
+      )
+      .slice(0, 8);
+  }, [players, groupScorerOptions, extraSearchQuery]);
+
+  function handlePickExtraScorer(pl: SquadPlayerRow) {
+    setExtraScorerIds((prev) => (prev.includes(pl.id) ? prev : [...prev, pl.id]));
+    setFirstScorer(pl.full_name);
+    setExtraSearchQuery("");
+    setShowExtraSearch(false);
+  }
 
   const selectedScorerMult = useMemo(() => {
     if (!firstScorer) return 1;
@@ -292,53 +331,78 @@ export function MatchPredictionCard({
     if (lockedByTime) {
       setFeedback({
         ok: false,
-        text: "Maç saati geldiği için bu maçın tahmin ekranı kilitlendi.",
+        text: "Maç saati geldiği için tahmin girişi kilitlendi.",
       });
       return;
     }
 
     const hNum = Math.max(0, Math.min(30, parseInt(homeScore, 10) || 0));
     const aNum = Math.max(0, Math.min(30, parseInt(awayScore, 10) || 0));
+    const cleanScorer = firstScorer.trim() || null;
+    const multVal = cleanScorer ? selectedScorerMult : 1;
+    const createdAt = new Date().toISOString();
+    const tempId = `temp-pred-${Date.now()}`;
+    const snapshot = predictions;
 
-    setSaving(true);
-    const { error } = await supabase.from("match_predictions").insert({
+    const optimisticPred: PredictionRecord = {
+      id: tempId,
       player_id: effectivePlayerId,
       age_group: selectedMatch.age_group || playerAgeGroup || "Genel",
       match_title: selectedMatch.title,
       home_score: hNum,
       away_score: aNum,
-      first_scorer_name: firstScorer.trim() || null,
-      scorer_multiplier: firstScorer.trim() ? selectedScorerMult : 1,
+      first_scorer_name: cleanScorer,
+      scorer_multiplier: multVal,
       awarded_points: 10,
       reward_claimed: false,
-      created_at: new Date().toISOString(),
-    });
-    setSaving(false);
+      created_at: createdAt,
+    };
 
-    if (error) {
-      setFeedback({
-        ok: false,
-        text: "Tahmin kaydedilemedi: " + error.message,
-      });
-      return;
-    }
-
+    setSaving(true);
+    setPredictions((prev) => [optimisticPred, ...prev]);
+    setFirstScorer("");
     setFeedback({
       ok: true,
       text: `"${selectedMatch.title}" için ${hNum}-${aNum} skor tahmininiz kaydedildi.`,
     });
-    setFirstScorer("");
+
+    const { error } = await supabase.from("match_predictions").insert({
+      player_id: optimisticPred.player_id,
+      age_group: optimisticPred.age_group,
+      match_title: optimisticPred.match_title,
+      home_score: hNum,
+      away_score: aNum,
+      first_scorer_name: cleanScorer,
+      scorer_multiplier: multVal,
+      awarded_points: 10,
+      reward_claimed: false,
+      created_at: createdAt,
+    });
+    setSaving(false);
+
+    if (error) {
+      setPredictions(snapshot);
+      setFeedback({
+        ok: false,
+        text: "Tahmin kaydedilemedi, geri alındı: " + error.message,
+      });
+      return;
+    }
+
     await loadData();
   }
 
   async function handleClaimReward(pred: PredictionRecord) {
     if (pred.reward_claimed) return;
     const rewardPts = Number(pred.awarded_points ?? 10);
+    const snapshot = predictions;
+
     setClaimingId(pred.id);
     setFeedback(null);
+    setPredictions((prev) =>
+      prev.map((x) => (x.id === pred.id ? { ...x, reward_claimed: true } : x))
+    );
 
-    // Koşullu güncelleme: yalnızca "henüz alınmamış" kayıt işaretlenir.
-    // 0 satır dönerse ödül başka bir sekme/cihazdan çoktan aktarılmıştır.
     const { data: claimRows, error: updPredErr } = await supabase
       .from("match_predictions")
       .update({ reward_claimed: true })
@@ -347,10 +411,11 @@ export function MatchPredictionCard({
       .select("id");
 
     if (updPredErr) {
+      setPredictions(snapshot);
       setClaimingId(null);
       setFeedback({
         ok: false,
-        text: "Ödül güncellenemedi: " + updPredErr.message,
+        text: "Ödül güncellenemedi, geri alındı: " + updPredErr.message,
       });
       return;
     }
@@ -393,15 +458,15 @@ export function MatchPredictionCard({
         .eq("id", pred.player_id);
 
       if (ptsErr) {
-        // Puanlar işlenemedi: talep işaretini geri al ki kullanıcı tekrar denesin.
         await supabase
           .from("match_predictions")
           .update({ reward_claimed: false })
           .eq("id", pred.id);
+        setPredictions(snapshot);
         setClaimingId(null);
         setFeedback({
           ok: false,
-          text: "Puanlar karta işlenemedi: " + ptsErr.message,
+          text: "Puanlar karta işlenemedi, geri alındı: " + ptsErr.message,
         });
         return;
       }
@@ -417,13 +482,13 @@ export function MatchPredictionCard({
   }
 
   return (
-    <section className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-5 sm:p-6 shadow-xs space-y-5 text-[var(--text-primary)] tabular-nums">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <span className="text-[11px] font-black uppercase tracking-wider text-[var(--brand-red)]">
+    <section className="k-artik p-4 sm:p-6 space-y-5 text-[var(--text-primary)] tabular-nums min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-2 min-w-0">
+        <div className="space-y-0.5 min-w-0 flex-1">
+          <span className="k-koz text-[10px] text-[var(--brand-red)] block">
             Çorum İkbal Spor Kulübü • Tüm Yaş Grupları Açık
           </span>
-          <h2 className="text-lg font-black text-[var(--text-primary)]">
+          <h2 className="k-posta text-lg sm:text-2xl text-[var(--text-primary)] break-words">
             Maç Skor &amp; Golcü Tahmini
           </h2>
           <p className="text-xs text-[var(--text-secondary)]">
@@ -431,8 +496,8 @@ export function MatchPredictionCard({
             ekrandan sonra ödül puanınızı kartınıza aktarabilirsiniz.
           </p>
         </div>
-        <span className="px-3 py-1 rounded-full bg-[var(--brand-navy-soft)] text-[var(--brand-ink)] text-xs font-extrabold">
-          Aktif Maç: {activeMatches.length} • Geçmiş: {pastMatches.length}
+        <span className="k-etiket k-etiket--lacivert shrink-0">
+          Aktif: {activeMatches.length} • Geçmiş: {pastMatches.length}
         </span>
       </div>
 
@@ -441,11 +506,11 @@ export function MatchPredictionCard({
           e.preventDefault();
           void handleSavePrediction();
         }}
-        className="space-y-4"
+        className="space-y-4 min-w-0"
       >
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 min-w-0">
+          <div className="col-span-2 min-w-0">
+            <label className="k-koz text-[10px] block mb-1.5">
               Maç Seçimi (Tüm Yaş Grupları)
             </label>
             <select
@@ -454,7 +519,7 @@ export function MatchPredictionCard({
                 setSelectedMatchId(e.target.value);
                 setFirstScorer("");
               }}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[var(--text-primary)]"
+              className="k-alan font-bold min-h-[42px]"
             >
               {activeMatches.length === 0 ? (
                 <option value="">Şu an 24 saat içinde aktif maç yok</option>
@@ -470,8 +535,8 @@ export function MatchPredictionCard({
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+          <div className="min-w-0">
+            <label className="k-koz text-[10px] block mb-1.5 truncate">
               İkbal Spor Skor
             </label>
             <input
@@ -481,12 +546,12 @@ export function MatchPredictionCard({
               disabled={lockedByTime || !selectedMatch}
               value={homeScore}
               onChange={(e) => setHomeScore(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-black text-center text-[var(--text-primary)] disabled:opacity-50"
+              className="k-alan font-black text-center text-base min-h-[42px]"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-[var(--text-secondary)] mb-1">
+          <div className="min-w-0">
+            <label className="k-koz text-[10px] block mb-1.5 truncate">
               Rakip Skor
             </label>
             <input
@@ -496,21 +561,21 @@ export function MatchPredictionCard({
               disabled={lockedByTime || !selectedMatch}
               value={awayScore}
               onChange={(e) => setAwayScore(e.target.value)}
-              className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] px-3.5 py-2.5 text-sm font-black text-center text-[var(--text-primary)] disabled:opacity-50"
+              className="k-alan font-black text-center text-base min-h-[42px]"
             />
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2.5 min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="block text-xs font-bold text-[var(--text-secondary)]">
+            <label className="k-koz text-[10px]">
               İlk Golü Kim Atar? ({selectedMatch?.age_group || "Kadro"} Oyuncuları &amp; Çarpanlar)
             </label>
             {firstScorer && (
               <button
                 type="button"
                 onClick={() => setFirstScorer("")}
-                className="text-[11px] font-bold text-[var(--brand-red)] hover:underline cursor-pointer"
+                className="text-[11px] font-extrabold text-[var(--brand-red)] hover:underline cursor-pointer"
               >
                 Seçimi Temizle ({firstScorer} • {selectedScorerMult}x)
               </button>
@@ -518,7 +583,7 @@ export function MatchPredictionCard({
           </div>
 
           {groupScorerOptions.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-subtle)] p-3 text-xs text-[var(--text-secondary)]">
+            <div className="rounded-2xl border border-dashed border-[var(--border-strong)] bg-[var(--bg-subtle)] p-3 text-xs text-[var(--text-secondary)]">
               Bu yaş grubunda kayıtlı oyuncu bulunamadı.
             </div>
           ) : (
@@ -526,25 +591,26 @@ export function MatchPredictionCard({
               {groupScorerOptions.map((pl) => {
                 const selected = firstScorer === pl.full_name;
                 return (
-                  <button
+                  <motion.button
+                    whileTap={{ scale: 0.96 }}
                     key={pl.id}
                     type="button"
                     disabled={lockedByTime || !selectedMatch}
                     onClick={() =>
                       setFirstScorer(selected ? "" : pl.full_name)
                     }
-                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-extrabold transition cursor-pointer disabled:opacity-50 ${
+                    className={`inline-flex items-center gap-2 min-h-[38px] px-3 py-2 rounded-xl border text-xs font-extrabold transition cursor-pointer disabled:opacity-50 max-w-full ${
                       selected
                         ? "bg-[var(--brand-red)] border-[var(--brand-red)] text-white shadow-xs"
                         : "bg-[var(--bg-subtle)] border-[var(--border-strong)] text-[var(--text-primary)] hover:border-[var(--brand-navy)]"
                     }`}
                   >
-                    <span>
+                    <span className="truncate">
                       {pl.jersey_number ? `#${pl.jersey_number} ` : ""}
                       {pl.full_name}
                     </span>
                     <span
-                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                      className={`px-1.5 py-0.5 rounded-md text-[10px] font-black shrink-0 ${
                         selected
                           ? "bg-white/20 text-white"
                           : pl.multiplier === 3
@@ -556,67 +622,139 @@ export function MatchPredictionCard({
                     >
                       {pl.multiplier}x
                     </span>
-                  </button>
+                  </motion.button>
                 );
               })}
             </div>
           )}
+
+          <div className="pt-1">
+            <button
+              type="button"
+              disabled={lockedByTime || !selectedMatch}
+              onClick={() => setShowExtraSearch((prev) => !prev)}
+              className="k-buton k-buton--hayalet min-h-[38px] !py-1.5 !px-3 !text-xs"
+            >
+              <span className="inline-flex w-4 h-4 items-center justify-center rounded-full bg-[var(--brand-red)] text-white text-[11px] font-black leading-none">
+                +
+              </span>
+              <span>
+                {showExtraSearch
+                  ? "Arama Alanını Kapat"
+                  : "Listede Olmayan Oyuncu Ekle"}
+              </span>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {showExtraSearch && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2, ease: EASE.yumusak }}
+                  className="mt-2 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] p-3 space-y-2"
+                >
+                  <input
+                    type="text"
+                    value={extraSearchQuery}
+                    onChange={(e) => setExtraSearchQuery(e.target.value)}
+                    placeholder="Oyuncu adı veya yaş grubu ara..."
+                    className="k-alan text-xs sm:text-sm min-h-[40px]"
+                  />
+                  <div className="max-h-40 overflow-y-auto divide-y divide-[var(--border-subtle)]">
+                    {searchedOutsidePlayers.length === 0 ? (
+                      <div className="py-2 text-xs text-[var(--text-muted)]">
+                        Eşleşen başka oyuncu bulunamadı.
+                      </div>
+                    ) : (
+                      searchedOutsidePlayers.map((op) => (
+                        <div
+                          key={op.id}
+                          className="py-2 flex items-center justify-between gap-2 text-xs min-w-0"
+                        >
+                          <span className="font-bold text-[var(--text-primary)] truncate">
+                            {op.full_name}{" "}
+                            <span className="text-[var(--text-muted)]">
+                              ({op.age_group})
+                            </span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handlePickExtraScorer(op)}
+                            className="k-buton k-buton--kirmizi min-h-[32px] !py-1 !px-2.5 !text-[11px] shrink-0"
+                          >
+                            + Seç
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         {lockedByTime && (
-          <div className="p-3 rounded-xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold">
+          <div className="p-3.5 rounded-2xl bg-[var(--status-danger-bg)] text-[var(--status-danger-text)] text-xs font-extrabold">
             🔒 Maç saati geldiği için tahmin girişi kilitlendi.
           </div>
         )}
 
-        {feedback && (
-          <div
-            className={`p-3 rounded-xl text-xs font-bold ${
-              feedback.ok
-                ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
-                : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
-            }`}
-          >
-            {feedback.text}
-          </div>
-        )}
+        <AnimatePresence>
+          {feedback && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22, ease: EASE.yumusak }}
+              className={`p-3.5 rounded-2xl text-xs font-extrabold ${
+                feedback.ok
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-text)]"
+                  : "bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]"
+              }`}
+            >
+              {feedback.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {effectivePlayerId === "guest" ? (
+        {!isPlayerAuthenticated ? (
           <Link
             href="/sporcu"
-            className="block w-full py-3 rounded-2xl bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)] text-white text-center text-sm font-black transition shadow-xs"
+            className="k-buton k-buton--kirmizi w-full min-h-[44px] !py-3 !text-sm"
           >
             Tahmin için Sporcu Girişi Yapın
           </Link>
+        ) : lockedByTime ? (
+          <div className="w-full min-h-[44px] py-3.5 px-4 rounded-2xl bg-[var(--bg-subtle)] text-[var(--status-danger-text)] border border-[var(--status-danger-text)]/35 text-center text-xs sm:text-sm font-black">
+            🔒 Maç saati geldiği için tahmin girişi kilitlendi.
+          </div>
         ) : (
-          <button
+          <motion.button
+            whileTap={{ scale: 0.98 }}
             type="button"
             disabled={saving || !selectedMatch}
             onClick={() => {
               void handleSavePrediction();
             }}
-            className={`w-full py-3 rounded-2xl text-sm font-black transition cursor-pointer disabled:opacity-50 ${
-              lockedByTime
-                ? "bg-[var(--bg-subtle)] text-[var(--text-muted)] border border-[var(--border-strong)]"
-                : "text-white bg-[var(--brand-red)] hover:bg-[var(--brand-red-hover)]"
-            }`}
+            className="k-buton k-buton--kirmizi w-full min-h-[44px] !py-3.5 !text-sm"
           >
-            {saving
-              ? "Kaydediliyor..."
-              : lockedByTime
-              ? "🔒 Maç Saati Geldi — Tahmin Kilitli"
-              : "Skor & Golcü Tahminini Kaydet"}
-          </button>
+            {saving ? "Kaydediliyor..." : "Skor & Golcü Tahminini Kaydet"}
+          </motion.button>
         )}
       </form>
 
-      <div className="space-y-3 pt-2 border-t border-[var(--border-subtle)]">
-        <h3 className="text-sm font-black text-[var(--text-primary)]">
+      <div className="space-y-3 pt-3 border-t border-[var(--border-subtle)] min-w-0">
+        <span className="k-koz text-[10px] block">TAHMİN GEÇMİŞİ</span>
+        <h3 className="k-posta text-lg text-[var(--text-primary)]">
           Tahminlerim &amp; Ödül Aktarımı
         </h3>
         {predictions.filter(
           (p) =>
-            effectivePlayerId === "guest" || p.player_id === effectivePlayerId
+            !isPlayerAuthenticated ||
+            effectivePlayerId === "guest" ||
+            p.player_id === effectivePlayerId
         ).length === 0 ? (
           <p className="text-xs text-[var(--text-secondary)]">
             Henüz kayıtlı tahmin bulunmuyor.
@@ -626,6 +764,7 @@ export function MatchPredictionCard({
             {predictions
               .filter(
                 (p) =>
+                  !isPlayerAuthenticated ||
                   effectivePlayerId === "guest" ||
                   p.player_id === effectivePlayerId
               )
@@ -633,13 +772,13 @@ export function MatchPredictionCard({
               .map((pred) => (
                 <div
                   key={pred.id}
-                  className="p-3 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs"
+                  className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 text-xs min-w-0"
                 >
-                  <div>
-                    <div className="font-extrabold text-[var(--text-primary)]">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-extrabold text-[var(--text-primary)] break-words">
                       {pred.match_title} ({pred.home_score} - {pred.away_score})
                     </div>
-                    <div className="text-[var(--text-secondary)] mt-0.5">
+                    <div className="text-[var(--text-secondary)] mt-0.5 break-words">
                       {pred.age_group}
                       {pred.first_scorer_name
                         ? ` • Golcü: ${pred.first_scorer_name} (${Math.round(
@@ -651,12 +790,14 @@ export function MatchPredictionCard({
                   </div>
                   <button
                     type="button"
-                    disabled={Boolean(pred.reward_claimed) || claimingId === pred.id}
+                    disabled={
+                      Boolean(pred.reward_claimed) || claimingId === pred.id
+                    }
                     onClick={() => void handleClaimReward(pred)}
-                    className={`px-3.5 py-2 rounded-xl font-extrabold text-xs transition ${
+                    className={`min-h-[36px] px-3.5 py-2 rounded-xl font-extrabold text-xs transition shrink-0 ${
                       pred.reward_claimed
                         ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 cursor-default"
-                        : "bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white cursor-pointer"
+                        : "k-buton k-buton--lacivert !py-2 !px-3.5"
                     }`}
                   >
                     {pred.reward_claimed

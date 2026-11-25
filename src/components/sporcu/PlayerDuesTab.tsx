@@ -1,4 +1,3 @@
-// PlayerDuesTab.tsx
 "use client";
 
 import { useMemo } from "react";
@@ -22,19 +21,22 @@ export function PlayerDuesTab({ dueItems, overdueCount }: PlayerDuesTabProps) {
   }, [dueItems]);
 
   return (
-    <div className="bg-[var(--bg-surface)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-4 shadow-xs">
+    <div className="k-artik p-6 space-y-4 tabular-nums">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-black text-[var(--text-primary)]">
-          Aidat Durumum
-        </h2>
-        <div className="flex flex-wrap gap-2 text-xs font-extrabold tabular-nums">
-          <span className="px-2.5 py-1 rounded-full bg-[var(--status-success-bg)] text-[var(--status-success-text)]">
+        <div className="space-y-0.5">
+          <span className="k-koz text-[10px] block">ÖDEME TAKİBİ</span>
+          <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+            Aidat Durumum
+          </h2>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="k-etiket k-etiket--basari">
             Ödendi: {summary.paidCount}
           </span>
-          <span className="px-2.5 py-1 rounded-full bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]">
+          <span className="k-etiket k-etiket--uyari">
             Güncel: {summary.unpaidCount}
           </span>
-          <span className="px-2.5 py-1 rounded-full bg-[var(--status-danger-bg)] text-[var(--status-danger-text)]">
+          <span className="k-etiket k-etiket--tehlike">
             Gecikmiş: {overdueCount}
           </span>
         </div>
@@ -63,7 +65,7 @@ export function PlayerDuesTab({ dueItems, overdueCount }: PlayerDuesTabProps) {
               <div className="font-extrabold text-[var(--text-primary)]">
                 {item.monthLabel}
               </div>
-              <div className="text-xs text-[var(--text-secondary)] tabular-nums">
+              <div className="text-xs text-[var(--text-secondary)]">
                 {item.amount} TL
                 {item.state === "overdue" && " • Ödeme süresi geçti"}
                 {item.state === "unpaid" && " • Güncel dönem ödemesi"}
@@ -71,19 +73,13 @@ export function PlayerDuesTab({ dueItems, overdueCount }: PlayerDuesTabProps) {
             </div>
 
             {item.state === "paid" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--status-success-bg)] text-[var(--status-success-text)]">
-                Ödendi
-              </span>
+              <span className="k-etiket k-etiket--basari">✓ Ödendi</span>
             )}
             {item.state === "unpaid" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--status-warning-bg)] text-[var(--status-warning-text)]">
-                Ödenmedi
-              </span>
+              <span className="k-etiket k-etiket--uyari">Ödenmedi</span>
             )}
             {item.state === "overdue" && (
-              <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--status-danger-text)] text-white">
-                Gecikti
-              </span>
+              <span className="k-etiket k-etiket--tehlike">Gecikti</span>
             )}
             {item.state === "upcoming" && (
               <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[var(--bg-canvas)] text-[var(--text-secondary)] border border-[var(--border-subtle)]">

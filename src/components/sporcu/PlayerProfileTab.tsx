@@ -1,7 +1,7 @@
-// PlayerProfileTab.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
+import { motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import { Player } from "@/types/club";
 import { DueDisplayItem } from "./PlayerDuesTab";
@@ -44,23 +44,27 @@ export function PlayerProfileTab({
     null
   );
 
+  // Optimistic avatar güncelleme + rollback
   async function savePlayerPhoto(url: string | null, successText: string) {
     setPhotoMsg(null);
+    const prevPhoto = player.photo_url;
+    setPlayer({ ...player, photo_url: url });
+    window.dispatchEvent(new Event("ikbal-auth-changed"));
+    setPhotoMsg({ ok: true, text: successText });
+
     const { error } = await supabase
       .from("players")
       .update({ photo_url: url })
       .eq("id", player.id);
 
     if (error) {
+      setPlayer({ ...player, photo_url: prevPhoto });
+      window.dispatchEvent(new Event("ikbal-auth-changed"));
       setPhotoMsg({
         ok: false,
-        text: "Fotoğraf kaydedilemedi: " + error.message,
+        text: "Fotoğraf kaydedilemedi, geri alındı: " + error.message,
       });
-      return;
     }
-    setPlayer({ ...player, photo_url: url });
-    window.dispatchEvent(new Event("ikbal-auth-changed"));
-    setPhotoMsg({ ok: true, text: successText });
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -118,10 +122,13 @@ export function PlayerProfileTab({
   }
 
   return (
-    <div className="bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-3xl border border-[var(--border-subtle)] p-6 space-y-6 shadow-xs">
-      <h2 className="text-lg font-black text-[var(--text-primary)]">
-        Bilgilerim, Profil Fotoğrafı &amp; PIN
-      </h2>
+    <div className="k-artik p-6 space-y-6 text-[var(--text-primary)] tabular-nums">
+      <div className="space-y-0.5">
+        <span className="k-koz text-[10px] block">HESAP &amp; GÜVENLİK</span>
+        <h2 className="k-posta text-lg sm:text-xl text-[var(--text-primary)]">
+          Bilgilerim, Profil Fotoğrafı &amp; PIN
+        </h2>
+      </div>
 
       <div className="p-5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -151,7 +158,7 @@ export function PlayerProfileTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <label className="px-4 py-2.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-xs font-extrabold cursor-pointer transition">
+            <label className="k-buton k-buton--lacivert !py-2.5 !px-4 !text-xs">
               {photoUploading ? "Yükleniyor..." : "Fotoğraf Yükle"}
               <input
                 type="file"
@@ -167,7 +174,7 @@ export function PlayerProfileTab({
                 onClick={() =>
                   savePlayerPhoto(null, "Profil fotoğrafı kaldırıldı.")
                 }
-                className="px-3.5 py-2.5 rounded-xl bg-[var(--bg-surface)] hover:opacity-85 border border-[var(--border-strong)] text-[var(--text-primary)] text-xs font-bold cursor-pointer"
+                className="k-buton k-buton--hayalet !py-2.5 !px-3.5 !text-xs"
               >
                 Kaldır
               </button>
@@ -176,14 +183,15 @@ export function PlayerProfileTab({
         </div>
 
         <div>
-          <p className="text-xs font-bold text-[var(--text-secondary)] mb-2">
+          <p className="k-koz text-[10px] mb-2">
             Hazır Avatarlar (Tek tıkla seçin):
           </p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2.5">
             {PRESET_AVATARS.map((av) => {
               const selected = player.photo_url === av.url;
               return (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
                   key={av.id}
                   type="button"
                   onClick={() =>
@@ -203,7 +211,7 @@ export function PlayerProfileTab({
                   <span className="text-[11px] font-extrabold text-[var(--text-primary)]">
                     {av.label}
                   </span>
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -211,7 +219,7 @@ export function PlayerProfileTab({
 
         {photoMsg && (
           <div
-            className={`text-xs font-bold ${
+            className={`text-xs font-extrabold ${
               photoMsg.ok
                 ? "text-[var(--status-success-text)]"
                 : "text-[var(--status-danger-text)]"
@@ -223,28 +231,22 @@ export function PlayerProfileTab({
       </div>
 
       <div className="grid sm:grid-cols-3 gap-3 text-sm">
-        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
-            Ad Soyad
-          </span>
+        <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+          <span className="k-koz text-[10px] block mb-1">Ad Soyad</span>
           <span className="font-extrabold text-[var(--text-primary)]">
             {player.full_name}
           </span>
         </div>
-        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
-            Lisans No
-          </span>
+        <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+          <span className="k-koz text-[10px] block mb-1">Lisans No</span>
           <span className="font-extrabold text-[var(--text-primary)]">
             {player.license_no || "Belirtilmemiş"}
           </span>
         </div>
-        <div className="p-3.5 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
-          <span className="text-xs font-semibold text-[var(--text-secondary)] block">
-            Aidat Özeti
-          </span>
+        <div className="p-4 rounded-2xl bg-[var(--bg-subtle)] border border-[var(--border-subtle)]">
+          <span className="k-koz text-[10px] block mb-1">Aidat Özeti</span>
           {overdueCount > 0 ? (
-            <span className="font-extrabold text-[var(--status-danger-text)] tabular-nums">
+            <span className="font-extrabold text-[var(--status-danger-text)]">
               Gecikti ({overdueCount} ay)
             </span>
           ) : currentMonthItem?.state === "paid" ? (
@@ -260,7 +262,7 @@ export function PlayerProfileTab({
       </div>
 
       <form onSubmit={handlePinChange} className="space-y-3 max-w-sm">
-        <label className="block text-xs font-bold text-[var(--text-secondary)]">
+        <label className="k-koz text-[10px] block">
           Yeni PIN Belirle (En az 4 hane)
         </label>
         <div className="flex gap-2">
@@ -270,18 +272,19 @@ export function PlayerProfileTab({
             value={newPin}
             onChange={(e) => setNewPin(e.target.value)}
             placeholder="Yeni PIN..."
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-subtle)] text-sm font-medium text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-navy)]"
+            className="k-alan flex-1"
           />
-          <button
+          <motion.button
+            whileTap={{ scale: 0.96 }}
             type="submit"
-            className="px-4 py-2.5 rounded-xl bg-[var(--brand-navy)] hover:bg-[var(--brand-navy-hover)] text-white text-sm font-extrabold cursor-pointer"
+            className="k-buton k-buton--lacivert !px-5"
           >
             Güncelle
-          </button>
+          </motion.button>
         </div>
         {pinMsg && (
           <div
-            className={`text-xs font-bold ${
+            className={`text-xs font-extrabold ${
               pinMsg.ok
                 ? "text-[var(--status-success-text)]"
                 : "text-[var(--status-danger-text)]"
