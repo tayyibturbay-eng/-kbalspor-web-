@@ -54,7 +54,7 @@ function loadClubLogo(): Promise<HTMLImageElement | null> {
     img.crossOrigin = "anonymous";
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = "/logo.png";
+    img.src = "/logo-square.png";
   });
 }
 

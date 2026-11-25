@@ -85,7 +85,7 @@ export function AdminLogin({ onAdminSuccess, onCoachSuccess }: AdminLoginProps) 
       >
         <div className="flex flex-col items-center text-center space-y-1">
           <img
-            src="/logo.png"
+            src="/logo-square.png"
             alt="Çorum İkbal Spor Kulübü"
             className="w-16 h-16 object-contain rounded-2xl bg-white border border-[var(--border-subtle)] p-1.5 mb-2 shadow-xs"
           />

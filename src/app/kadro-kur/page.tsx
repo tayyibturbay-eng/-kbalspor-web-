@@ -399,7 +399,6 @@ export default function SquadBuilderPage() {
                       const isPicked = selectedSlotKey === slot.slotKey;
                       return (
                         <motion.div
-                          layout
                           whileHover={azaltilmis ? undefined : { y: -3, scale: 1.03 }}
                           whileTap={azaltilmis ? undefined : { scale: 0.96 }}
                           transition={SPRING.keskin}

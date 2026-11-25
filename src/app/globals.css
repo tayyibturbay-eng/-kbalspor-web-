@@ -515,3 +515,50 @@ a:focus-visible,
     transform: translateX(100%);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SAHNE & BÖLÜM GİRİŞLERİ — GPU kompozitli, JS'siz (takılma düzeltmesi)
+   Yalnız transform + opacity animasyonu; kompozitör katmanında çalışır.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes kGirisi {
+  from {
+    opacity: 0;
+    transform: translateY(var(--k-g-y, 22px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Bölüm girişi (Vitrin / SiraOgesi / Metrik) */
+.k-girisi {
+  animation: kGirisi 0.65s var(--ease-soft) both;
+  will-change: transform, opacity;
+}
+
+@supports (animation-timeline: view()) {
+  /* Destekleyen tarayıcıda (Chrome/Android, Safari 26+) eski whileInView
+     davranışı: ekranaltındaki içerik kaydırıldıkça canlanır, ekranda
+     zaten görünen içerik beklemeden görünür. */
+  .k-girisi {
+    animation-timeline: view();
+    animation-range: entry 0% entry 60%;
+    animation-delay: 0s;
+  }
+}
+
+/* Rota (sekme) girişi — template.tsx; tüm sayfayı tek katmanda yükseltir */
+.k-sahne-girisi {
+  animation: kGirisi 0.45s var(--ease-soft) both;
+  --k-g-y: 14px;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .k-girisi,
+  .k-sahne-girisi {
+    animation: none;
+  }
+}

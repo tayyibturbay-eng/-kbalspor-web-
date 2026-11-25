@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { sekmeGecis } from "@/lib/motion";
@@ -108,7 +108,7 @@ export default function AdminPage() {
   const [feedback, setFeedback] = useState("");
   const azaltilmis = useReducedMotion();
   // Sekme geçiş yönü: ileri/geri hissini korur (iOS swipe mantığı)
-  const yonRef = useRef(1);
+  const [yon, setYon] = useState(1);
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [requests, setRequests] = useState<MembershipRequest[]>([]);
@@ -159,10 +159,11 @@ export default function AdminPage() {
 
   function setTab(nextTab: AdminTab) {
     if (nextTab !== tab) {
-      yonRef.current =
+      setYon(
         VALID_ADMIN_TABS.indexOf(nextTab) >= VALID_ADMIN_TABS.indexOf(tab)
           ? 1
-          : -1;
+          : -1
+      );
     }
     setTabState(nextTab);
     try {
@@ -344,6 +345,9 @@ export default function AdminPage() {
     } catch {
       // depolama kısıtlıysa yoksay
     }
+    // Antrenör imzalı staff çerezini sunucuda düşür (en az 12 saat yaşayan
+    // httpOnly oturumun ömrünü çıkışta bitir).
+    fetch("/api/auth/pin-login", { method: "DELETE" }).catch(() => {});
     setRole("none");
     setAdminName("");
     setActiveCoach(null);
@@ -443,7 +447,7 @@ export default function AdminPage() {
               className="shrink-0 flex items-center gap-2 bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-xl border border-white/20 transition"
             >
               <img
-                src="/logo.png"
+                src="/logo-square.png"
                 alt="Çorum İkbal Spor Kulübü Ana Sayfa"
                 className="w-9 h-9 rounded-lg object-contain bg-white p-0.5"
               />
@@ -624,7 +628,7 @@ export default function AdminPage() {
         <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={tab}
-          variants={sekmeGecis(yonRef.current)}
+          variants={sekmeGecis(yon)}
           initial={azaltilmis ? false : "initial"}
           animate="animate"
           exit={azaltilmis ? undefined : "exit"}

@@ -1,22 +1,12 @@
-"use client";
-
-// Her rota değişiminde yeniden mount olur; içeriği perdeli bir sahne
-// girişiyle karşılar. Çıkış animasyonu SPA sekme geçişlerinde
-// (AnimatePresence) ayrıca ele alınır.
-
-import { motion, useReducedMotion } from "framer-motion";
-import { SAHNE } from "@/lib/motion";
+// Her rota değişiminde yeniden mount olur; sayfayı perdeli bir sahne
+// girişiyle karşılar. Animasyon bilinçli olarak saf CSS'tir (.k-sahne-girisi):
+// tüm sayfa ağacı JS-güdümlü framer animasyonuna girdiğinde sekme geçişleri
+// düşük güçlü telefonlarda kare kaybediyordu. Aynı görünüm, GPU kompozitörde.
 
 export default function RouteSahne({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const azaltilmis = useReducedMotion();
-  if (azaltilmis) return <>{children}</>;
-  return (
-    <motion.div initial="initial" animate="animate" variants={SAHNE}>
-      {children}
-    </motion.div>
-  );
+  return <div className="k-sahne-girisi">{children}</div>;
 }

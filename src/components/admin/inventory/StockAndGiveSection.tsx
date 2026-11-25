@@ -104,7 +104,7 @@ export function StockAndGiveSection({
   const [kitType, setKitType] = useState("İç Saha");
   const [jerseyQty, setJerseyQty] = useState("20");
   const [jerseyDefaultSize, setJerseyDefaultSize] = useState("M");
-  const [jerseyPhotoUrl, setJerseyPhotoUrl] = useState("/logo.png");
+  const [jerseyPhotoUrl, setJerseyPhotoUrl] = useState("/logo-square.png");
   const [creatingJersey, setCreatingJersey] = useState(false);
 
   // Yeni Diğer Malzeme Ekleme (Yağmurluk, eşofman takımı vb. + opsiyonel numara)
@@ -113,7 +113,7 @@ export function StockAndGiveSection({
   const [otherQty, setOtherQty] = useState("10");
   const [otherSize, setOtherSize] = useState("M");
   const [otherNumber, setOtherNumber] = useState("");
-  const [otherPhotoUrl, setOtherPhotoUrl] = useState("/logo.png");
+  const [otherPhotoUrl, setOtherPhotoUrl] = useState("/logo-square.png");
   const [creatingOther, setCreatingOther] = useState(false);
 
   // Beden / Numara / Durum Paneli (Forma veya diğer malzeme)
@@ -241,7 +241,7 @@ export function StockAndGiveSection({
         size_label: jerseyDefaultSize,
         total_count: qty,
         available_count: qty,
-        photo_url: jerseyPhotoUrl.trim() || "/logo.png",
+        photo_url: jerseyPhotoUrl.trim() || "/logo-square.png",
       })
       .select("*")
       .single();
@@ -293,7 +293,7 @@ export function StockAndGiveSection({
         size_label: otherSize,
         total_count: qty,
         available_count: qty,
-        photo_url: otherPhotoUrl.trim() || "/logo.png",
+        photo_url: otherPhotoUrl.trim() || "/logo-square.png",
       })
       .select("*")
       .single();
@@ -748,7 +748,7 @@ export function StockAndGiveSection({
               </div>
               <div className="flex items-center gap-2.5">
                 <img
-                  src={jerseyPhotoUrl || "/logo.png"}
+                  src={jerseyPhotoUrl || "/logo-square.png"}
                   alt="Forma kapak önizleme"
                   className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
                 />
@@ -811,7 +811,7 @@ export function StockAndGiveSection({
                   }`}
                 >
                   <img
-                    src={j.photo_url || "/logo.png"}
+                    src={j.photo_url || "/logo-square.png"}
                     alt={j.set_name}
                     className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
                   />
@@ -1042,7 +1042,7 @@ export function StockAndGiveSection({
               </div>
               <div className="flex items-center gap-2.5">
                 <img
-                  src={otherPhotoUrl || "/logo.png"}
+                  src={otherPhotoUrl || "/logo-square.png"}
                   alt="Malzeme kapak önizleme"
                   className="w-11 h-11 rounded-xl object-cover border border-[var(--border-subtle)] bg-white shrink-0"
                 />
@@ -1089,7 +1089,7 @@ export function StockAndGiveSection({
                   }`}
                 >
                   <img
-                    src={s.photo_url || "/logo.png"}
+                    src={s.photo_url || "/logo-square.png"}
                     alt={s.product_name}
                     className="w-12 h-12 rounded-xl object-cover bg-white border border-[var(--border-subtle)] shrink-0"
                   />

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
@@ -8,6 +8,33 @@ import { subscribeClubLiveUpdates } from "@/lib/realtime-club";
 import { EASE } from "@/lib/motion";
 
 const supabase = createClient();
+
+// Giriş yapmış sporcunun depolanan kimliği — sekmeler arası 'storage'
+// olaylarıyla canlı senkron; sunucu tarafında boş görünür (hidrasyon güvenli).
+function yerelSporcuKimligiOku(): string {
+  try {
+    return (
+      localStorage.getItem("ikbal_logged_player_id") ||
+      localStorage.getItem("ikbal_player_id") ||
+      ""
+    ).trim();
+  } catch {
+    return "";
+  }
+}
+function yerelKimlikAboneOl(cb: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const olay = () => cb();
+  window.addEventListener("storage", olay);
+  window.addEventListener("ikbal-auth-changed", olay);
+  return () => {
+    window.removeEventListener("storage", olay);
+    window.removeEventListener("ikbal-auth-changed", olay);
+  };
+}
+function useYerelSporcuKimligi(): string {
+  return useSyncExternalStore(yerelKimlikAboneOl, yerelSporcuKimligiOku, () => "");
+}
 
 interface MatchTaskRow {
   id: string;
@@ -200,29 +227,12 @@ export function MatchPredictionCard({
     [selectedMatch, nowMs]
   );
 
-  const [effectivePlayerId, setEffectivePlayerId] = useState<string>(
-    playerId && playerId.trim() ? playerId.trim() : "guest"
-  );
-
-  useEffect(() => {
-    if (playerId && playerId.trim()) {
-      setEffectivePlayerId(playerId.trim());
-      return;
-    }
-    try {
-      const stored =
-        localStorage.getItem("ikbal_logged_player_id") ||
-        localStorage.getItem("ikbal_player_id") ||
-        "";
-      if (stored.trim()) {
-        setEffectivePlayerId(stored.trim());
-      } else {
-        setEffectivePlayerId("guest");
-      }
-    } catch {
-      setEffectivePlayerId("guest");
-    }
-  }, [playerId]);
+  // Prop'tan gelen kimlik türetilir; depolamada tutulan giriş kimliği ise
+  // useSyncExternalStore ile okunur — hidrasyonda sunucu boş görür, client
+  // eşleşmeyi React'in kendisi çözer (efekt + setState zinciri gerekmez).
+  const propId = playerId && playerId.trim() ? playerId.trim() : "";
+  const depolananId = useYerelSporcuKimligi();
+  const effectivePlayerId = propId || depolananId || "guest";
 
   const isPlayerAuthenticated = Boolean(
     (playerId && playerId.trim()) ||

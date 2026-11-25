@@ -1,8 +1,14 @@
 "use client";
 
+// Bölüm girişleri artık saf CSS/GPU animasyonlarıdır (.k-girisi — globals.css).
+// Eski hâlde her Vitrin/Sira birer framer-motion düğümüydü; sekme değişiminde
+// onlarca JS animasyon aynı karede yarışıp telefonda takılma yaratıyordu.
+// Görünüm birebir aynıdır (posta eğrisi, 22px yükselme, kademeli gecikme),
+// iş ise tarayıcı kompozitöründedir: ana iş parçacığı rota geçişinde boştur.
+
 import React from "react";
-import { motion, useReducedMotion } from "framer-motion";
-import { EASE, SIRA, VITRIN, VITRIN_PORT } from "@/lib/motion";
+
+type GirisiStili = React.CSSProperties & { "--k-g-y"?: string };
 
 export function Vitrin({
   children,
@@ -15,18 +21,13 @@ export function Vitrin({
   delay?: number;
   y?: number;
 }) {
-  const azaltilmis = useReducedMotion();
-  if (azaltilmis) return <div className={className}>{children}</div>;
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={VITRIN_PORT}
-      transition={{ duration: 0.7, ease: EASE.posta, delay }}
+    <div
+      className={`k-girisi ${className ?? ""}`}
+      style={{ "--k-g-y": `${y}px`, animationDelay: `${delay}s` } as GirisiStili}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -37,34 +38,37 @@ export function Sira({
   children: React.ReactNode;
   className?: string;
 }) {
-  const azaltilmis = useReducedMotion();
-  if (azaltilmis) return <div className={className}>{children}</div>;
-  return (
-    <motion.div
-      className={className}
-      variants={SIRA}
-      initial="gizli"
-      whileInView="acik"
-      viewport={VITRIN_PORT}
-    >
-      {children}
-    </motion.div>
+  const ogeler = React.Children.map(children, (child, i) =>
+    React.isValidElement(child) && child.type === SiraOgesi
+      ? React.cloneElement(child as React.ReactElement<{ siraIndex?: number }>, {
+          siraIndex: i,
+        })
+      : child
   );
+  return <div className={className}>{ogeler}</div>;
 }
 
 export function SiraOgesi({
   children,
   className,
+  siraIndex = 0,
 }: {
   children: React.ReactNode;
   className?: string;
+  siraIndex?: number;
 }) {
-  const azaltilmis = useReducedMotion();
-  if (azaltilmis) return <div className={className}>{children}</div>;
   return (
-    <motion.div className={className} variants={VITRIN}>
+    <div
+      className={`k-girisi ${className ?? ""}`}
+      style={
+        {
+          "--k-g-y": "16px",
+          animationDelay: `${(0.05 + siraIndex * 0.075).toFixed(3)}s`,
+        } as GirisiStili
+      }
+    >
       {children}
-    </motion.div>
+    </div>
   );
 }
 
@@ -124,16 +128,12 @@ export function Metrik({
   children: React.ReactNode;
   className?: string;
 }) {
-  const azaltilmis = useReducedMotion();
-  if (azaltilmis) return <div className={className}>{children}</div>;
   return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.55, ease: EASE.posta }}
+    <div
+      className={`k-girisi ${className ?? ""}`}
+      style={{ "--k-g-y": "10px" } as GirisiStili}
     >
       {children}
-    </motion.div>
+    </div>
   );
 }

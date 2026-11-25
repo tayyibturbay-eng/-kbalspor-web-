@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Navbar } from "@/components/ikbal/Navbar";
 import { Iskelet, Metrik, Sira, SiraOgesi, Vitrin } from "@/components/ikbal/Motion";
@@ -86,7 +86,7 @@ export default function SporcuPage() {
   const [player, setPlayer] = useState<(Player & { skill_points?: number }) | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTabState] = useState<SporcuTab>("kartim");
-  const yonRef = useRef(1);
+  const [yon, setYon] = useState(1);
   const azaltilmis = useReducedMotion();
 
   const [dues, setDues] = useState<Due[]>([]);
@@ -102,10 +102,11 @@ export default function SporcuPage() {
 
   const setActiveTab = (next: SporcuTab) => {
     if (next !== activeTab) {
-      yonRef.current =
+      setYon(
         VALID_SPORCU_TABS.indexOf(next) >= VALID_SPORCU_TABS.indexOf(activeTab)
           ? 1
-          : -1;
+          : -1
+      );
     }
     setActiveTabState(next);
     try {
@@ -445,7 +446,7 @@ export default function SporcuPage() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={activeTab}
-            variants={sekmeGecis(yonRef.current)}
+            variants={sekmeGecis(yon)}
             initial={azaltilmis ? false : "initial"}
             animate="animate"
             exit={azaltilmis ? undefined : "exit"}

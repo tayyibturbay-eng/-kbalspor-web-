@@ -122,11 +122,9 @@ export default function HomePage() {
 
       <section className="k-sahne text-white py-14 sm:py-20 px-4 overflow-hidden">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center">
-          <motion.div
-            className="lg:col-span-8 space-y-5"
-            initial={azaltilmis ? false : { opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: EASE.posta, delay: 0.05 }}
+          <div
+            className="lg:col-span-8 space-y-5 k-girisi"
+            style={{ "--k-g-y": "24px", animationDelay: "0.05s" } as React.CSSProperties}
           >
             <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full k-cam--marka text-[11px] font-extrabold uppercase tracking-wider">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
@@ -142,11 +140,9 @@ export default function HomePage() {
               yoklama takibi, aidat/malzeme ekranları ve kulüp duyuruları tek
               merkezde.
             </p>
-            <motion.div
-              className="flex flex-wrap gap-3 pt-2"
-              initial={azaltilmis ? false : { opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, ease: EASE.posta, delay: 0.25 }}
+            <div
+              className="flex flex-wrap gap-3 pt-2 k-girisi"
+              style={{ "--k-g-y": "16px", animationDelay: "0.3s" } as React.CSSProperties}
             >
               <Link
                 href="/kadro-kur"
@@ -160,19 +156,17 @@ export default function HomePage() {
               >
                 Kulübe Ön Kayıt Ol
               </Link>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
 
-          <motion.div
-            className="lg:col-span-4"
-            initial={azaltilmis ? false : { opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.85, ease: EASE.posta, delay: 0.2 }}
+          <div
+            className="lg:col-span-4 k-girisi"
+            style={{ "--k-g-y": "32px", animationDelay: "0.2s" } as React.CSSProperties}
           >
             <div className="rounded-3xl k-cam--marka p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <img
-                  src="/logo.png"
+                  src="/logo-square.png"
                   alt="Çorum İkbal Spor Kulübü"
                   className="w-12 h-12 rounded-2xl bg-white object-cover border border-white/30"
                 />
@@ -200,7 +194,7 @@ export default function HomePage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -531,6 +525,12 @@ export default function HomePage() {
             </Link>
             <Link href="/iletisim" className="hover:underline">
               İletişim
+            </Link>
+            <Link href="/gizlilik-politikasi" className="hover:underline">
+              Gizlilik Politikası
+            </Link>
+            <Link href="/hesap-silme" className="hover:underline">
+              Hesap Silme
             </Link>
           </div>
           <div className="text-[11px] font-semibold">

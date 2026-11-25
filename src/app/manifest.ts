@@ -13,12 +13,12 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "tr",
     icons: [
       {
-        src: "/icon.png",
+        src: "/logo-square.png",
         sizes: "512x512",
         type: "image/png",
       },
       {
-        src: "/logo.png",
+        src: "/logo-square.png",
         sizes: "512x512",
         type: "image/png",
       },

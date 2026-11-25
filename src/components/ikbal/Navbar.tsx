@@ -83,7 +83,7 @@ export function Navbar() {
           onClick={() => setMobileOpen(false)}
         >
           <img
-            src="/logo.png"
+            src="/logo-square.png"
             alt="Çorum İkbal Spor Kulübü"
             className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover bg-white border border-white/25 shrink-0"
           />

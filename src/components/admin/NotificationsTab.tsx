@@ -8,7 +8,7 @@ import { sendPushViaApi } from "@/lib/club-utils";
 import { SPRING } from "@/lib/motion";
 
 const supabase = createClient();
-const DEFAULT_IMAGE_URL = "https://ikbalspor.com/logo.png";
+const DEFAULT_IMAGE_URL = "https://ikbalspor.com/logo-square.png";
 
 interface ClubMessageRow {
   id: string;
@@ -413,7 +413,7 @@ export function NotificationsTab({
               type="text"
               value={notifImageUrl}
               onChange={(e) => setNotifImageUrl(e.target.value)}
-              placeholder="https://ikbalspor.com/logo.png"
+              placeholder="https://ikbalspor.com/logo-square.png"
               className="k-alan !py-2 text-xs font-semibold"
             />
           </div>
@@ -466,6 +466,11 @@ export function NotificationsTab({
               placeholder="İsteğe bağlı özel ses dosyası linki (yükleyince otomatik oluşur)"
               className="k-alan !py-2 text-xs font-semibold"
             />
+            <p className="w-full text-[10px] font-semibold leading-snug text-[var(--text-muted)]">
+              Telefonlarda üstteki 4 kurumsal sesten seçilen çalınır (uygulamayla
+              paketlenmiştir). Bu alandaki link yalnızca tarayıcı önizlemesinde
+              dinlenir; görseller ise bildirime doğrudan eklenir.
+            </p>
           </div>
 
           <label className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary)] cursor-pointer">

@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { sinirla, sinirYaniti, istemciIp } from "@/lib/rate-limit";
+import { personeliDogrula } from "@/lib/staff-session";
+
+// SSRF koruması: sunucu yalnızca Çorum Amatör Futbol İl Temsilciliği'nin
+// (corumfit.org) kamuya açık fikstür sayfalarını çekebilir; rastgele/intranet
+// adresleri reddedilir.
+const İZİNLİ_HOSTLAR = new Set(["corumfit.org", "www.corumfit.org"]);
+
+function guvenliFiksturUrl(raw: string): URL | null {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!İZİNLİ_HOSTLAR.has(u.hostname.toLowerCase())) return null;
+  return u;
+}
+
+const MAKS_HTML_BAYT = 2_000_000; // ~2 MB
 
 const TR_MONTHS: Record<string, number> = {
   OCAK: 1,
@@ -275,16 +296,36 @@ async function fetchHtml(url: string): Promise<{ ok: true; html: string } | { ok
 
 export async function POST(req: NextRequest) {
   try {
+    // Yalnızca yetkili kulüp personeli senkron çalıştırabilir
+    const yetki = await personeliDogrula(req);
+    if (!yetki.ok) {
+      return NextResponse.json({ ok: false, error: yetki.hata }, { status: yetki.durum });
+    }
+
+    const sinir = sinirla(`senkron:${istemciIp(req)}`, 10, 60_000);
+    if (!sinir.izinli) {
+      return sinirYaniti(sinir, "Senkronizasyon geçici olarak sınırlandı. Az sonra tekrar deneyin.");
+    }
+
     const body = (await req.json().catch(() => ({}))) as {
       url?: string;
       html?: string;
     };
 
-    let htmlContent = typeof body.html === "string" ? body.html : "";
+    let htmlContent =
+      typeof body.html === "string" ? body.html.slice(0, MAKS_HTML_BAYT) : "";
     let targetUrl =
       typeof body.url === "string" && body.url.trim()
-        ? body.url.trim()
+        ? body.url.trim().slice(0, 500)
         : "https://corumfit.org/index.asp?id=hft_prg";
+
+    // SSRF: hedef adres yalnızca izinli fikstür alan adında olmalı
+    if (!guvenliFiksturUrl(targetUrl)) {
+      return NextResponse.json(
+        { ok: false, error: "Yalnızca corumfit.org fikstür adresiyle senkron yapılabilir." },
+        { status: 400 }
+      );
+    }
 
     if (!htmlContent.trim()) {
       const firstRes = await fetchHtml(targetUrl);
@@ -311,10 +352,13 @@ export async function POST(req: NextRequest) {
         const nextUrl = cleanHref.startsWith("http")
           ? cleanHref
           : `https://corumfit.org/${cleanHref}`;
-        const subRes = await fetchHtml(nextUrl);
-        if (subRes.ok) {
-          targetUrl = nextUrl;
-          upcomingMatches = extractMatchesFromHtml(subRes.html);
+        // Alt bağlantı da izinli alan adı kuralına uymak zorunda (SSRF)
+        if (guvenliFiksturUrl(nextUrl)) {
+          const subRes = await fetchHtml(nextUrl);
+          if (subRes.ok) {
+            targetUrl = nextUrl;
+            upcomingMatches = extractMatchesFromHtml(subRes.html);
+          }
         }
       }
     }

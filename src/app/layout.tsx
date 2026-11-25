@@ -45,9 +45,9 @@ export const metadata: Metadata = {
       "Çorum İkbal Spor Kulübü 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları ve duyurular.",
     images: [
       {
-        url: "/logo.png",
-        width: 512,
-        height: 512,
+        url: "/logo-square.png",
+        width: 1024,
+        height: 1024,
         alt: "Çorum İkbal Spor Kulübü Kulüp Logosu",
       },
     ],
@@ -57,12 +57,12 @@ export const metadata: Metadata = {
     title: "Çorum İkbal Spor Kulübü • Resmi Kulüp & Sporcu Platformu",
     description:
       "Çorum İkbal Spor Kulübü 2026–2027 sezonu kadro kurulumu, maç ve antrenman programı, sporcu kartları ve duyurular.",
-    images: ["/logo.png"],
+    images: ["/logo-square.png"],
   },
   icons: {
-    icon: "/logo.png",
-    shortcut: "/logo.png",
-    apple: "/logo.png",
+    icon: "/logo-square.png",
+    shortcut: "/logo-square.png",
+    apple: "/logo-square.png",
   },
 };
 

@@ -1,30 +1,46 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  checkRateLimit,
+  getClientIp,
+  sanitizeInput,
+} from "@/lib/security/rate-limit";
 
 export async function POST(req: Request) {
   try {
+    const ip = getClientIp(req);
     const body = await req.json();
     const role = body?.role === "coach" ? "coach" : "player";
-    const cleanCode = String(body?.code || "").trim().toUpperCase();
-    const cleanPin = String(body?.pin || "").trim();
-    const deviceId = String(body?.deviceId || "").trim();
+    const cleanCode = sanitizeInput(body?.code, 32).toUpperCase();
+    const cleanPin = sanitizeInput(body?.pin, 16);
+    const deviceId = sanitizeInput(body?.deviceId, 128);
 
-    if (!cleanCode || !cleanPin) {
+    const rl = checkRateLimit(
+      `pin:${ip}:${role}:${cleanCode || "empty"}`,
+      8,
+      10 * 60 * 1000
+    );
+    if (!rl.allowed) {
       return NextResponse.json(
-        { ok: false, error: "Kod ve şifre alanları zorunludur." },
+        {
+          ok: false,
+          error: `Çok fazla hatalı giriş denemesi. ${rl.retryAfterSec} saniye sonra tekrar deneyin.`,
+        },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSec) } }
+      );
+    }
+
+    if (!cleanCode || !cleanPin || !/^[A-Z0-9_-]{2,32}$/.test(cleanCode)) {
+      return NextResponse.json(
+        { ok: false, error: "Geçerli bir kod ve şifre giriniz." },
         { status: 400 }
       );
     }
 
     const supabase = createServerSupabaseClient();
-
     const { data: verified, error: rpcErr } = await supabase.rpc(
       "verify_pin_login_rpc",
-      {
-        p_role: role,
-        p_code: cleanCode,
-        p_pin: cleanPin,
-      }
+      { p_role: role, p_code: cleanCode, p_pin: cleanPin }
     );
 
     if (rpcErr) {
